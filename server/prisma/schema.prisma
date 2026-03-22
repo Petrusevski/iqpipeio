@@ -33,11 +33,17 @@ model Workspace {
   timezone            String  @default("Europe/Prague")
   industry            String  @default("SaaS") // for benchmarks
 
-  plan                String  @default("trial") // "trial" | "free" | "pro" | "enterprise"
+  plan                String  @default("trial") // "trial" | "free" | "starter" | "growth" | "agency"
   trialEndsAt         DateTime?
   seatsTotal          Int     @default(5)
   seatsUsed           Int     @default(1)
   billingEmail        String?
+
+  // ── Stripe billing ─────────────────────────────────────────────────────────
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  stripePriceId          String?
+  stripeCurrentPeriodEnd DateTime?
   revenuelaIdPrefix   String  @default("RVN-LEAD-")
   publicApiKey        String  @default("")
   webhookEndpoint     String  @default("")

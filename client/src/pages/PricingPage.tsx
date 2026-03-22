@@ -9,9 +9,11 @@ import {
   ShieldCheck,
   Zap,
   X,
+  Loader2,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { API_BASE_URL } from "../../config";
 
 const PRICING_TIERS = [
   {
@@ -128,8 +130,44 @@ const SECURITY_BADGES = [
   { icon: Shield, label: "SOC2 Type II ready" },
 ];
 
+async function startCheckout(planId: string, billing: "monthly" | "yearly") {
+  const token = localStorage.getItem("iqpipe_token");
+  if (!token) {
+    // Not logged in — send to signup with plan pre-selected
+    window.location.href = `/signup?plan=${planId}&billing=${billing}`;
+    return;
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/checkout/session`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body:    JSON.stringify({ planId, billing }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data?.error || "Could not start checkout. Please try again.");
+    return;
+  }
+
+  if (data.url) {
+    window.location.href = data.url; // redirect to Stripe-hosted checkout
+  }
+}
+
 export default function PricingPage() {
   const [isYearly, setIsYearly] = useState(true);
+  const [loading,  setLoading]  = useState<string | null>(null); // planId being processed
+
+  async function handleCTA(planId: string) {
+    setLoading(planId);
+    try {
+      await startCheckout(planId, isYearly ? "yearly" : "monthly");
+    } finally {
+      setLoading(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col font-sans selection:bg-indigo-500/30">
@@ -234,16 +272,20 @@ export default function PricingPage() {
                   )}
                 </div>
 
-                <a
-                  href={`/signup?plan=${tier.id}`}
-                  className={`w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 text-center block mb-7 ${
+                <button
+                  onClick={() => handleCTA(tier.id)}
+                  disabled={loading === tier.id}
+                  className={`w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 text-center flex items-center justify-center gap-2 mb-7 disabled:opacity-60 disabled:cursor-not-allowed ${
                     tier.popular
                       ? "bg-white text-slate-950 hover:bg-slate-100 shadow-lg shadow-indigo-500/10"
                       : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
                   }`}
                 >
-                  {tier.cta}
-                </a>
+                  {loading === tier.id
+                    ? <><Loader2 size={14} className="animate-spin" /> Opening checkout…</>
+                    : tier.cta
+                  }
+                </button>
 
                 {/* Features */}
                 <div className="space-y-3 flex-1">

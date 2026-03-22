@@ -30,6 +30,8 @@ import DemoPage                from "./pages/DemoPage";
 import GTMStackPage            from "./pages/GTMStackPage";
 import CareersPage             from "./pages/CareersPage";
 import PublicIntegrationsPage  from "./pages/PublicIntegrationsPage";
+import CheckoutSuccessPage     from "./pages/CheckoutSuccessPage";
+import CheckoutCancelPage      from "./pages/CheckoutCancelPage";
 
 function App() {
   const token = localStorage.getItem("iqpipe_token");
@@ -49,8 +51,10 @@ function App() {
         <Route path="/demo"        element={<DemoPage />} />
         <Route path="/gtm-stack"      element={<GTMStackPage />} />
         <Route path="/careers"        element={<CareersPage />} />
-        <Route path="/integrations"   element={<PublicIntegrationsPage />} />
-        <Route path="*"            element={<Navigate to="/" replace />} />
+        <Route path="/integrations"     element={<PublicIntegrationsPage />} />
+        <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+        <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
+        <Route path="*"                 element={<Navigate to="/" replace />} />
       </Routes>
     );
   }
@@ -72,6 +76,8 @@ function App() {
           <Route path="/automation-health" element={<AutomationHealthPage />} />
           <Route path="/integrations"  element={<IntegrationsPage />} />
           <Route path="/settings"      element={<SettingsPage />} />
+          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+          <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
           <Route path="/login"         element={<Navigate to="/feed" replace />} />
           <Route path="/signup"        element={<Navigate to="/feed" replace />} />
           <Route path="*"              element={<Navigate to="/feed" replace />} />

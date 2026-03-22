@@ -38,6 +38,7 @@ import proxyRouter          from "./routes/proxy";
 import n8nWorkflowsRouter  from "./routes/n8nWorkflows";
 import automationHealthRouter from "./routes/automationHealth";
 import n8nConnectRouter from "./routes/n8nConnect";
+import checkoutRouter from "./routes/checkout";
 
 const app = express();
 
@@ -60,7 +61,8 @@ app.use(cors({
 
 // ── Raw body for Stripe webhook signature verification ────────────────────
 // Must be registered BEFORE express.json() so Stripe gets the raw Buffer.
-app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
+app.use("/api/webhooks/stripe",  express.raw({ type: "application/json" }));
+app.use("/api/checkout/webhook", express.raw({ type: "application/json" }));
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -145,5 +147,6 @@ app.use("/api/proxy",          proxyRouter);
 app.use("/api/n8n",            n8nWorkflowsRouter);
 app.use("/api/automation-health", automationHealthRouter);
 app.use("/api/n8n-connect",   n8nConnectRouter);
+app.use("/api/checkout",      checkoutRouter);
 
 export default app;
