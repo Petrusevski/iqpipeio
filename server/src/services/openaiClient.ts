@@ -1,13 +1,14 @@
 // server/src/services/openaiClient.ts
-import "dotenv/config";
 import OpenAI from "openai";
 
-if (!process.env.OPENAI_API_KEY) {
-  console.warn(
-    "[Revenuela] Warning: OPENAI_API_KEY is not set. The AI agent will fail until it is configured."
-  );
+const apiKey = process.env.OPENAI_API_KEY;
+
+if (!apiKey) {
+  console.warn("[iqpipe] OPENAI_API_KEY is not set — AI assistant will be unavailable.");
 }
 
+// Pass a placeholder so the SDK doesn't throw at module load time.
+// Routes that use openai should check for the key before calling.
 export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!
+  apiKey: apiKey || "missing",
 });
