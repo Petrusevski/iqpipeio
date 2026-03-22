@@ -47,8 +47,14 @@ app.use(helmet({
 }));
 
 // ── CORS ──────────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  process.env.CLIENT_ORIGIN,
+  "http://localhost:5173",
+  /\.vercel\.app$/,
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
+  origin: allowedOrigins,
   credentials: true,
 }));
 
