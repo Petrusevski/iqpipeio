@@ -236,7 +236,7 @@ Headers:
             <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Response</p>
             <pre className="text-[11px] font-mono text-slate-300 bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-2.5 overflow-x-auto leading-relaxed">{`{
   "active": true,
-  "contact": { "id": "iq_4x9f2ma1", "displayName": "Sarah M." },
+  "contact": { "id": "iq_4x9f2ma1", "displayName": "S**** M." },
   "sequences": [
     { "tool": "heyreach", "toolLabel": "HeyReach",
       "channel": "linkedin", "sinceHours": 18.4,

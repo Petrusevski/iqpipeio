@@ -84,12 +84,12 @@ const TOOL_CARDS = [
 ];
 
 const SIGNAL_EVENTS = [
-  { tool: "HeyReach",  domain: "heyreach.io",  channel: "linkedin",    event: "reply_received",      lead: "iq_4f2a9c", meta: "alice@foundry.io · \"Interested, let's connect\"",  ago: "12s ago"  },
-  { tool: "Instantly", domain: "instantly.ai", channel: "email",       event: "email_opened",        lead: "iq_8b1e3d", meta: "marcus@driftai.com · Subject: Quick question",        ago: "34s ago"  },
-  { tool: "Clay",      domain: "clay.com",     channel: "prospecting", event: "lead_enriched",       lead: "iq_2c7f0a", meta: "priya@solarishq.com · ICP match: Series B, 120 emp",  ago: "1m ago"   },
-  { tool: "HubSpot",   domain: "hubspot.com",  channel: "crm",         event: "deal_created",        lead: "iq_5d3b8e", meta: "alex@foundry.io · $12,000 · Stage: Prospecting",      ago: "3m ago"   },
-  { tool: "Instantly", domain: "instantly.ai", channel: "email",       event: "meeting_booked",      lead: "iq_9r3q7l", meta: "jordan@apexgtm.com · Calendly 30-min confirmed",       ago: "8m ago"   },
-  { tool: "HeyReach",  domain: "heyreach.io",  channel: "linkedin",    event: "connection_accepted", lead: "iq_7k2p1n", meta: "sarah@meridian.io · 2nd degree connection",             ago: "11m ago"  },
+  { tool: "HeyReach",  domain: "heyreach.io",  channel: "linkedin",    event: "reply_received",      lead: "iq_4f2a9c", meta: "a****@example.com · \"Interested, let's connect\"",  ago: "12s ago"  },
+  { tool: "Instantly", domain: "instantly.ai", channel: "email",       event: "email_opened",        lead: "iq_8b1e3d", meta: "m****@example.com · Subject: Quick question",          ago: "34s ago"  },
+  { tool: "Clay",      domain: "clay.com",     channel: "prospecting", event: "lead_enriched",       lead: "iq_2c7f0a", meta: "p****@example.com · ICP match: Series B, 120 emp",    ago: "1m ago"   },
+  { tool: "HubSpot",   domain: "hubspot.com",  channel: "crm",         event: "deal_created",        lead: "iq_5d3b8e", meta: "a****@example.com · $12,000 · Stage: Prospecting",    ago: "3m ago"   },
+  { tool: "Instantly", domain: "instantly.ai", channel: "email",       event: "meeting_booked",      lead: "iq_9r3q7l", meta: "j****@example.com · Calendly 30-min confirmed",        ago: "8m ago"   },
+  { tool: "HeyReach",  domain: "heyreach.io",  channel: "linkedin",    event: "connection_accepted", lead: "iq_7k2p1n", meta: "s****@example.com · 2nd degree connection",            ago: "11m ago"  },
 ];
 
 function LiveFeedDemo() {
@@ -212,7 +212,7 @@ function ContactInspectorDemo() {
         <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-sm">
           <Search size={14} className="text-slate-500 shrink-0" />
           <span className={searched ? "text-slate-200" : "text-slate-600"}>
-            {searched ? "alice@foundry.io" : "Search any email address…"}
+            {searched ? "a****@example.com" : "Search any email address…"}
           </span>
         </div>
         <button
@@ -231,8 +231,8 @@ function ContactInspectorDemo() {
               AF
             </div>
             <div className="flex-1">
-              <div className="text-sm font-semibold text-white">Alice Fontaine</div>
-              <div className="text-xs text-slate-400">alice@foundry.io · VP Growth · Foundry Labs</div>
+              <div className="text-sm font-semibold text-white">A**** F****</div>
+              <div className="text-xs text-slate-400">a****@example.com · VP Growth · Acme Corp</div>
             </div>
             <div className="text-right shrink-0">
               <div className="text-xs font-bold text-emerald-400">$18,400 ARR</div>
@@ -293,7 +293,7 @@ function ContactInspectorDemo() {
             onClick={() => setSearched(true)}
             className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 underline"
           >
-            Try alice@foundry.io →
+            Try a****@example.com →
           </button>
         </div>
       )}

@@ -44,7 +44,7 @@ export default function ContactPage() {
                       type="text"
                       required
                       className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400"
-                      placeholder="Alex Novak"
+                      placeholder="Jane Smith"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
@@ -65,7 +65,7 @@ export default function ContactPage() {
                       type="text"
                       required
                       className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400"
-                      placeholder="Acme SaaS"
+                      placeholder="Your Company"
                     />
                   </div>
                   <div className="flex flex-col gap-1">

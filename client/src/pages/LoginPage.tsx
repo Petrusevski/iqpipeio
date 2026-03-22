@@ -90,8 +90,8 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           >
             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600" />
             <div>
-              <div className="text-sm font-semibold text-white">Alex R.</div>
-              <div className="text-xs text-slate-500">Head of Growth @ Linear</div>
+              <div className="text-sm font-semibold text-white">A**** R.</div>
+              <div className="text-xs text-slate-500">Head of Growth @ Acme Corp</div>
             </div>
           </motion.div>
         </div>

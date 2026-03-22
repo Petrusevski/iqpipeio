@@ -563,7 +563,7 @@ export default function LandingPage() {
                 <div className="px-5 pt-4 pb-3">
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/5 text-xs">
                     <Search size={12} className="text-indigo-400 shrink-0" />
-                    <span className="text-slate-300 flex-1">alice@foundry.io</span>
+                    <span className="text-slate-300 flex-1">a****@example.com</span>
                     <span className="text-[10px] text-indigo-400 font-medium">↵ Enter</span>
                   </div>
                 </div>
@@ -572,7 +572,7 @@ export default function LandingPage() {
                 <div className="mx-5 mb-3 flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-900/50">
                   <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-600 to-fuchsia-600 flex items-center justify-center text-white text-xs font-bold shrink-0">AF</div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-white">Alice Fontaine · VP Growth · Foundry Labs</div>
+                    <div className="text-xs font-semibold text-white">A**** F**** · VP Growth · Acme Corp</div>
                     <div className="text-[10px] text-slate-500 mt-0.5">8 events · 5 tools · 14 days to close · $18,400 ARR</div>
                   </div>
                   <div className="text-xs font-bold text-emerald-400 shrink-0">Closed ✓</div>
