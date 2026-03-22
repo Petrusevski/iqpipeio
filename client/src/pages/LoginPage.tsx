@@ -35,7 +35,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       const data = await res.json();
 
       if (!res.ok) {
-        setError((data?.error || "Login failed.") + (data?.message ? ` — ${data.message}` : ""));
+        setError(data?.error || "Login failed.");
         return;
       }
 
