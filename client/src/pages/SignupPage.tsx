@@ -2,7 +2,8 @@ import { FormEvent, useState } from "react";
 import { ArrowLeft, Lock, Mail, User, CheckCircle2, Zap, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const API_BASE = (import.meta as any).env?.VITE_API_URL || "http://localhost:4000";
+import { API_BASE_URL } from "../../config";
+const API_BASE = API_BASE_URL;
 
 interface SignupPageProps {
   onSignupSuccess?: (payload: { token: string; user: { id: string; email: string; fullName: string } }) => void;

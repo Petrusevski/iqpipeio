@@ -20,8 +20,8 @@ interface AssistantPanelProps {
   onClose: () => void;
 }
 
-const API_BASE =
-  (import.meta as any).env?.VITE_API_URL || "http://localhost:4000";
+import { API_BASE_URL } from "../../config";
+const API_BASE = API_BASE_URL;
 
 // FIX: Updated to match the ID used in your Dashboard/Performance Page
 const DEFAULT_WORKSPACE_ID = "demo-workspace-1";
