@@ -567,7 +567,7 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
 
               {/* Inline invoice table */}
               {showInvoices && (
-                <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-x-auto">
                   {invoicesLoading ? (
                     <div className="py-8 flex items-center justify-center gap-2 text-slate-500 text-xs">
                       <Loader2 size={14} className="animate-spin" /> Loading invoices…

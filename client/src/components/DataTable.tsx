@@ -20,7 +20,7 @@ export default function DataTable<T extends { id: string | number }>({
   rowClassName,
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+    <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60">
       <table className="min-w-full text-sm">
         <thead className="bg-slate-900/80">
           <tr>

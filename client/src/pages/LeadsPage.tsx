@@ -214,7 +214,7 @@ const AssignCampaignModal = ({
           {campaign && (
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 block">Assign to Stack</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(["A", "B"] as const).map(side => {
                   const stackName  = side === "A" ? campaign.stackAName : campaign.stackBName;
                   const stackTools = side === "A" ? campaign.stackATools : campaign.stackBTools;
@@ -661,7 +661,7 @@ const NewLeadModal = ({ workspaceId, onClose, onSave }: { workspaceId: string; o
       <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
         <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2"><UserPlus size={20} /> New Lead</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input placeholder="First Name" required className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
             <input placeholder="Last Name" required className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
           </div>

@@ -218,7 +218,7 @@ export default function WorkflowsPage() {
                       key={step.appId + idx}
                       className="flex items-center gap-3"
                     >
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 min-w-[120px] justify-center">
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 min-w-[100px] sm:min-w-[120px] justify-center">
                         {/* little circle with first letter; you can swap for real logos later */}
                         <div className="h-6 w-6 rounded-full bg-slate-800 flex items-center justify-center text-[11px] uppercase">
                           {step.displayName[0]}

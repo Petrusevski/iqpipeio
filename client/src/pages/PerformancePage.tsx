@@ -146,7 +146,7 @@ export default function PerformancePage() {
       />
 
       {/* ── Summary KPIs ── */}
-      <section className="grid grid-cols-2 gap-4 mt-6 mb-6">
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 mb-6">
         {[
           { label: "Total events recorded", value: totalEvents.toLocaleString(), sub: "all time" },
           { label: "Active tools", value: `${activeTools}/${visibleMetrics.length}`, sub: "firing today" },
@@ -215,7 +215,7 @@ export default function PerformancePage() {
             >
               <div className="flex flex-wrap items-center gap-4">
                 {/* Rank + Identity */}
-                <div className="flex items-center gap-3 min-w-[180px]">
+                <div className="flex items-center gap-3 min-w-0 flex-1 sm:flex-none sm:min-w-[180px]">
                   <span className="text-xs font-mono text-slate-600 w-5 text-right">#{idx + 1}</span>
                   <div className={`p-2 rounded-lg shrink-0 ${catCfg.bg}`}>
                     <CatIcon size={15} className={catCfg.color} />
@@ -232,14 +232,14 @@ export default function PerformancePage() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex flex-col gap-0.5 min-w-[90px]">
+                    <div className="flex flex-col gap-0.5 min-w-[70px] sm:min-w-[90px]">
                       <div className="text-[10px] text-slate-500 uppercase tracking-wider">Events today</div>
                       <div className="text-lg font-bold text-slate-100">{tool.eventsToday.toLocaleString()}</div>
                       <div className="text-[10px] text-slate-500">{tool.eventsThisWeek.toLocaleString()} this week</div>
                     </div>
 
                     {(tool.replyRate > 0 || tool.openRate > 0) && (
-                      <div className="flex gap-5 min-w-[160px]">
+                      <div className="flex gap-5 min-w-[120px] sm:min-w-[160px]">
                         {tool.openRate > 0 && (
                           <div>
                             <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Open</div>

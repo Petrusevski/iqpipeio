@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+import MobileBottomNav from "../components/MobileBottomNav";
 import SetupWizard, { SETUP_KEY } from "../components/SetupWizard";
 
 interface AppLayoutProps {
@@ -86,12 +87,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
           onMenuClick={() => setMobileSidebarOpen(true)}
           onOpenSetup={() => setWizardOpen(true)}
         />
-        <main className="flex-1 px-4 md:px-8 py-6 relative">
+        <main className="flex-1 px-4 md:px-8 py-6 pb-20 md:pb-6 relative">
           <div className="max-w-7xl mx-auto">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
 
     </div>
   );

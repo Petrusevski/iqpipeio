@@ -504,8 +504,8 @@ export default function DashboardPage() {
                 { field: "summary",     type: "string",   note: "Human-readable event"    },
               ].map(row => (
                 <div key={row.field} className="flex items-start gap-2">
-                  <span className="text-indigo-400 w-28 shrink-0">{row.field}</span>
-                  <span className="text-amber-300/70 w-16 shrink-0">{row.type}</span>
+                  <span className="text-indigo-400 w-24 sm:w-28 shrink-0">{row.field}</span>
+                  <span className="text-amber-300/70 w-12 sm:w-16 shrink-0">{row.type}</span>
                   <span className="text-slate-500 text-[10px] leading-tight">{row.note}</span>
                 </div>
               ))}

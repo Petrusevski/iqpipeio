@@ -383,7 +383,7 @@ export default function WorkflowHealthPage() {
             insight={data.coverage.insight}
             insightOk={data.coverage.gapPct < 10}
           >
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <StatPill label="Total imported"    value={data.coverage.totalImported.toLocaleString()} color="slate"/>
               <StatPill label="Received outreach" value={data.coverage.withOutreach.toLocaleString()}  color="emerald"/>
               <StatPill label="Never contacted"   value={data.coverage.gaps.toLocaleString()}           color={data.coverage.gaps === 0 ? "emerald" : "rose"}/>
@@ -465,15 +465,15 @@ export default function WorkflowHealthPage() {
                 Not enough data yet — paths appear once leads complete multi-step journeys
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 px-2 pb-1 border-b border-slate-800">
+              <div className="space-y-3 overflow-x-auto">
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-4 px-2 pb-1 border-b border-slate-800 min-w-[320px]">
                   <span className="text-[10px] text-slate-600 uppercase tracking-wider">Path</span>
                   <span className="text-[10px] text-slate-600 uppercase tracking-wider text-right">Leads</span>
                   <span className="text-[10px] text-slate-600 uppercase tracking-wider text-right">Outcomes</span>
                   <span className="text-[10px] text-slate-600 uppercase tracking-wider text-right">Conv.</span>
                 </div>
                 {data.paths.top.map((p, i) => (
-                  <div key={i} className={`grid grid-cols-[1fr_auto_auto_auto] gap-x-4 items-center px-2 py-1.5 rounded-lg ${i === 0 && p.outcomes > 0 ? "bg-emerald-500/5 border border-emerald-500/10" : ""}`}>
+                  <div key={i} className={`grid grid-cols-[1fr_auto_auto_auto] gap-x-4 items-center px-2 py-1.5 rounded-lg min-w-[320px] ${i === 0 && p.outcomes > 0 ? "bg-emerald-500/5 border border-emerald-500/10" : ""}`}>
                     <div className="flex items-center gap-1 flex-wrap">
                       {p.path.map((ev, j) => (
                         <div key={j} className="flex items-center gap-1">

@@ -552,7 +552,7 @@ export default function ICPScoringPage() {
 
           {/* Contact list */}
           {filtered.length > 0 && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-x-auto">
               {/* Table header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-slate-800 bg-slate-900/80">
                 {["Contact", "Title", "Company", "Source", "Score", "Grade"].map((h, i) => (
