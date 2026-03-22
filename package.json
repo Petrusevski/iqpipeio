@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
-    "install-all": "cd client && npm install && cd ../server && npm install",
-    "build-server": "cd server && npm install && npx prisma generate && npm run build",
+    "install-all": "cd client && npm install && cd ../server && npm install --include=dev",
+    "build-server": "cd server && npm install --include=dev && npx prisma generate && npm run build",
     "build-client": "cd client && npm run build",
     "build": "npm run install-all && npm run build-server && npm run build-client"
   },
