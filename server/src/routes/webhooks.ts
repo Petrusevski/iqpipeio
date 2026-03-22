@@ -1,8 +1,25 @@
 /**
- * webhooks.ts
+ * webhooks.ts  —  USER DATA SOURCES (NOT IQPIPE BILLING)
  *
- * Inbound webhook endpoints — tools POST real-time events here.
+ * Inbound webhook endpoints for user-connected GTM tools.
  * Endpoint pattern: POST /api/webhooks/:provider?workspaceId=xxx
+ *
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  THE STRIPE HANDLER IN THIS FILE IS THE "USER STRIPE DATA SOURCE".          ║
+ * ║  It ingests revenue events from users' OWN Stripe accounts into IQPipe's   ║
+ * ║  Live Feed / pipeline attribution.                                          ║
+ * ║                                                                             ║
+ * ║  It is completely separate from IQPipe Billing (Stripe Checkout):           ║
+ * ║    - Uses the user's Stripe key from IntegrationConnection (encrypted DB)   ║
+ * ║    - Uses the user's Stripe webhook secret (stored in encrypted DB)         ║
+ * ║    - Endpoint: /api/webhooks/stripe?workspaceId=xxx  (workspaceId required) ║
+ * ║                                                                             ║
+ * ║  IQPipe Billing lives at:                                                   ║
+ * ║    server/src/routes/checkout.ts   (POST /api/checkout/webhook)             ║
+ * ║    server/src/services/stripeClient.ts  (billingStripe singleton)           ║
+ * ║                                                                             ║
+ * ║  NEVER import billingStripe or read STRIPE_SECRET_KEY here.                 ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
  *
  * Each handler:
  *  1. Identifies the workspace via workspaceId query param
@@ -15,7 +32,7 @@
  * Phone / calling:    aircall, dialpad, kixie, orum
  * SMS / WhatsApp:     twilio, sakari, wati
  * Multichannel:       outreach, salesloft, replyio, klenty
- * Revenue:            stripe
+ * Revenue (user):     stripe  (user's own Stripe account — NOT iqpipe billing)
  */
 
 import { Router, Request, Response } from "express";
@@ -24,6 +41,7 @@ import axios from "axios";
 import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
 import { resolveIqLead, recordTouchpoint } from "../utils/identity";
+import { assertNotBillingKey } from "../utils/stripeKeyGuard";
 
 const router = Router();
 
@@ -308,12 +326,29 @@ router.post("/smartlead", async (req: Request, res: Response) => {
   }
 });
 
-// ─── Stripe ──────────────────────────────────────────────────────────────────
-// Configure in Stripe Dashboard → Developers → Webhooks
-// Recommended events: charge.succeeded, payment_intent.succeeded,
-//                     customer.subscription.created, customer.subscription.updated
-// NOTE: app.ts registers express.raw() for this route BEFORE express.json()
-//       so req.body is a Buffer — enabling signature verification.
+// ─── User Stripe Data Source ──────────────────────────────────────────────────
+//
+// PURPOSE: Ingest revenue events from a USER's own Stripe account.
+//          This is NOT IQPipe Billing. It does not touch STRIPE_SECRET_KEY.
+//
+// SETUP (per workspace):
+//   1. User connects their Stripe account in IQPipe → Integrations → Stripe
+//      and provides their own sk_live_* / sk_test_* key + webhook secret.
+//   2. In their Stripe Dashboard → Webhooks, user adds:
+//        https://iqpipe.vercel.app/api/webhooks/stripe?workspaceId=<their-workspace-id>
+//   3. Recommended events: charge.succeeded, payment_intent.succeeded,
+//                          customer.subscription.created, customer.subscription.updated
+//
+// KEY ISOLATION: assertNotBillingKey() is called before any Stripe SDK usage.
+//   If a user accidentally pastes IQPipe's billing key, the request is rejected.
+//
+// NOTE: app.ts registers express.raw() for this path BEFORE express.json()
+//       so req.body arrives as a Buffer, enabling Stripe signature verification.
+//
+// SIGNATURE POLICY: If the user has configured a webhook secret, verification
+//   is enforced and events that fail are rejected. If no secret is configured,
+//   events are accepted with a warning (backwards-compatible for existing users).
+//   We recommend all users configure a webhook secret.
 
 router.post("/stripe", async (req: Request, res: Response) => {
   const workspaceId = String(req.query.workspaceId || "");
@@ -328,21 +363,41 @@ router.post("/stripe", async (req: Request, res: Response) => {
     const secret = auth?.webhookSecret;
     const apiKey = auth?.apiKey;
 
+    // ── Key isolation guard ───────────────────────────────────────────────────
+    // Reject immediately if the user's stored key matches IQPipe's billing key.
+    // This prevents cross-contamination even if keys were misconfigured in DB.
+    if (apiKey) {
+      assertNotBillingKey(apiKey, "webhook/user-stripe-data-source");
+    }
+
     let event: any;
     const rawBody: Buffer = Buffer.isBuffer(req.body)
       ? req.body
       : Buffer.from(JSON.stringify(req.body));
 
-    if (secret && sig && apiKey) {
+    if (secret && sig) {
+      // User has configured a webhook secret — enforce signature verification.
+      if (!apiKey) {
+        return res.status(400).json({ error: "Stripe integration is not fully connected for this workspace." });
+      }
       try {
-        const stripe = new Stripe(apiKey.trim(), { apiVersion: "2024-06-20" as any });
-        event = stripe.webhooks.constructEvent(rawBody, sig, secret);
+        const userStripe = new Stripe(apiKey.trim(), { apiVersion: "2024-06-20" as any });
+        event = userStripe.webhooks.constructEvent(rawBody, sig, secret);
       } catch (sigErr: any) {
-        console.warn("[webhook/stripe] Signature mismatch — processing without verification:", sigErr.message);
-        event = JSON.parse(rawBody.toString());
+        // Signature failed — reject. Do not fall through to unverified processing
+        // when the user explicitly configured a secret (that would defeat the purpose).
+        console.warn("[webhook/user-stripe] Signature verification failed — rejecting:", sigErr.message);
+        return res.status(400).json({ error: "Stripe signature verification failed." });
       }
     } else {
-      event = JSON.parse(rawBody.toString());
+      // No webhook secret configured — accept without verification but log a warning.
+      // This is backwards-compatible with existing workspaces that haven't set a secret yet.
+      console.warn(
+        `[webhook/user-stripe] workspaceId=${workspaceId}: No webhook secret configured. ` +
+        "Processing without signature verification. Configure a webhook secret in IQPipe → Integrations → Stripe for improved security."
+      );
+      try { event = JSON.parse(rawBody.toString()); }
+      catch { return res.status(400).json({ error: "Invalid JSON payload." }); }
     }
 
     const type = event.type || "";
@@ -366,8 +421,9 @@ router.post("/stripe", async (req: Request, res: Response) => {
       const customerId = typeof obj.customer === "string" ? obj.customer : obj.customer?.id;
       if (customerId && apiKey) {
         try {
-          const stripe   = new Stripe(apiKey.trim(), { apiVersion: "2024-06-20" as any });
-          const customer: any = await stripe.customers.retrieve(customerId);
+          // Use a fresh client scoped to the user's own key — never billingStripe.
+          const userStripe = new Stripe(apiKey.trim(), { apiVersion: "2024-06-20" as any });
+          const customer: any = await userStripe.customers.retrieve(customerId);
           const email    = customer.email || null;
           const name     = customer.name || email || "Unknown Customer";
           const parts    = (name || "").split(" ");
@@ -384,7 +440,7 @@ router.post("/stripe", async (req: Request, res: Response) => {
 
     return res.json({ received: true });
   } catch (err: any) {
-    console.error("[webhook/stripe]", err.message);
+    console.error("[webhook/user-stripe]", err.message);
     return res.status(500).json({ error: err.message });
   }
 });

@@ -1,13 +1,24 @@
 /**
- * stripeClient.ts
+ * stripeClient.ts  —  IQPIPE BILLING ONLY
  *
- * Singleton Stripe SDK instance.
- * Secret key is read from STRIPE_SECRET_KEY env var — never exposed to the client.
+ * This module owns IQPipe's own Stripe account credentials.
+ * It is used exclusively for:
+ *   - Creating Stripe Checkout Sessions for Starter/Growth/Agency plan purchases
+ *   - Verifying Stripe billing webhook signatures (STRIPE_WEBHOOK_SECRET)
+ *   - Retrieving subscription and customer data for IQPipe's own billing system
  *
- * If the key is absent (e.g. local dev without Stripe configured), the module
- * initialises with a placeholder so the server doesn't crash at boot; any
- * endpoint that actually uses Stripe will detect the placeholder and return a
- * 503 with a clear message rather than a cryptic Stripe authentication error.
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  DO NOT import this file from any user-data pipeline code.                  ║
+ * ║  User Stripe integration (data ingestion) must always instantiate its own   ║
+ * ║  Stripe client using the user's encrypted key from IntegrationConnection,   ║
+ * ║  never from this singleton.                                                 ║
+ * ║                                                                             ║
+ * ║  The exported names  billingStripe / billingStripeConfigured  are           ║
+ * ║  intentionally prefixed "billing" to make misuse visible at a glance.       ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
+ *
+ * Key source:  STRIPE_SECRET_KEY  environment variable (IQPipe's Stripe account)
+ * Webhook:     STRIPE_WEBHOOK_SECRET  (registerd at /api/checkout/webhook)
  */
 
 import Stripe from "stripe";
@@ -16,14 +27,24 @@ const secretKey = process.env.STRIPE_SECRET_KEY;
 
 if (!secretKey || secretKey === "sk_test_placeholder") {
   console.warn(
-    "[stripe] STRIPE_SECRET_KEY is not configured — checkout endpoints will return 503.\n" +
-    "         Set STRIPE_SECRET_KEY in server/.env to enable billing."
+    "[iqpipe/billing] STRIPE_SECRET_KEY is not configured — checkout endpoints will return 503.\n" +
+    "                 Set STRIPE_SECRET_KEY in server/.env to enable billing.\n" +
+    "                 This is IQPipe's OWN billing key, NOT the user Stripe integration key."
   );
 }
 
-export const stripe = new Stripe(secretKey || "sk_test_placeholder", {
+/**
+ * The Stripe SDK client for IQPipe's billing operations.
+ * Named `billingStripe` (not `stripe`) to prevent accidental use in user-data code.
+ */
+export const billingStripe = new Stripe(secretKey || "sk_test_placeholder", {
   apiVersion: "2024-06-20" as any,
-  typescript: true,
+  typescript:  true,
 });
 
-export const stripeConfigured = !!secretKey && secretKey !== "sk_test_placeholder";
+/**
+ * True only when a real (non-placeholder) STRIPE_SECRET_KEY is configured.
+ * Billing routes return 503 when this is false.
+ */
+export const billingStripeConfigured =
+  !!secretKey && secretKey !== "sk_test_placeholder";

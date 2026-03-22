@@ -1,21 +1,37 @@
 /**
- * checkout.ts  —  POST /api/checkout/session
- *                 GET  /api/checkout/prices
- *                 POST /api/checkout/webhook
+ * checkout.ts  —  IQPIPE BILLING ONLY
+ *
+ * Endpoints:  GET  /api/checkout/prices
+ *             POST /api/checkout/session
+ *             GET  /api/checkout/confirm
+ *             POST /api/checkout/webhook
+ *
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  THIS FILE IS IQPIPE BILLING — NOT THE USER STRIPE DATA SOURCE.             ║
+ * ║                                                                             ║
+ * ║  It exclusively uses billingStripe (IQPipe's own Stripe account) loaded     ║
+ * ║  from STRIPE_SECRET_KEY.  It never reads IntegrationConnection records      ║
+ * ║  and never touches user-provided Stripe credentials.                        ║
+ * ║                                                                             ║
+ * ║  For the user Stripe data-source pipeline see:                              ║
+ * ║    server/src/routes/webhooks.ts        (router.post "/stripe")             ║
+ * ║    server/src/routes/integrations.ts    (providerCheckers.stripe)           ║
+ * ║    server/src/services/syncService.ts   (syncStripe)                        ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
  *
  * Security model:
- *  - STRIPE_SECRET_KEY  lives only in server/.env, never reaches the browser.
+ *  - STRIPE_SECRET_KEY lives only in server/.env — never reaches the browser.
  *  - STRIPE_WEBHOOK_SECRET verifies every inbound Stripe event signature.
- *  - The client receives only a Stripe-hosted checkout URL; card details
- *    are entered directly on stripe.com (PCI DSS Level 1).
- *  - workspaceId is embedded in Stripe metadata and verified on the webhook;
- *    it is never derived from user-supplied POST body alone.
+ *    Unsigned events are rejected outright in production.
+ *  - Card details are entered on stripe.com (PCI DSS Level 1) — never here.
+ *  - workspaceId is embedded in Stripe metadata and re-verified on the webhook
+ *    against the authenticated user's membership — cannot be spoofed.
  */
 
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
-import { stripe, stripeConfigured } from "../services/stripeClient";
+import { billingStripe, billingStripeConfigured } from "../services/stripeClient";
 import { PLAN_CONFIGS, planByPriceId } from "../config/stripePrices";
 
 const router = Router();
@@ -26,7 +42,7 @@ const CLIENT_ORIGIN  = process.env.CLIENT_ORIGIN || "http://localhost:5173";
 // ─── Guard: return 503 if Stripe is not configured ───────────────────────────
 
 function requireStripe(res: Response): boolean {
-  if (!stripeConfigured) {
+  if (!billingStripeConfigured) {
     res.status(503).json({
       error: "Billing is not configured on this server.",
       detail: "Set STRIPE_SECRET_KEY in your server environment variables.",
@@ -60,7 +76,7 @@ router.get("/confirm", requireAuth, async (req: AuthenticatedRequest, res: Respo
   }
 
   try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await billingStripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== "paid" && session.status !== "complete") {
       return res.json({ confirmed: false });
@@ -131,7 +147,7 @@ router.post("/session", requireAuth, async (req: AuthenticatedRequest, res: Resp
     let customerId = workspace.stripeCustomerId ?? undefined;
 
     if (!customerId) {
-      const customer = await stripe.customers.create({
+      const customer = await billingStripe.customers.create({
         email: workspace.billingEmail || req.user!.email,
         name:  workspace.name,
         metadata: {
@@ -148,7 +164,7 @@ router.post("/session", requireAuth, async (req: AuthenticatedRequest, res: Resp
     }
 
     // Create the Checkout Session (hosted on stripe.com — no card data touches our server)
-    const session = await stripe.checkout.sessions.create({
+    const session = await billingStripe.checkout.sessions.create({
       mode:     "subscription",
       customer: customerId,
 
@@ -209,7 +225,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
 
   if (WEBHOOK_SECRET && sig) {
     try {
-      event = stripe.webhooks.constructEvent(rawBody, sig, WEBHOOK_SECRET);
+      event = billingStripe.webhooks.constructEvent(rawBody, sig, WEBHOOK_SECRET);
     } catch (err: any) {
       console.error("[checkout/webhook] Signature verification failed:", err.message);
       return res.status(400).json({ error: `Webhook signature invalid: ${err.message}` });
@@ -259,7 +275,7 @@ async function handleStripeEvent(event: any) {
       const customerId     = obj.customer     as string;
 
       // Retrieve subscription to get price and period end
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const subscription = await billingStripe.subscriptions.retrieve(subscriptionId);
       const priceId      = subscription.items.data[0]?.price?.id ?? "";
       const periodEnd    = new Date((subscription as any).current_period_end * 1000);
 
@@ -347,7 +363,7 @@ async function handleStripeEvent(event: any) {
 
       // Update billing period on renewal
       if (subId) {
-        const sub = await stripe.subscriptions.retrieve(subId);
+        const sub = await billingStripe.subscriptions.retrieve(subId);
         await prisma.workspace.update({
           where: { id: workspace.id },
           data:  { stripeCurrentPeriodEnd: new Date((sub as any).current_period_end * 1000) },

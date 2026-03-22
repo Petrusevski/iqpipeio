@@ -59,9 +59,22 @@ app.use(cors({
   credentials: true,
 }));
 
-// ── Raw body for Stripe webhook signature verification ────────────────────
-// Must be registered BEFORE express.json() so Stripe gets the raw Buffer.
+// ── Raw body middleware for Stripe signature verification ─────────────────
+// MUST be registered BEFORE express.json() — Stripe requires the raw Buffer.
+// Two separate Stripe webhook paths; each serves a completely different system:
+
+// [A] USER STRIPE DATA SOURCE — events from users' own Stripe accounts
+//     Handler: server/src/routes/webhooks.ts  (router.post "/stripe")
+//     Key:     User's sk_live_* from IntegrationConnection (encrypted DB)
+//     Secret:  User's webhook secret from IntegrationConnection
+//     URL:     /api/webhooks/stripe?workspaceId=<workspaceId>
 app.use("/api/webhooks/stripe",  express.raw({ type: "application/json" }));
+
+// [B] IQPIPE BILLING — Stripe Checkout for Starter/Growth/Agency subscriptions
+//     Handler: server/src/routes/checkout.ts  (router.post "/webhook")
+//     Key:     STRIPE_SECRET_KEY env var (IQPipe's own Stripe account)
+//     Secret:  STRIPE_WEBHOOK_SECRET env var
+//     URL:     /api/checkout/webhook  (registered in Stripe Dashboard → Webhooks)
 app.use("/api/checkout/webhook", express.raw({ type: "application/json" }));
 
 app.use(express.json({ limit: "1mb" }));

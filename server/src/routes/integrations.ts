@@ -1,3 +1,15 @@
+/**
+ * integrations.ts  —  USER DATA-SOURCE INTEGRATIONS (NOT IQPIPE BILLING)
+ *
+ * Manages workspace integration connections (Clay, HubSpot, Stripe, etc.).
+ * When "Stripe" appears here it refers to a USER's own Stripe account being
+ * connected as a revenue data source — NOT IQPipe's billing/checkout system.
+ *
+ * Key isolation: assertNotBillingKey() is called before any Stripe SDK usage
+ * to prevent cross-contamination between user data-source keys and IQPipe's
+ * STRIPE_SECRET_KEY billing key.
+ */
+
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import axios from "axios";
@@ -5,6 +17,7 @@ import Stripe from "stripe";
 import { encrypt, decrypt } from "../utils/encryption";
 import * as heyReachService from "../services/heyreach";
 import { createNotification } from "../services/notificationService";
+import { assertNotBillingKey, validateUserStripeKeyFormat } from "../utils/stripeKeyGuard";
 import {
   syncApollo, syncHeyReach, syncLemlist, syncInstantly, syncSmartlead,
   syncStripe, syncAllWorkspaces,
@@ -64,13 +77,29 @@ const providerCheckers: Record<
   string,
   (auth: AuthData | null) => Promise<CheckerResult>
 > = {
+  // USER STRIPE DATA SOURCE — validates the user's own Stripe key.
+  // This checker must NEVER use billingStripe or STRIPE_SECRET_KEY.
   stripe: async (auth) => {
     if (!auth?.apiKey) return { success: false, message: "Missing API Key" };
+
+    // Format + billing-key isolation check (no network call needed for this)
+    const fmt = validateUserStripeKeyFormat(auth.apiKey);
+    if (!fmt.valid) return { success: false, message: fmt.reason ?? "Invalid Stripe key format." };
+
     try {
-      const stripe = new Stripe(auth.apiKey.trim(), { apiVersion: "2024-06-20" as any });
-      await stripe.balance.retrieve();
+      // Guard: reject if user accidentally provided IQPipe's billing key
+      assertNotBillingKey(auth.apiKey, "integrations/stripe-checker");
+
+      // Use a throwaway Stripe instance scoped to the USER's key only
+      const userStripe = new Stripe(auth.apiKey.trim(), { apiVersion: "2024-06-20" as any });
+      await userStripe.balance.retrieve();
       return { success: true };
-    } catch (e: any) { return { success: false, message: e.message }; }
+    } catch (e: any) {
+      if (e.message?.includes("reserved for IQPipe billing")) {
+        return { success: false, message: e.message };
+      }
+      return { success: false, message: e.message };
+    }
   },
 
   // ✅ FIXED: HeyReach Checker now uses POST
