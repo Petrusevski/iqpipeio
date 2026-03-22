@@ -175,13 +175,22 @@ export default function TourGuide({ steps, onClose, storageKey }: TourGuideProps
   const [stepIdx, setStepIdx] = useState(0);
   const [spotRect, setSpotRect] = useState<Rect | null>(null);
   const [visible, setVisible] = useState(false);
-  const navigate = useNavigate();
-  const rafRef   = useRef<number>();
+  const navigate   = useNavigate();
+  const rafRef     = useRef<number>();
+  const touchStartX = useRef<number | null>(null);
 
   const step   = steps[stepIdx];
   const total  = steps.length;
   const isLast = stepIdx === total - 1;
 
+  // ── Lock body scroll while tour is open ──────────────────────────────────
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // ── Measure spotlight target ──────────────────────────────────────────────
   useLayoutEffect(() => {
     setVisible(false);
     if (!step.selector) {
@@ -226,6 +235,36 @@ export default function TourGuide({ steps, onClose, storageKey }: TourGuideProps
     return () => window.removeEventListener("resize", onResize);
   }, [stepIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Keyboard navigation ───────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setStepIdx(i => (i < total - 1 ? i + 1 : i));
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setStepIdx(i => Math.max(0, i - 1));
+      } else if (e.key === "Escape") {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [total]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Touch swipe navigation ────────────────────────────────────────────────
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(dx) < 40) return; // ignore tiny swipes
+    if (dx < 0) setStepIdx(i => (i < total - 1 ? i + 1 : i)); // swipe left → next
+    else         setStepIdx(i => Math.max(0, i - 1));            // swipe right → back
+    touchStartX.current = null;
+  };
+
   const handleClose = () => {
     if (storageKey) localStorage.setItem(storageKey, "true");
     onClose();
@@ -243,11 +282,16 @@ export default function TourGuide({ steps, onClose, storageKey }: TourGuideProps
   if (!visible) return null;
 
   return (
-    <>
-      {/* Full-screen backdrop for centered steps */}
-      {!spotRect && (
-        <div className="fixed inset-0 bg-black/80 z-[210]" onClick={handleClose} />
-      )}
+    <div
+      className="fixed inset-0 z-[200]"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Full-screen backdrop — always present to block interaction with the app */}
+      <div
+        className="absolute inset-0 bg-black/80"
+        onClick={handleClose}
+      />
 
       {spotRect && <Spotlight rect={spotRect} />}
 
@@ -262,6 +306,6 @@ export default function TourGuide({ steps, onClose, storageKey }: TourGuideProps
         onAction={handleAction}
         isLast={isLast}
       />
-    </>
+    </div>
   );
 }
