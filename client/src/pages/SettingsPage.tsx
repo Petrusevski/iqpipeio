@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import PageHeader from "../components/PageHeader";
 import { useSettings } from "../hooks/useSettings";
 import {
   Clock, AlertTriangle, CheckCircle2, X, Zap, Lock, ShieldCheck,
-  Receipt, Download, Loader2, ChevronDown,
+  Receipt, Download, Loader2, ChevronDown, Bell, BellOff, BellRing,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
+import { usePushNotifications, PUSH_EVENT_TYPES } from "../hooks/usePushNotifications";
 
 // ─── Plan definitions (mirrors PricingPage) ───────────────────────────────────
 
@@ -729,9 +730,154 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
                 </button>
               </div>
             </section>
+
+            {/* Push notifications */}
+            <PushNotificationsPanel />
+
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+// ─── Push Notifications Panel ─────────────────────────────────────────────────
+
+function PushNotificationsPanel() {
+  const [pushState, pushActions] = usePushNotifications();
+  const [testSent, setTestSent] = useState(false);
+
+  const handleTest = async () => {
+    await pushActions.sendTest();
+    setTestSent(true);
+    setTimeout(() => setTestSent(false), 3000);
+  };
+
+  const toggleEventType = async (key: string, enabled: boolean) => {
+    const current = pushState.eventTypes ?? PUSH_EVENT_TYPES.map((e) => e.key);
+    const updated  = enabled
+      ? [...new Set([...current, key])]
+      : current.filter((k) => k !== key);
+    // If all events selected, use null (means "all")
+    const next = updated.length === PUSH_EVENT_TYPES.length ? null : updated;
+    await pushActions.updateEventTypes(next);
+  };
+
+  const enabledSet = new Set(
+    pushState.eventTypes ?? PUSH_EVENT_TYPES.map((e) => e.key)
+  );
+
+  if (!pushState.supported) {
+    return (
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <BellOff size={14} className="text-slate-500" />
+          <h2 className="text-sm font-semibold text-slate-100">Push notifications</h2>
+        </div>
+        <p className="text-xs text-slate-500">
+          Your browser does not support Web Push notifications.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Bell size={14} className="text-indigo-400" />
+        <h2 className="text-sm font-semibold text-slate-100">Push notifications</h2>
+      </div>
+      <p className="text-xs text-slate-400 mb-4">
+        Get alerted even when the app is closed — deal events, billing, and GTM signals.
+      </p>
+
+      {/* Permission / subscribe state */}
+      {!pushState.subscribed ? (
+        <div className="space-y-3">
+          {pushState.permission === "denied" && (
+            <div className="flex items-start gap-2 rounded-lg bg-rose-500/10 border border-rose-500/30 px-3 py-2 text-xs text-rose-300">
+              <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+              Notifications are blocked in your browser. Enable them in your browser settings, then try again.
+            </div>
+          )}
+          <button
+            onClick={pushActions.requestAndSubscribe}
+            disabled={pushState.loading || pushState.permission === "denied"}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-[11px] font-medium text-white transition-colors"
+          >
+            {pushState.loading ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <BellRing size={12} />
+            )}
+            Enable push notifications
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Active badge */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+              <CheckCircle2 size={12} />
+              Notifications active on this device
+            </div>
+            <button
+              onClick={pushActions.unsubscribe}
+              disabled={pushState.loading}
+              className="text-[11px] text-slate-500 hover:text-rose-400 transition-colors"
+            >
+              Disable
+            </button>
+          </div>
+
+          {/* Event type toggles */}
+          <div className="space-y-2">
+            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+              Alert me for
+            </p>
+            {PUSH_EVENT_TYPES.map((evt) => {
+              const on = enabledSet.has(evt.key);
+              return (
+                <button
+                  key={evt.key}
+                  type="button"
+                  disabled={pushState.loading}
+                  onClick={() => toggleEventType(evt.key, !on)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 hover:bg-slate-900 transition-colors disabled:cursor-not-allowed"
+                >
+                  <span className="text-left">
+                    <span className="block text-xs text-slate-200">{evt.label}</span>
+                    <span className="block text-[11px] text-slate-500 mt-0.5">{evt.description}</span>
+                  </span>
+                  <span className={`inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ml-3 ${on ? "bg-indigo-500" : "bg-slate-600"}`}>
+                    <span className={`h-4 w-4 rounded-full bg-white transform transition-transform ${on ? "translate-x-4" : "translate-x-1"}`} />
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Test button */}
+          <button
+            onClick={handleTest}
+            disabled={pushState.loading || testSent}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:cursor-not-allowed text-[11px] text-slate-300 transition-colors"
+          >
+            {testSent ? (
+              <><CheckCircle2 size={12} className="text-emerald-400" /> Test notification sent</>
+            ) : pushState.loading ? (
+              <><Loader2 size={12} className="animate-spin" /> Sending…</>
+            ) : (
+              <><BellRing size={12} /> Send test notification</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Error */}
+      {pushState.error && (
+        <p className="mt-2 text-[11px] text-rose-400">{pushState.error}</p>
+      )}
+    </section>
   );
 }

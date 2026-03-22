@@ -514,6 +514,33 @@ model Outcome {
   @@index([workspaceId, recordedAt])
 }
 
+// ── Web Push subscriptions ──────────────────────────────────────────────────
+
+model PushSubscription {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+
+  // Web Push subscription object fields
+  endpoint    String   @unique
+  p256dh      String   // client public key
+  auth        String   // auth secret
+
+  // User-configurable event preferences (JSON: string[])
+  // null = all events; explicit array = only listed types
+  eventTypes  String?  // JSON: string[] | null
+
+  // Rate-limiting: track last sent times per type
+  lastSentAt  DateTime?
+  sentCount   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([workspaceId])
+}
+
 model N8nConnection {
   id            String    @id @default(cuid())
   workspaceId   String    @unique

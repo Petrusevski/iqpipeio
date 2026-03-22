@@ -33,6 +33,7 @@ import { prisma } from "../db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { billingStripe, billingStripeConfigured } from "../services/stripeClient";
 import { PLAN_CONFIGS, planByPriceId } from "../config/stripePrices";
+import { notifyWorkspace } from "../utils/webPush";
 
 const router = Router();
 
@@ -294,6 +295,14 @@ async function handleStripeEvent(event: any) {
       // Create an activity record so the invoice page picks it up
       await createBillingActivity(workspaceId, planId, obj.amount_total, obj.currency, subscriptionId);
 
+      // Push notification: plan activated
+      await notifyWorkspace(workspaceId, {
+        title:     "iqpipe — subscription activated",
+        body:      `Your ${PLAN_CONFIGS[planId]?.displayName ?? planId} plan is now active.`,
+        url:       "/settings",
+        eventType: "deal_won",
+      }).catch(() => {});
+
       console.log(`[checkout/webhook] Workspace ${workspaceId} upgraded to plan: ${planId}`);
       break;
     }
@@ -399,6 +408,15 @@ async function handleStripeEvent(event: any) {
           severity: "error",
         },
       });
+
+      // Push notification: payment failure (high priority — always send)
+      await notifyWorkspace(workspace.id, {
+        title:     "iqpipe — payment failed",
+        body:      "Your latest payment could not be processed. Please update your payment method.",
+        url:       "/settings",
+        eventType: "payment_failed",
+      }).catch(() => {});
+
       break;
     }
 
