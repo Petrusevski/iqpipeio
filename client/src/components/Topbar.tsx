@@ -333,7 +333,7 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 mt-3 w-80 max-h-96 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-2xl text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute right-0 mt-3 w-[min(20rem,calc(100vw-2rem))] max-h-96 overflow-y-auto rounded-xl bg-slate-900 border border-slate-700 shadow-2xl text-xs animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50 backdrop-blur sticky top-0 z-10">
                 <span className="font-semibold text-slate-100">
                   Notifications
@@ -414,7 +414,7 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-48 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute right-0 top-full mt-2 w-[min(12rem,calc(100vw-2rem))] rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="px-4 py-2 border-b border-slate-800 mb-1">
                  <p className="text-xs font-medium text-slate-200 truncate">{user.fullName}</p>
                  <p className="text-[10px] text-slate-500 truncate">{user.email || "user@iqpipe.io"}</p>

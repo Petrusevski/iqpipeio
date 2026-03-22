@@ -75,9 +75,9 @@ function StageRow({
         className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden cursor-pointer hover:border-slate-700 transition-colors"
         onClick={() => stage.tools.length > 0 && setOpen((o) => !o)}
       >
-        <div className="flex items-center gap-4 px-5 py-4">
+        <div className="flex items-center gap-4 px-5 py-4 overflow-x-auto">
           {/* Bar */}
-          <div className="w-48 shrink-0">
+          <div className="w-full max-w-[12rem] shrink-0">
             <div className="h-7 rounded-lg bg-slate-800/60 overflow-hidden relative">
               <div
                 className={`h-full rounded-lg border transition-all duration-500 ${isFirst ? "bg-indigo-500/30 border-indigo-500/20" : barColor(stage.convRate)}`}

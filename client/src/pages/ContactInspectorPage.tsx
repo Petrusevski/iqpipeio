@@ -581,6 +581,7 @@ export default function ContactInspectorPage() {
               </div>
 
               <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800">
@@ -637,6 +638,7 @@ export default function ContactInspectorPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
 
                 {/* Pagination */}
                 {totalPages > 1 && (
@@ -644,7 +646,7 @@ export default function ContactInspectorPage() {
                     <span className="text-[11px] text-slate-600 tabular-nums">
                       {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredContacts.length)} of {filteredContacts.length}
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center flex-wrap gap-1">
                       <button
                         onClick={() => setPage(p => Math.max(0, p - 1))}
                         disabled={page === 0}
