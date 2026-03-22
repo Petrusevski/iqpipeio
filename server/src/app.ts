@@ -47,11 +47,11 @@ app.use(helmet({
 }));
 
 // ── CORS ──────────────────────────────────────────────────────────────────
-const allowedOrigins = [
-  process.env.CLIENT_ORIGIN,
+const allowedOrigins: (string | RegExp)[] = [
   "http://localhost:5173",
   /\.vercel\.app$/,
-].filter(Boolean);
+];
+if (process.env.CLIENT_ORIGIN) allowedOrigins.push(process.env.CLIENT_ORIGIN);
 
 app.use(cors({
   origin: allowedOrigins,
