@@ -10,10 +10,13 @@ import {
   Loader2,
   Building,
   Mail,
+  BookOpen,
 } from "lucide-react";
+import { SETUP_KEY } from "./SetupWizard";
 
 interface TopbarProps {
   onMenuClick?: () => void;
+  onOpenSetup?: () => void;
 }
 
 const API_BASE =
@@ -36,7 +39,7 @@ type LeadResult = {
   title?: string;
 };
 
-export default function Topbar({ onMenuClick }: TopbarProps) {
+export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -297,7 +300,24 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Right Actions */}
       <div className="flex items-center gap-3 md:gap-4">
-        
+
+        {/* Setup Guide */}
+        <button
+          onClick={onOpenSetup}
+          title="Setup Guide"
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+            localStorage.getItem(SETUP_KEY)
+              ? "border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700 bg-transparent"
+              : "border-indigo-700/50 text-indigo-400 hover:text-indigo-300 hover:border-indigo-600 bg-indigo-500/5"
+          }`}
+        >
+          <BookOpen size={13} />
+          <span className="hidden sm:inline">Guide</span>
+          {!localStorage.getItem(SETUP_KEY) && (
+            <span className="hidden sm:flex h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+          )}
+        </button>
+
         {/* Notifications Dropdown */}
         <div className="relative" ref={notifRef}>
           <button

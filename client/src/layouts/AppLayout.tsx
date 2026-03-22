@@ -37,7 +37,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
       {/* 1. Desktop Sidebar */}
       <div className="hidden md:block h-screen sticky top-0 overflow-y-auto border-r border-slate-800 bg-slate-950 shadow-xl z-30">
-        <Sidebar onOpenSetup={() => setWizardOpen(true)} />
+        <Sidebar />
       </div>
 
       {/* 2. Mobile Sidebar - Controlled by Framer Motion */}
@@ -73,7 +73,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               
               {/* Sidebar Content Container */}
               <div className="flex-1 overflow-y-auto">
-                <Sidebar onOpenSetup={() => { setMobileSidebarOpen(false); setWizardOpen(true); }} />
+                <Sidebar />
               </div>
             </motion.div>
           </>
@@ -84,6 +84,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
           onMenuClick={() => setMobileSidebarOpen(true)}
+          onOpenSetup={() => setWizardOpen(true)}
         />
         <main className="flex-1 px-4 md:px-8 py-6 relative">
           <div className="max-w-7xl mx-auto">

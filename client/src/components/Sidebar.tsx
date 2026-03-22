@@ -7,7 +7,6 @@ import {
   GitMerge,
   Plug,
   Settings,
-  Sparkles,
   FileText,
   HeartPulse,
   GitBranch,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { useIntegrations } from "../context/IntegrationsContext";
 import { API_BASE_URL } from "../../config";
-import { SETUP_KEY } from "./SetupWizard";
 
 const navGroups = [
   {
@@ -51,15 +49,10 @@ const navGroups = [
   },
 ];
 
-interface SidebarProps {
-  onOpenSetup?: () => void;
-}
-
-export default function Sidebar({ onOpenSetup }: SidebarProps) {
+export default function Sidebar() {
   const { connectedTools } = useIntegrations();
   const navigate = useNavigate();
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
-  const setupComplete = !!localStorage.getItem(SETUP_KEY);
 
   useEffect(() => {
     const token = localStorage.getItem("iqpipe_token");
@@ -136,27 +129,6 @@ export default function Sidebar({ onOpenSetup }: SidebarProps) {
           </div>
         ))}
       </nav>
-
-      {/* SETUP GUIDE */}
-      <div className="px-3 pb-3 shrink-0">
-        <button
-          onClick={onOpenSetup}
-          data-tour="setup-guide-btn"
-          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-xs font-medium group ${
-            setupComplete
-              ? "bg-slate-900/40 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
-              : "bg-indigo-900/20 border-indigo-700/40 text-indigo-400 hover:bg-indigo-900/30 hover:border-indigo-600"
-          }`}
-        >
-          <Sparkles size={13} className={setupComplete ? "text-slate-600 group-hover:text-slate-400" : "text-indigo-400"} />
-          <span className="flex-1 text-left">Setup Guide</span>
-          {!setupComplete && (
-            <span className="px-1.5 py-0.5 rounded-full bg-indigo-500 text-white text-[9px] font-bold leading-none">
-              NEW
-            </span>
-          )}
-        </button>
-      </div>
 
       {/* WORKSPACE FOOTER */}
       <div className="p-3 border-t border-slate-800/50 shrink-0">
