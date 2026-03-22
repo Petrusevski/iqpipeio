@@ -1,77 +1,123 @@
 import TourGuide, { TourStep } from "./TourGuide";
-import { Plug, Users, LayoutDashboard, Zap, BarChart3, Sparkles, Check } from "lucide-react";
+import {
+  Sparkles, Plug, Zap, Search, GitMerge,
+  HeartPulse, Bot, FileText, Settings, Check,
+} from "lucide-react";
 
 export const SETUP_KEY = "iqpipe_setup_complete";
 
 const STEPS: TourStep[] = [
+  // ── 0. Welcome ──────────────────────────────────────────────────────────
   {
     selector: null,
     title: "Welcome to iqpipe",
-    desc: "This is a quick guided tour of your GTM intelligence platform. We'll highlight each key section so you know exactly where everything lives.",
+    desc: "iqpipe is your GTM observability layer — it connects every tool in your outreach stack, processes events in real time, and surfaces exactly what's working and what isn't.",
     Icon: Sparkles,
     iconGrad: "from-indigo-600 to-fuchsia-600",
+    tip: "This guide walks you through the 5-minute setup. You can reopen it anytime from the sidebar.",
   },
+
+  // ── 1. Integrations ─────────────────────────────────────────────────────
   {
     selector: 'a[href="/integrations"]',
-    title: "Integrations — Start Here",
-    desc: "Connect your GTM stack first. HeyReach, Lemlist, Instantly, SmartLead, HubSpot, Apollo, Clearbit, and more. Paste your API key to activate each tool.",
+    title: "Step 1 — Connect Your Stack",
+    desc: "Start here. Connect your outreach tools (HeyReach, Lemlist, Instantly, SmartLead), enrichment (Apollo, Clearbit), and CRM (HubSpot, Salesforce) by pasting their API keys.",
     Icon: Plug,
     iconGrad: "from-sky-700 to-sky-500",
-    tip: "Connect at least one outreach tool to start seeing real-time events and signals flow into your dashboard.",
+    tip: "Each connected tool unlocks a new stream of events. Connect at least one outreach tool to see data flowing in immediately.",
     actionLabel: "Connect your tools →",
     actionPath: "/integrations",
   },
+
+  // ── 2. Live Feed ─────────────────────────────────────────────────────────
   {
-    selector: 'a[href="/leads"]',
-    title: "Contacts",
-    desc: "Your unified contact database. Import leads via CSV or Google Sheets, then score and track them across every tool in your stack.",
-    Icon: Users,
-    iconGrad: "from-emerald-700 to-emerald-500",
-    tip: "CSV needs these headers: Email*, First Name, Last Name, Company, Title. For Google Sheets, share with the sync-bot service account first.",
-    actionLabel: "Import your contacts →",
-    actionPath: "/leads",
-  },
-  {
-    selector: 'a[href="/dashboard"]',
-    title: "Signal Center",
-    desc: "Your GTM command center. Live KPIs, tool health scores, recent events, and revenue signals from every connected tool — all in one real-time view.",
-    Icon: LayoutDashboard,
-    iconGrad: "from-indigo-700 to-indigo-500",
-    tip: "Start here every morning to see what happened overnight across your entire outreach stack.",
-    actionLabel: "Open Signal Center →",
-    actionPath: "/dashboard",
-  },
-  {
-    selector: 'a[href="/events"]',
-    title: "Events Feed",
-    desc: "A real-time stream of signals across all your tools. Email opens, replies, campaign starts, enrichments — everything in one chronological activity feed.",
+    selector: 'a[href="/feed"]',
+    title: "Step 2 — Watch Events Come In",
+    desc: "The Live Feed is a real-time stream of every signal across your entire stack — email opens, replies, connection requests, enrichments, meetings booked. Everything in one place.",
     Icon: Zap,
     iconGrad: "from-amber-600 to-orange-500",
-    tip: "Webhook tools (HeyReach, Lemlist, Instantly, SmartLead) push events here automatically once connected.",
-    actionLabel: "View Events →",
-    actionPath: "/events",
+    tip: "Events start flowing seconds after you connect a tool. Webhook-based tools (HeyReach, Lemlist, Instantly) push events instantly.",
+    actionLabel: "Open Live Feed →",
+    actionPath: "/feed",
   },
+
+  // ── 3. Contact Inspector ─────────────────────────────────────────────────
   {
-    selector: 'a[href="/performance"]',
-    title: "Tool Performance",
-    desc: "Compare how every connected tool is performing — open rates, reply rates, lead volume, and cost-per-lead side by side so you can cut what's not working.",
-    Icon: BarChart3,
+    selector: 'a[href="/inspect"]',
+    title: "Step 3 — Inspect Any Contact",
+    desc: "Search any contact by email or name and see their full cross-tool journey — every touchpoint, enrichment, reply, and outcome across every tool in your stack.",
+    Icon: Search,
+    iconGrad: "from-emerald-700 to-emerald-500",
+    tip: "Use this when a prospect replies and you want full context before jumping on a call — see exactly what they received and when.",
+    actionLabel: "Inspect a contact →",
+    actionPath: "/inspect",
+  },
+
+  // ── 4. Pipeline Funnel ───────────────────────────────────────────────────
+  {
+    selector: 'a[href="/funnel"]',
+    title: "Step 4 — Monitor Your Pipeline",
+    desc: "The Pipeline Funnel shows conversion rates from first touch all the way to booked meeting and closed deal. Spot exactly where prospects are dropping off.",
+    Icon: GitMerge,
     iconGrad: "from-violet-700 to-violet-500",
-    tip: "Use this to make data-driven decisions about your tool spend — usually reveals 1-2 tools you can cut immediately.",
-    actionLabel: "View Performance →",
-    actionPath: "/performance",
+    tip: "A healthy funnel has a reply rate above 8% and a meeting-booked rate above 3%. If you're below that, the funnel will tell you which step to fix.",
+    actionLabel: "View Pipeline →",
+    actionPath: "/funnel",
   },
+
+  // ── 5. Workflow Health ───────────────────────────────────────────────────
   {
-    selector: '[data-tour="setup-guide-btn"]',
-    title: "Setup Guide",
-    desc: "This button lives in your sidebar and re-opens this tour anytime. Come back whenever you need a refresher on any section.",
-    Icon: Sparkles,
-    iconGrad: "from-slate-700 to-slate-600",
+    selector: 'a[href="/workflow-health"]',
+    title: "Step 5 — Check Workflow Health",
+    desc: "See the health of every active sequence and workflow across your connected tools — steps running, errors detected, bounce rates, and reply rates all in one view.",
+    Icon: HeartPulse,
+    iconGrad: "from-rose-700 to-rose-500",
+    tip: "A red health score on a workflow usually means high bounce rate or API errors. Catch these early before they burn your sending domain.",
+    actionLabel: "View Workflow Health →",
+    actionPath: "/workflow-health",
   },
+
+  // ── 6. Automation Health (n8n / Make) ────────────────────────────────────
+  {
+    selector: 'a[href="/automation-health"]',
+    title: "Step 6 — Connect Your Automations",
+    desc: "If you use n8n or Make.com, connect your workspace here. iqpipe will fetch all your workflows, detect which apps each one uses, and monitor events flowing through them.",
+    Icon: Bot,
+    iconGrad: "from-indigo-700 to-indigo-500",
+    tip: "Paste your n8n API key and base URL to get a full map of every automation — which tools it touches, how often it fires, and whether it's erroring.",
+    actionLabel: "Connect n8n / Make →",
+    actionPath: "/automation-health",
+  },
+
+  // ── 7. GTM Report ────────────────────────────────────────────────────────
+  {
+    selector: 'a[href="/gtm-report"]',
+    title: "Step 7 — Generate Your GTM Report",
+    desc: "Export a full PDF or Excel report covering pipeline health, tool performance, event volumes, and attribution — ready to share with your team or leadership.",
+    Icon: FileText,
+    iconGrad: "from-slate-600 to-slate-500",
+    tip: "Run this weekly to keep a record of GTM performance over time. The report pulls live data at generation time.",
+    actionLabel: "Generate a Report →",
+    actionPath: "/gtm-report",
+  },
+
+  // ── 8. Settings ──────────────────────────────────────────────────────────
+  {
+    selector: 'a[href="/settings"]',
+    title: "Step 8 — Configure Your Workspace",
+    desc: "Set your workspace name, manage team members, configure notification preferences, and store encrypted API credentials in the Vault.",
+    Icon: Settings,
+    iconGrad: "from-slate-700 to-slate-600",
+    tip: "All API keys stored in the Vault are AES-256 encrypted at rest. Never paste credentials anywhere else.",
+    actionLabel: "Open Settings →",
+    actionPath: "/settings",
+  },
+
+  // ── 9. Done ──────────────────────────────────────────────────────────────
   {
     selector: null,
-    title: "You're ready to go!",
-    desc: "Connect your first integration to start seeing real-time GTM signals. Your Signal Center will come alive as data starts flowing in.",
+    title: "You're all set!",
+    desc: "Connect your first integration and iqpipe comes alive. Start with one outreach tool — events will flow within seconds and your Live Feed will start filling up.",
     Icon: Check,
     iconGrad: "from-emerald-700 to-emerald-500",
     actionLabel: "Go to Integrations →",
