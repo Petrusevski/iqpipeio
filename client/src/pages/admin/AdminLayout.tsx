@@ -6,12 +6,12 @@ import {
 } from "lucide-react";
 
 const NAV = [
-  { path: "/admin",          label: "Dashboard",   icon: LayoutDashboard, end: true },
-  { path: "/admin/users",    label: "Users",        icon: Users },
-  { path: "/admin/workspaces", label: "Workspaces", icon: Building2 },
-  { path: "/admin/billing",  label: "Billing",      icon: CreditCard },
-  { path: "/admin/activity", label: "Activity",     icon: Activity },
-  { path: "/admin/mailing",  label: "Mailing",      icon: Mail },
+  { path: "/admin36486",          label: "Dashboard",   icon: LayoutDashboard, end: true },
+  { path: "/admin36486/users",    label: "Users",        icon: Users },
+  { path: "/admin36486/workspaces", label: "Workspaces", icon: Building2 },
+  { path: "/admin36486/billing",  label: "Billing",      icon: CreditCard },
+  { path: "/admin36486/activity", label: "Activity",     icon: Activity },
+  { path: "/admin36486/mailing",  label: "Mailing",      icon: Mail },
 ];
 
 export default function AdminLayout() {
@@ -20,7 +20,7 @@ export default function AdminLayout() {
 
   const handleLogout = () => {
     sessionStorage.removeItem("iqpipe_admin_token");
-    navigate("/admin/login", { replace: true });
+    navigate("/admin36486/login", { replace: true });
   };
 
   const Sidebar = ({ mobile = false }) => (

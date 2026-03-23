@@ -15,7 +15,7 @@ export default function AdminLoginPage() {
     setError("");
 
     try {
-      const res  = await fetch(`${API_BASE_URL}/api/admin/login`, {
+      const res  = await fetch(`${API_BASE_URL}/api/admin36486/login`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ password }),
@@ -29,7 +29,7 @@ export default function AdminLoginPage() {
       }
 
       sessionStorage.setItem("iqpipe_admin_token", data.token);
-      navigate("/admin", { replace: true });
+      navigate("/admin36486", { replace: true });
     } catch {
       setError("Could not reach server.");
       setLoading(false);

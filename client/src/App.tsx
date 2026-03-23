@@ -14,7 +14,7 @@ import AdminMailingPage    from "./pages/admin/AdminMailingPage";
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
   const token = sessionStorage.getItem("iqpipe_admin_token");
-  return token ? <>{children}</> : <Navigate to="/admin/login" replace />;
+  return token ? <>{children}</> : <Navigate to="/admin36486/login" replace />;
 }
 
 // App pages
@@ -71,8 +71,8 @@ function App() {
         <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
 
         {/* Admin — always accessible regardless of user auth */}
-        <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="/admin" element={<AdminGuard><AdminLayout /></AdminGuard>}>
+        <Route path="/admin36486/login" element={<AdminLoginPage />} />
+        <Route path="/admin36486" element={<AdminGuard><AdminLayout /></AdminGuard>}>
           <Route index                  element={<AdminDashboardPage />} />
           <Route path="users"           element={<AdminUsersPage />} />
           <Route path="workspaces"      element={<AdminWorkspacesPage />} />
@@ -107,8 +107,8 @@ function App() {
           <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
           <Route path="/login"         element={<Navigate to="/feed" replace />} />
           <Route path="/signup"        element={<Navigate to="/feed" replace />} />
-          <Route path="/admin/login"   element={<AdminLoginPage />} />
-          <Route path="/admin/*"       element={
+          <Route path="/admin36486/login"   element={<AdminLoginPage />} />
+          <Route path="/admin36486/*"       element={
             <AdminGuard>
               <Routes>
                 <Route element={<AdminLayout />}>

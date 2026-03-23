@@ -24,7 +24,7 @@ export async function adminFetch<T = any>(path: string, init?: RequestInit): Pro
 
   if (res.status === 401) {
     sessionStorage.removeItem("iqpipe_admin_token");
-    window.location.href = "/admin/login";
+    window.location.href = "/admin36486/login";
     throw new Error("Session expired.");
   }
 
