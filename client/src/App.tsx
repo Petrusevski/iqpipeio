@@ -2,6 +2,21 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
 import { IntegrationsProvider } from "./context/IntegrationsContext";
 
+// Admin panel
+import AdminLoginPage      from "./pages/admin/AdminLoginPage";
+import AdminLayout         from "./pages/admin/AdminLayout";
+import AdminDashboardPage  from "./pages/admin/AdminDashboardPage";
+import AdminUsersPage      from "./pages/admin/AdminUsersPage";
+import AdminWorkspacesPage from "./pages/admin/AdminWorkspacesPage";
+import AdminBillingPage    from "./pages/admin/AdminBillingPage";
+import AdminActivityPage   from "./pages/admin/AdminActivityPage";
+import AdminMailingPage    from "./pages/admin/AdminMailingPage";
+
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const token = sessionStorage.getItem("iqpipe_admin_token");
+  return token ? <>{children}</> : <Navigate to="/admin/login" replace />;
+}
+
 // App pages
 import LiveFeedPage         from "./pages/LiveFeedPage";
 import FunnelPage           from "./pages/FunnelPage";
@@ -54,6 +69,18 @@ function App() {
         <Route path="/integrations"     element={<PublicIntegrationsPage />} />
         <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
         <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
+
+        {/* Admin — always accessible regardless of user auth */}
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+        <Route path="/admin" element={<AdminGuard><AdminLayout /></AdminGuard>}>
+          <Route index                  element={<AdminDashboardPage />} />
+          <Route path="users"           element={<AdminUsersPage />} />
+          <Route path="workspaces"      element={<AdminWorkspacesPage />} />
+          <Route path="billing"         element={<AdminBillingPage />} />
+          <Route path="activity"        element={<AdminActivityPage />} />
+          <Route path="mailing"         element={<AdminMailingPage />} />
+        </Route>
+
         <Route path="*"                 element={<Navigate to="/" replace />} />
       </Routes>
     );
@@ -80,6 +107,21 @@ function App() {
           <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
           <Route path="/login"         element={<Navigate to="/feed" replace />} />
           <Route path="/signup"        element={<Navigate to="/feed" replace />} />
+          <Route path="/admin/login"   element={<AdminLoginPage />} />
+          <Route path="/admin/*"       element={
+            <AdminGuard>
+              <Routes>
+                <Route element={<AdminLayout />}>
+                  <Route index               element={<AdminDashboardPage />} />
+                  <Route path="users"        element={<AdminUsersPage />} />
+                  <Route path="workspaces"   element={<AdminWorkspacesPage />} />
+                  <Route path="billing"      element={<AdminBillingPage />} />
+                  <Route path="activity"     element={<AdminActivityPage />} />
+                  <Route path="mailing"      element={<AdminMailingPage />} />
+                </Route>
+              </Routes>
+            </AdminGuard>
+          } />
           <Route path="*"              element={<Navigate to="/feed" replace />} />
         </Routes>
       </AppLayout>

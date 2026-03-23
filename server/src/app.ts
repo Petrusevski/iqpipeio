@@ -39,7 +39,8 @@ import n8nWorkflowsRouter  from "./routes/n8nWorkflows";
 import automationHealthRouter from "./routes/automationHealth";
 import n8nConnectRouter from "./routes/n8nConnect";
 import checkoutRouter from "./routes/checkout";
-import pushRouter from "./routes/push";
+import pushRouter  from "./routes/push";
+import adminRouter from "./routes/admin";
 
 const app = express();
 
@@ -163,5 +164,6 @@ app.use("/api/automation-health", automationHealthRouter);
 app.use("/api/n8n-connect",   n8nConnectRouter);
 app.use("/api/checkout",      checkoutRouter);
 app.use("/api/push",         pushRouter);
+app.use("/api/admin",        adminRouter);
 
 export default app;
