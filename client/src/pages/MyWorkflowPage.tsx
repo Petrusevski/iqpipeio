@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   GitBranch, Plus, Trash2, ChevronUp, ChevronDown,
-  Save, CheckCircle2, RefreshCw, Info, ArrowDown,
+  Save, RefreshCw, Info, ArrowDown,
   ChevronRight, Pencil, X, Layers,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
@@ -51,6 +51,32 @@ const CHANNEL_COLOR: Record<string, string> = {
   automation:  "text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/30",
 };
 
+// Domain mapping for favicon logos
+const TOOL_DOMAINS: Record<string, string> = {
+  apollo:        "apollo.io",
+  clay:          "clay.com",
+  zoominfo:      "zoominfo.com",
+  pdl:           "peopledatalabs.com",
+  clearbit:      "clearbit.com",
+  hunter:        "hunter.io",
+  lusha:         "lusha.com",
+  cognism:       "cognism.com",
+  heyreach:      "heyreach.io",
+  phantombuster: "phantombuster.com",
+  instantly:     "instantly.ai",
+  lemlist:       "lemlist.com",
+  smartlead:     "smartlead.ai",
+  replyio:       "reply.io",
+  outreach:      "outreach.io",
+  hubspot:       "hubspot.com",
+  salesforce:    "salesforce.com",
+  pipedrive:     "pipedrive.com",
+  attio:         "attio.com",
+  stripe:        "stripe.com",
+  n8n:           "n8n.io",
+  make:          "make.com",
+};
+
 const CONDITION_PRESETS = [
   "always",
   "if reply received",
@@ -89,6 +115,43 @@ function newStep(): WorkflowStep {
 
 function newStack(name: string): WorkflowStack {
   return { id: crypto.randomUUID(), name, steps: [newStep()], createdAt: new Date().toISOString() };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOOL AVATAR  — favicon logo with initial fallback
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ToolAvatar({ tool, size = "md" }: { tool: string; size?: "sm" | "md" | "lg" }) {
+  const [errored, setErrored] = useState(false);
+  const domain = TOOL_DOMAINS[tool];
+  const label  = ALL_TOOLS[tool]?.label ?? tool;
+  const ch     = ALL_TOOLS[tool]?.channel ?? "";
+  const color  = CHANNEL_COLOR[ch] ?? "text-slate-400 bg-slate-700/30 border-slate-700";
+
+  const dim    = size === "sm" ? "h-5 w-5 text-[8px]"
+               : size === "lg" ? "h-9 w-9 text-xs"
+               : "h-7 w-7 text-[10px]";
+  const imgPx  = size === "sm" ? 16 : size === "lg" ? 28 : 22;
+
+  if (!domain || errored) {
+    return (
+      <div title={label} className={`${dim} rounded-lg border flex items-center justify-center font-bold shrink-0 uppercase ${color}`}>
+        {label[0]}
+      </div>
+    );
+  }
+  return (
+    <div title={label} className={`${dim} rounded-lg bg-white flex items-center justify-center overflow-hidden shrink-0 border border-white/10`}>
+      <img
+        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+        alt={label}
+        width={imgPx}
+        height={imgPx}
+        className="object-contain"
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,6 +220,7 @@ function StepCard({
             </div>
             {step.tool && (
               <div className="flex items-center gap-1.5 mt-1.5">
+                <ToolAvatar tool={step.tool} size="sm" />
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${chColor}`}>{ch}</span>
                 {!isConnected && <span className="text-[10px] text-slate-600 italic">not connected</span>}
               </div>
@@ -412,9 +476,6 @@ function StackCard({
   const channels = Array.from(new Set(
     stack.steps.filter(s => s.tool && ALL_TOOLS[s.tool]).map(s => ALL_TOOLS[s.tool].channel)
   ));
-  const toolLabels = Array.from(new Set(
-    stack.steps.filter(s => s.tool && ALL_TOOLS[s.tool]).map(s => ALL_TOOLS[s.tool].label)
-  ));
   const completeCount = stack.steps.filter(s => s.tool && s.eventType).length;
   const connectedCount = stack.steps.filter(s => s.tool && connected.has(s.tool)).length;
 
@@ -430,24 +491,35 @@ function StackCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-semibold text-white truncate">{stack.name}</span>
             <span className="text-[10px] text-slate-600 shrink-0">
               {stack.steps.length} step{stack.steps.length !== 1 ? "s" : ""}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Logo chain — tool avatars with arrows */}
+          <div className="flex items-center gap-1 flex-wrap mb-1.5">
+            {stack.steps.filter(s => s.tool).slice(0, 6).map((step, i) => (
+              <div key={step.id} className="flex items-center gap-1">
+                {i > 0 && <span className="text-[10px] text-slate-700">→</span>}
+                <ToolAvatar tool={step.tool} size="sm" />
+              </div>
+            ))}
+            {stack.steps.filter(s => s.tool).length > 6 && (
+              <span className="text-[10px] text-slate-600 ml-0.5">
+                +{stack.steps.filter(s => s.tool).length - 6}
+              </span>
+            )}
+          </div>
+
+          {/* Channel badges */}
+          <div className="flex items-center gap-1 flex-wrap">
             {channels.map(ch => (
               <span key={ch} className={`text-[9px] px-1.5 py-0.5 rounded-full border font-medium ${CHANNEL_COLOR[ch] ?? "text-slate-400 bg-slate-700/30 border-slate-700"}`}>
                 {ch}
               </span>
             ))}
-            {toolLabels.length > 0 && (
-              <span className="text-[10px] text-slate-600">
-                {toolLabels.slice(0, 3).join(" → ")}{toolLabels.length > 3 ? ` +${toolLabels.length - 3}` : ""}
-              </span>
-            )}
           </div>
         </div>
 
@@ -481,7 +553,10 @@ function StackCard({
                   </div>
                   <div className="flex items-center gap-2 flex-wrap py-0.5">
                     {def ? (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${chColor}`}>{def.label}</span>
+                      <div className="flex items-center gap-1.5">
+                        <ToolAvatar tool={step.tool} size="sm" />
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${chColor}`}>{def.label}</span>
+                      </div>
                     ) : (
                       <span className="text-[10px] text-slate-600 italic">no tool</span>
                     )}

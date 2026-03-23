@@ -656,6 +656,67 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
     },
   });
 
+  // ── 9. My Workflow — GTM stack map ────────────────────────────────────────
+  //
+  // Stored as a single Workflow row with name "__gtm_flow_map__".
+  // triggerConfig holds { version: 2, stacks: WorkflowStack[] }.
+  //
+  // Three real-world stacks demonstrating different GTM motions:
+  //   A. Cold Outbound — LinkedIn + Email  (apollo → clay → heyreach → instantly → hubspot)
+  //   B. Inbound Lead Nurture              (hubspot → clay → smartlead → pipedrive)
+  //   C. Revenue Capture — CRM to Billing  (hubspot → stripe → chargebee)
+
+  const MAP_NAME = "__gtm_flow_map__";
+  const existingMap = await prisma.workflow.findFirst({ where: { workspaceId, name: MAP_NAME } });
+  if (!existingMap) {
+    const demoStacks = [
+      {
+        id:        "stack_cold_outbound",
+        name:      "Cold Outbound — LinkedIn + Email",
+        createdAt: daysAgo(14).toISOString(),
+        steps: [
+          { id: "co_s1", tool: "apollo",    eventType: "lead_imported",        label: "Source leads from Apollo",    condition: "always",                  note: "Filter: company 50–500, SaaS, US/EU" },
+          { id: "co_s2", tool: "clay",      eventType: "lead_enriched",        label: "Enrich with Clay",             condition: "if enrichment successful", note: "Waterfall: Clearbit → PDL → manual" },
+          { id: "co_s3", tool: "heyreach",  eventType: "connection_sent",      label: "LinkedIn connection request",  condition: "if ICP match",             note: "Persona A template, 40 req/day cap" },
+          { id: "co_s4", tool: "instantly", eventType: "sequence_started",     label: "Cold email sequence",          condition: "if connection accepted",   note: "5-step sequence, 48h between steps" },
+          { id: "co_s5", tool: "hubspot",   eventType: "deal_created",         label: "Create deal in HubSpot",       condition: "if reply received",        note: "Stage: Qualified Lead, auto-assign to AE" },
+        ],
+      },
+      {
+        id:        "stack_inbound_nurture",
+        name:      "Inbound Lead Nurture",
+        createdAt: daysAgo(7).toISOString(),
+        steps: [
+          { id: "in_s1", tool: "hubspot",   eventType: "deal_created",         label: "Inbound lead enters CRM",      condition: "always",                  note: "Triggered by form fill or demo request" },
+          { id: "in_s2", tool: "clay",      eventType: "lead_enriched",        label: "Enrich + ICP score",           condition: "always",                  note: "Score = firmographics + tech stack fit" },
+          { id: "in_s3", tool: "smartlead", eventType: "sequence_started",     label: "Nurture email sequence",       condition: "if ICP match",             note: "ICP threshold: score ≥ 70" },
+          { id: "in_s4", tool: "pipedrive", eventType: "deal_created",         label: "Sync deal to Pipedrive",       condition: "if meeting booked",        note: "Stage: Demo Scheduled" },
+        ],
+      },
+      {
+        id:        "stack_revenue_capture",
+        name:      "Revenue Capture — CRM to Billing",
+        createdAt: daysAgo(3).toISOString(),
+        steps: [
+          { id: "rc_s1", tool: "hubspot",   eventType: "deal_won",             label: "Deal closes in HubSpot",       condition: "always",                  note: "Triggered by stage = Closed Won" },
+          { id: "rc_s2", tool: "stripe",    eventType: "deal_won",             label: "Activate Stripe subscription", condition: "always",                  note: "Plan tier set by deal amount" },
+          { id: "rc_s3", tool: "chargebee", eventType: "subscription_created", label: "Create Chargebee record",      condition: "always",                  note: "Sets up invoicing + dunning rules" },
+        ],
+      },
+    ];
+
+    await prisma.workflow.create({
+      data: {
+        workspaceId,
+        name:          MAP_NAME,
+        description:   "GTM workflow map — defined by user for iqpipe context",
+        status:        "active",
+        triggerType:   "map",
+        triggerConfig: JSON.stringify({ version: 2, stacks: demoStacks }),
+      },
+    });
+  }
+
   // ── Done ─────────────────────────────────────────────────────────────────
 
   const successRates = N8N_WORKFLOWS.map((wf) => ({
