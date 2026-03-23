@@ -14,7 +14,7 @@ export default function SeedBanner({ onSeeded }: Props) {
     setStatus("loading");
     try {
       const token = localStorage.getItem("iqpipe_token") ?? "";
-      const r = await fetch(`${API_BASE_URL}/api/dev/seed`, {
+      const r = await fetch(`${API_BASE_URL}/api/dev/seed?force=true`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -24,7 +24,7 @@ export default function SeedBanner({ onSeeded }: Props) {
         setMsg(d.message);
       } else if (d.seeded) {
         setStatus("done");
-        setMsg(`Seeded ${d.iqLeads} contacts · ${d.touchpoints} events across ${d.tools.length} tools.`);
+        setMsg(`Seeded ${d.iqLeads} contacts · ${d.touchpoints} events across ${d.integrations?.total ?? d.integrations?.tools?.length ?? "15"} tools.`);
         setTimeout(() => onSeeded?.(), 800);
       } else {
         setStatus("error");
@@ -62,7 +62,7 @@ export default function SeedBanner({ onSeeded }: Props) {
       {status === "loading" && (
         <div className="flex items-center gap-2 text-sm text-indigo-400">
           <RefreshCw size={14} className="animate-spin" />
-          Seeding 50 contacts across 7 tools…
+          Seeding 43 contacts across 15 tools…
         </div>
       )}
 

@@ -251,13 +251,24 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
 
   const workspaceId = membership.workspace.id;
 
-  // Idempotency
+  // Idempotency — allow ?force=true to wipe and re-seed
   const existing = await prisma.iqLead.count({ where: { workspaceId } });
   if (existing > 0) {
-    return res.json({
-      skipped: true,
-      message: `Already seeded (${existing} IqLeads exist). Delete them first to re-seed.`,
-    });
+    if (req.query.force !== "true") {
+      return res.json({
+        skipped: true,
+        message: `Already seeded (${existing} IqLeads exist). Delete them first to re-seed.`,
+      });
+    }
+    // Force re-seed: wipe existing demo data
+    await prisma.touchpoint.deleteMany({ where: { workspaceId } });
+    await prisma.outcome.deleteMany({ where: { workspaceId } });
+    await prisma.iqLead.deleteMany({ where: { workspaceId } });
+    await prisma.integrationConnection.deleteMany({ where: { workspaceId } });
+    await prisma.n8nQueuedEvent.deleteMany({ where: { workspaceId } });
+    await prisma.n8nWorkflowMeta.deleteMany({ where: { workspaceId } });
+    await prisma.webhookError.deleteMany({ where: { workspaceId } });
+    await prisma.n8nConnection.deleteMany({ where: { workspaceId } });
   }
 
   // ── 1. IntegrationConnections (15 tools) ─────────────────────────────────
