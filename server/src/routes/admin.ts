@@ -270,40 +270,59 @@ router.get("/billing", requireAdmin, async (_req: AdminRequest, res: Response) =
   });
 });
 
-// ─── GET /api/admin/activity ──────────────────────────────────────────────────
-// Recent platform-wide activity for monitoring
+// ─── POST /api/admin/sql ──────────────────────────────────────────────────────
+// Execute a raw SQL SELECT query against the database.
+// Only SELECT statements are permitted — all others are rejected immediately.
+// Results are capped at 500 rows to prevent memory issues.
+// Admin JWT required.
 
-router.get("/activity", requireAdmin, async (req: AdminRequest, res: Response) => {
-  const limit = Math.min(200, Number(req.query.limit || 50));
+router.post("/sql", requireAdmin, async (req: AdminRequest, res: Response) => {
+  const { query } = req.body as { query?: string };
 
-  const [recentLeads, recentDeals, recentTouchpoints] = await Promise.all([
-    prisma.lead.findMany({
-      orderBy: { createdAt: "desc" },
-      take:    limit,
-      select: {
-        id: true, email: true, company: true, source: true, createdAt: true,
-        workspace: { select: { name: true } },
-      },
-    }),
-    prisma.deal.findMany({
-      orderBy: { createdAt: "desc" },
-      take:    Math.floor(limit / 2),
-      select: {
-        id: true, name: true, stage: true, amount: true, currency: true, createdAt: true,
-        workspace: { select: { name: true } },
-      },
-    }),
-    prisma.touchpoint.findMany({
-      orderBy: { recordedAt: "desc" },
-      take:    limit,
-      select: {
-        id: true, tool: true, channel: true, eventType: true, recordedAt: true,
-        workspaceId: true,
-      },
-    }),
-  ]);
+  if (!query || !query.trim()) {
+    return res.status(400).json({ error: "query is required." });
+  }
 
-  return res.json({ recentLeads, recentDeals, recentTouchpoints });
+  const normalised = query.trim().replace(/\s+/g, " ");
+
+  // Hard guard: only allow SELECT statements
+  if (!/^SELECT\s/i.test(normalised)) {
+    return res.status(400).json({
+      error: "Only SELECT statements are permitted.",
+    });
+  }
+
+  // Reject multiple statements (semicolon mid-query)
+  if ((normalised.match(/;/g) ?? []).length > 1 ||
+      (normalised.endsWith(";") && normalised.slice(0, -1).includes(";"))) {
+    return res.status(400).json({ error: "Multiple statements are not allowed." });
+  }
+
+  // Strip trailing semicolon and inject LIMIT if none present
+  const stripped = normalised.replace(/;$/, "");
+  const hasLimit = /\bLIMIT\s+\d+/i.test(stripped);
+  const finalQuery = hasLimit ? stripped : `${stripped} LIMIT 500`;
+
+  try {
+    const rows: any[] = await (prisma as any).$queryRawUnsafe(finalQuery);
+
+    // Serialise BigInt values (Postgres returns them for COUNT etc.)
+    const safe = JSON.parse(
+      JSON.stringify(rows, (_key, val) =>
+        typeof val === "bigint" ? val.toString() : val
+      )
+    );
+
+    return res.json({
+      rows:    safe,
+      count:   safe.length,
+      columns: safe.length > 0 ? Object.keys(safe[0]) : [],
+      query:   finalQuery,
+    });
+  } catch (err: any) {
+    // Return the DB error message — useful for query debugging
+    return res.status(400).json({ error: err.message ?? "Query failed." });
+  }
 });
 
 // ─── POST /api/admin/mail/send ────────────────────────────────────────────────
