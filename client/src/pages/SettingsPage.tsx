@@ -1,9 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import PageHeader from "../components/PageHeader";
 import { useSettings } from "../hooks/useSettings";
 import {
   Clock, AlertTriangle, CheckCircle2, X, Zap, Lock, ShieldCheck,
   Receipt, Download, Loader2, ChevronDown, Bell, BellOff, BellRing,
+  Sparkles, Trash2, RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
@@ -734,6 +735,9 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
             {/* Push notifications */}
             <PushNotificationsPanel />
 
+            {/* Demo data */}
+            <DemoDataPanel />
+
           </div>
         </div>
       </div>
@@ -878,6 +882,144 @@ function PushNotificationsPanel() {
       {pushState.error && (
         <p className="mt-2 text-[11px] text-rose-400">{pushState.error}</p>
       )}
+    </section>
+  );
+}
+
+// ─── Demo Data Panel ──────────────────────────────────────────────────────────
+
+function DemoDataPanel() {
+  const [status, setStatus]   = useState<"checking" | "empty" | "seeded" | "loading" | "removing" | "error">("checking");
+  const [info,   setInfo]     = useState<{ iqLeads: number; integrations: number } | null>(null);
+  const [msg,    setMsg]      = useState("");
+
+  const token = () => localStorage.getItem("iqpipe_token") ?? "";
+
+  // Check status on mount
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/dev/seed-status`, {
+      headers: { Authorization: `Bearer ${token()}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        setInfo({ iqLeads: d.iqLeads, integrations: d.integrations });
+        setStatus(d.seeded ? "seeded" : "empty");
+      })
+      .catch(() => setStatus("empty"));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const load = async () => {
+    setStatus("loading");
+    setMsg("");
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/dev/seed?force=true`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      const d = await r.json();
+      if (d.seeded || d.skipped) {
+        setInfo({ iqLeads: d.iqLeads ?? info?.iqLeads ?? 0, integrations: d.integrations?.total ?? info?.integrations ?? 0 });
+        setStatus("seeded");
+        setMsg("Demo data loaded. Refresh any page to see it.");
+      } else {
+        setStatus("error");
+        setMsg(d.error ?? "Failed to load demo data.");
+      }
+    } catch (e: any) {
+      setStatus("error");
+      setMsg(e.message ?? "Could not reach server.");
+    }
+  };
+
+  const remove = async () => {
+    setStatus("removing");
+    setMsg("");
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/dev/seed`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      const d = await r.json();
+      if (d.removed) {
+        setInfo(null);
+        setStatus("empty");
+        setMsg("Demo data removed. Workspace is clean.");
+      } else {
+        setStatus("seeded");
+        setMsg(d.error ?? "Failed to remove demo data.");
+      }
+    } catch (e: any) {
+      setStatus("seeded");
+      setMsg(e.message ?? "Could not reach server.");
+    }
+  };
+
+  const busy = status === "loading" || status === "removing" || status === "checking";
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Sparkles size={14} className="text-indigo-400" />
+        <h2 className="text-sm font-semibold text-slate-100">Demo data</h2>
+      </div>
+      <p className="text-xs text-slate-400 mb-4">
+        Populate your workspace with realistic GTM demo data — 43 contacts, 15 integrations, 3 n8n automations, and 3 workflow stacks.
+      </p>
+
+      {/* Status indicator */}
+      {status === "checking" ? (
+        <div className="flex items-center gap-2 text-xs text-slate-500 mb-4">
+          <Loader2 size={12} className="animate-spin" /> Checking…
+        </div>
+      ) : status === "seeded" || status === "removing" ? (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 mb-4">
+          <CheckCircle2 size={12} className="shrink-0" />
+          <span>
+            Demo data active
+            {info && ` — ${info.iqLeads} contacts · ${info.integrations} integrations`}
+          </span>
+        </div>
+      ) : status === "empty" || status === "loading" ? (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700 text-xs text-slate-500 mb-4">
+          <div className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
+          No demo data — workspace is clean
+        </div>
+      ) : null}
+
+      {/* Feedback message */}
+      {msg && (
+        <p className={`text-[11px] mb-3 ${status === "error" ? "text-rose-400" : "text-emerald-400"}`}>
+          {msg}
+        </p>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={load}
+          disabled={busy}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-xs font-semibold text-white transition-colors"
+        >
+          {status === "loading"
+            ? <><RefreshCw size={12} className="animate-spin" /> Loading demo data…</>
+            : <><Sparkles size={12} /> Load demo data</>
+          }
+        </button>
+
+        {(status === "seeded" || status === "removing") && (
+          <button
+            onClick={remove}
+            disabled={busy}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-500/50 disabled:cursor-not-allowed text-xs text-rose-400 transition-colors"
+          >
+            {status === "removing"
+              ? <><RefreshCw size={12} className="animate-spin" /> Removing…</>
+              : <><Trash2 size={12} /> Remove demo data</>
+            }
+          </button>
+        )}
+      </div>
     </section>
   );
 }

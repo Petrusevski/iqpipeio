@@ -239,6 +239,62 @@ const N8N_WORKFLOWS = [
 // POST /api/dev/seed
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/dev/seed-status — check whether demo data is loaded
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get("/seed-status", requireAuth, async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const membership = await prisma.workspaceUser.findFirst({
+    where: { userId: user.id },
+    include: { workspace: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!membership) return res.status(404).json({ error: "No workspace found." });
+
+  const workspaceId = membership.workspace.id;
+  const [iqLeads, integrations] = await Promise.all([
+    prisma.iqLead.count({ where: { workspaceId } }),
+    prisma.integrationConnection.count({ where: { workspaceId } }),
+  ]);
+
+  return res.json({ seeded: iqLeads > 0, iqLeads, integrations });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /api/dev/seed — remove all demo data from the workspace
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.delete("/seed", requireAuth, async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const membership = await prisma.workspaceUser.findFirst({
+    where: { userId: user.id },
+    include: { workspace: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!membership) return res.status(404).json({ error: "No workspace found." });
+
+  const workspaceId = membership.workspace.id;
+
+  await prisma.touchpoint.deleteMany({ where: { workspaceId } });
+  await prisma.outcome.deleteMany({ where: { workspaceId } });
+  await prisma.iqLead.deleteMany({ where: { workspaceId } });
+  await prisma.integrationConnection.deleteMany({ where: { workspaceId } });
+  await prisma.n8nQueuedEvent.deleteMany({ where: { workspaceId } });
+  await prisma.n8nWorkflowMeta.deleteMany({ where: { workspaceId } });
+  await prisma.webhookError.deleteMany({ where: { workspaceId } });
+  await prisma.n8nConnection.deleteMany({ where: { workspaceId } });
+  await prisma.workflow.deleteMany({
+    where: { workspaceId, name: "__gtm_flow_map__" },
+  });
+
+  return res.json({ removed: true, workspace: membership.workspace.name });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/dev/seed
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.post("/seed", requireAuth, async (req: Request, res: Response) => {
   const user = (req as any).user;
 
