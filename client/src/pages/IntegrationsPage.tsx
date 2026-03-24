@@ -1433,7 +1433,7 @@ export default function IntegrationsPage() {
                     <div key={app.id} className="space-y-0">
                       <div
                         className={
-                          "flex items-center justify-between gap-3 rounded-xl border bg-slate-950/70 px-3 py-2.5 text-xs " +
+                          "flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border bg-slate-950/70 px-3 py-2.5 text-xs " +
                           (hasBottomPanel
                             ? "border-slate-700/60 rounded-b-none"
                             : needsSetup
@@ -1486,7 +1486,7 @@ export default function IntegrationsPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {needsSetup && (
                             <button
                               onClick={() => setExpandedSetup(p => ({ ...p, [app.id]: !p[app.id] }))}
@@ -1559,7 +1559,7 @@ export default function IntegrationsPage() {
                           )}
 
                           {status === "connected" && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               {app.canSync && (
                                 <button
                                   onClick={() => handleSync(app.id)}

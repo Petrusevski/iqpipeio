@@ -75,26 +75,24 @@ function StageRow({
         className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden cursor-pointer hover:border-slate-700 transition-colors"
         onClick={() => stage.tools.length > 0 && setOpen((o) => !o)}
       >
-        <div className="flex items-center gap-4 px-5 py-4 overflow-x-auto">
-          {/* Bar */}
-          <div className="w-full max-w-[12rem] shrink-0">
-            <div className="h-7 rounded-lg bg-slate-800/60 overflow-hidden relative">
-              <div
-                className={`h-full rounded-lg border transition-all duration-500 ${isFirst ? "bg-indigo-500/30 border-indigo-500/20" : barColor(stage.convRate)}`}
-                style={{ width: `${barWidth}%` }}
-              />
-              <span className="absolute inset-0 flex items-center px-2.5 text-[11px] font-mono text-slate-300">
-                {stage.pctOfTop}%
-              </span>
-            </div>
+        <div className="px-4 py-3">
+          {/* Bar — full width */}
+          <div className="h-7 rounded-lg bg-slate-800/60 overflow-hidden relative mb-3">
+            <div
+              className={`h-full rounded-lg border transition-all duration-500 ${isFirst ? "bg-indigo-500/30 border-indigo-500/20" : barColor(stage.convRate)}`}
+              style={{ width: `${barWidth}%` }}
+            />
+            <span className="absolute inset-0 flex items-center px-2.5 text-[11px] font-mono text-slate-300">
+              {stage.pctOfTop}%
+            </span>
           </div>
 
-          {/* Label */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3">
+          {/* Label + tools left · count right */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <span className="text-sm font-semibold text-white">{stage.label}</span>
               {stage.tools.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap">
+                <div className="flex flex-wrap gap-1 mt-1">
                   {stage.tools.slice(0, 3).map((t) => (
                     <span
                       key={t.tool}
@@ -109,14 +107,12 @@ function StageRow({
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Count */}
-          <div className="text-right shrink-0">
-            <span className="text-2xl font-bold text-white tabular-nums">
-              {stage.count.toLocaleString()}
-            </span>
-            <span className="text-xs text-slate-500 ml-1">leads</span>
+            <div className="text-right shrink-0">
+              <span className="text-2xl font-bold text-white tabular-nums">
+                {stage.count.toLocaleString()}
+              </span>
+              <span className="text-xs text-slate-500 ml-1">leads</span>
+            </div>
           </div>
         </div>
 
@@ -146,7 +142,6 @@ export default function FunnelPage() {
   const [period, setPeriod]       = useState("30d");
   const [loading, setLoading]     = useState(true);
   const [workspaceId, setWorkspaceId] = useState("");
-  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   const token = () => localStorage.getItem("iqpipe_token") ?? "";
 
@@ -170,7 +165,6 @@ export default function FunnelPage() {
       if (r.ok) {
         const d = await r.json();
         setStages(d.stages);
-        setLastRefresh(new Date());
       }
     } catch { /* silent */ } finally {
       setLoading(false);
@@ -200,9 +194,9 @@ export default function FunnelPage() {
     <div className="min-h-screen bg-slate-950 text-white px-6 py-6 space-y-6 max-w-4xl">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <GitMerge size={18} className="text-indigo-400" />
+          <GitMerge size={18} className="text-indigo-400 shrink-0" />
           <div>
             <h1 className="text-base font-bold text-white leading-none">Pipeline Funnel</h1>
             <p className="text-[11px] text-slate-500 mt-0.5">
@@ -211,10 +205,10 @@ export default function FunnelPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           {/* Period selector */}
           <div className="flex gap-1 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-            {Object.entries(PERIOD_LABELS).map(([key, label]) => (
+            {Object.entries(PERIOD_LABELS).map(([key]) => (
               <button
                 key={key}
                 onClick={() => setPeriod(key)}

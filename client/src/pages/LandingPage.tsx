@@ -412,8 +412,8 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-            <div className="lg:col-span-3 relative flex justify-center lg:justify-end mt-8 lg:mt-0 pointer-events-none select-none">
-               <div className="scale-[0.8] sm:scale-90 md:scale-100 origin-top lg:origin-right">
+            <div className="lg:col-span-3 relative flex justify-center lg:justify-end mt-8 lg:mt-0 pointer-events-none select-none overflow-hidden">
+               <div className="scale-[0.6] xs:scale-[0.7] sm:scale-90 md:scale-100 origin-top lg:origin-right">
                   <HeroVisualization />
                </div>
             </div>
