@@ -15,7 +15,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { encrypt } from "../utils/encryption";
-import { testN8nConnection, syncN8nConnection } from "../services/n8nClient";
+import { testN8nConnection, syncN8nConnection, pollN8nExecutions } from "../services/n8nClient";
 
 const router = Router();
 
@@ -81,7 +81,8 @@ router.get("/status", async (req: Request, res: Response) => {
     where:  { workspaceId },
     select: {
       baseUrl: true, authType: true, status: true,
-      lastSyncAt: true, lastError: true, workflowCount: true, createdAt: true,
+      lastSyncAt: true, lastError: true, workflowCount: true,
+      lastExecPollAt: true, createdAt: true,
     },
   });
 
@@ -95,6 +96,7 @@ router.get("/status", async (req: Request, res: Response) => {
     lastSyncAt:     conn.lastSyncAt?.toISOString() ?? null,
     lastError:      conn.lastError,
     workflowCount:  conn.workflowCount,
+    lastExecPollAt: conn.lastExecPollAt?.toISOString() ?? null,
     connectedSince: conn.createdAt.toISOString(),
   });
 });
@@ -130,18 +132,81 @@ router.get("/workflows", async (req: Request, res: Response) => {
       tags: true, appsUsed: true, nodeCount: true,
       triggerType: true, description: true,
       lastUpdatedAt: true, syncedAt: true,
+      lastExecCursor: true, eventFilter: true, execSyncEnabled: true,
     },
   });
 
   return res.json(
     workflows.map(w => ({
       ...w,
-      tags:          JSON.parse(w.tags),
-      appsUsed:      JSON.parse(w.appsUsed),
-      lastUpdatedAt: w.lastUpdatedAt?.toISOString() ?? null,
-      syncedAt:      w.syncedAt.toISOString(),
+      tags:           JSON.parse(w.tags),
+      appsUsed:       JSON.parse(w.appsUsed),
+      eventFilter:    w.eventFilter ? JSON.parse(w.eventFilter) : null,
+      lastUpdatedAt:  w.lastUpdatedAt?.toISOString() ?? null,
+      syncedAt:       w.syncedAt.toISOString(),
     }))
   );
+});
+
+// ── GET /api/n8n-connect/event-filter ─────────────────────────────────────────
+// Returns the current event filter config for a specific workflow.
+
+router.get("/event-filter", async (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceId(req);
+  const n8nId = req.query.n8nId as string;
+  if (!workspaceId || !n8nId) return res.status(400).json({ error: "workspaceId and n8nId required" }) as any;
+
+  const wf = await prisma.n8nWorkflowMeta.findUnique({
+    where:  { workspaceId_n8nId: { workspaceId, n8nId } },
+    select: { execSyncEnabled: true, eventFilter: true, appsUsed: true },
+  });
+  if (!wf) return res.status(404).json({ error: "Workflow not found" }) as any;
+
+  return res.json({
+    execSyncEnabled: wf.execSyncEnabled,
+    eventFilter:     wf.eventFilter ? JSON.parse(wf.eventFilter) : null,
+    appsUsed:        JSON.parse(wf.appsUsed),
+  });
+});
+
+// ── POST /api/n8n-connect/event-filter ────────────────────────────────────────
+// Save event filter config for a workflow.
+// Body: { workspaceId, n8nId, execSyncEnabled, filter: { enabled, apps, eventTypes } }
+
+router.post("/event-filter", async (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceId(req);
+  const { n8nId, execSyncEnabled, filter } = req.body as {
+    n8nId?: string;
+    execSyncEnabled?: boolean;
+    filter?: { enabled: boolean; apps: string[]; eventTypes: string[] };
+  };
+  if (!workspaceId || !n8nId) return res.status(400).json({ error: "workspaceId and n8nId required" }) as any;
+
+  await prisma.n8nWorkflowMeta.updateMany({
+    where: { workspaceId, n8nId },
+    data: {
+      execSyncEnabled: execSyncEnabled ?? true,
+      eventFilter:     filter ? JSON.stringify(filter) : null,
+    },
+  });
+
+  return res.json({ ok: true });
+});
+
+// ── POST /api/n8n-connect/poll-now ────────────────────────────────────────────
+// Trigger an immediate execution poll for a workspace (bypasses 5-min interval).
+
+router.post("/poll-now", async (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId required" }) as any;
+
+  const conn = await prisma.n8nConnection.findUnique({ where: { workspaceId } });
+  if (!conn) return res.status(404).json({ error: "No n8n connection found" }) as any;
+
+  // Run async — don't block the response
+  pollN8nExecutions(workspaceId).catch(console.error);
+
+  return res.json({ ok: true, message: "Execution poll started" });
 });
 
 export default router;

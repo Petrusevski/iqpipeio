@@ -542,33 +542,37 @@ model PushSubscription {
 }
 
 model N8nConnection {
-  id            String    @id @default(cuid())
-  workspaceId   String    @unique
-  baseUrl       String
-  apiKeyEnc     String
-  authType      String    @default("apikey")
-  status        String    @default("connected")
-  lastSyncAt    DateTime?
-  lastError     String?
-  workflowCount Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  workspaceId     String    @unique
+  baseUrl         String
+  apiKeyEnc       String
+  authType        String    @default("apikey")
+  status          String    @default("connected")
+  lastSyncAt      DateTime?
+  lastError       String?
+  workflowCount   Int       @default(0)
+  lastExecPollAt  DateTime?  // last time we polled /executions across all workflows
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model N8nWorkflowMeta {
-  id            String    @id @default(cuid())
-  workspaceId   String
-  n8nId         String
-  name          String
-  active        Boolean   @default(false)
-  tags          String    @default("[]")
-  appsUsed      String    @default("[]")
-  nodeTypes     String    @default("[]")
-  nodeCount     Int       @default(0)
-  triggerType   String    @default("manual")
-  description   String?
-  lastUpdatedAt DateTime?
-  syncedAt      DateTime  @default(now())
+  id               String    @id @default(cuid())
+  workspaceId      String
+  n8nId            String
+  name             String
+  active           Boolean   @default(false)
+  tags             String    @default("[]")
+  appsUsed         String    @default("[]")
+  nodeTypes        String    @default("[]")
+  nodeCount        Int       @default(0)
+  triggerType      String    @default("manual")
+  description      String?
+  lastUpdatedAt    DateTime?
+  syncedAt         DateTime  @default(now())
+  lastExecCursor   String?   // most recent processed execution ID (incremental polling cursor)
+  eventFilter      String?   // JSON: { enabled, apps: string[], eventTypes: string[] }
+  execSyncEnabled  Boolean   @default(true)  // whether to poll executions for this workflow
 
   @@unique([workspaceId, n8nId])
   @@index([workspaceId])

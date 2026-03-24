@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Bot, Zap, RefreshCw, Calendar, ChevronDown, CheckCircle2,
   AlertTriangle, XCircle, Activity, GitBranch, Layers,
-  ChevronRight, Workflow,
+  ChevronRight, Workflow, Settings2, X, Play,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -18,6 +18,12 @@ interface WorkflowRow {
 }
 interface GlobalError { id: string; source: string; errorCode: string; errorDetail: string; retryCount: number; resolvedAt: string | null; createdAt: string; }
 interface MakeError { id: string; errorCode: string; errorDetail: string; retryCount: number; createdAt: string; }
+interface EventFilter {
+  enabled: boolean;
+  apps: string[];
+  eventTypes: string[];
+}
+
 interface WorkflowMeta {
   id: string;
   n8nId: string;
@@ -30,7 +36,22 @@ interface WorkflowMeta {
   description: string | null;
   lastUpdatedAt: string | null;
   syncedAt: string;
+  execSyncEnabled: boolean;
+  eventFilter: EventFilter | null;
+  lastExecCursor: string | null;
 }
+
+const ALL_EVENT_TYPES = [
+  { value: "email_sent",             label: "Email sent" },
+  { value: "linkedin_message_sent",  label: "LinkedIn message sent" },
+  { value: "reply_received",         label: "Reply received" },
+  { value: "meeting_booked",         label: "Meeting booked" },
+  { value: "enriched",               label: "Contact enriched" },
+  { value: "crm_updated",            label: "CRM updated" },
+  { value: "deal_created",           label: "Deal created" },
+  { value: "deal_won",               label: "Deal won" },
+  { value: "contacted",              label: "Contacted (generic)" },
+];
 
 interface AutomationData {
   n8n: {
@@ -217,6 +238,169 @@ function WorkflowRowItem({ wf }: { wf: WorkflowRow }) {
   );
 }
 
+// ─── Configure Events Modal ───────────────────────────────────────────────────
+
+function ConfigureEventsModal({
+  wf,
+  token,
+  workspaceId,
+  onClose,
+  onSaved,
+}: {
+  wf: WorkflowMeta;
+  token: string;
+  workspaceId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const initial: EventFilter = wf.eventFilter ?? { enabled: true, apps: [], eventTypes: [] };
+  const [enabled,     setEnabled]     = useState(initial.enabled);
+  const [selApps,     setSelApps]     = useState<string[]>(initial.apps);
+  const [selEvents,   setSelEvents]   = useState<string[]>(initial.eventTypes);
+  const [saving,      setSaving]      = useState(false);
+
+  function toggleItem<T>(list: T[], item: T): T[] {
+    return list.includes(item) ? list.filter(x => x !== item) : [...list, item];
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await fetch(`${API_BASE_URL}/api/n8n-connect/event-filter`, {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          workspaceId,
+          n8nId:   wf.n8nId,
+          execSyncEnabled: enabled,
+          filter:  { enabled, apps: selApps, eventTypes: selEvents },
+        }),
+      });
+      onSaved();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+          <div>
+            <h2 className="text-sm font-bold text-white">Configure Event Capture</h2>
+            <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-xs">{wf.name}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-white transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+
+          {/* Master toggle */}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              onClick={() => setEnabled(v => !v)}
+              className={`relative w-10 h-5.5 rounded-full transition-colors cursor-pointer ${enabled ? "bg-indigo-500" : "bg-slate-700"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? "translate-x-5" : ""}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white leading-none">Capture executions from this workflow</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Poll n8n every 5 min and create contact events from node outputs
+              </p>
+            </div>
+          </label>
+
+          {enabled && (
+            <>
+              {/* App filter */}
+              {wf.appsUsed.length > 0 && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Apps to capture</p>
+                    <p className="text-[10px] text-slate-600 mt-0.5">Leave all unchecked to capture from every app in this workflow</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {wf.appsUsed.map(app => {
+                      const active = selApps.length === 0 || selApps.includes(app);
+                      return (
+                        <button
+                          key={app}
+                          onClick={() => setSelApps(prev =>
+                            prev.length === 0
+                              ? wf.appsUsed.filter(a => a !== app)
+                              : toggleItem(prev, app)
+                          )}
+                          className={`px-2.5 py-1 rounded-lg text-xs border transition-colors ${
+                            active
+                              ? "bg-indigo-500/10 border-indigo-500/40 text-indigo-300"
+                              : "bg-slate-800 border-slate-700 text-slate-500"
+                          }`}
+                        >
+                          {app}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Event type filter */}
+              <div className="space-y-2">
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Event types to record</p>
+                  <p className="text-[10px] text-slate-600 mt-0.5">Leave all unchecked to record all inferred types</p>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {ALL_EVENT_TYPES.map(({ value, label }) => {
+                    const active = selEvents.length === 0 || selEvents.includes(value);
+                    return (
+                      <button
+                        key={value}
+                        onClick={() => setSelEvents(prev =>
+                          prev.length === 0
+                            ? ALL_EVENT_TYPES.map(e => e.value).filter(v => v !== value)
+                            : toggleItem(prev, value)
+                        )}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] border text-left transition-colors ${
+                          active
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                            : "bg-slate-800 border-slate-700 text-slate-500"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-slate-800">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300">
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium transition-colors disabled:opacity-60"
+          >
+            {saving ? <><RefreshCw size={11} className="animate-spin" /> Saving…</> : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AutomationHealthPage() {
@@ -237,6 +421,8 @@ export default function AutomationHealthPage() {
   const [connecting,      setConnecting]      = useState(false);
   const [connectError,    setConnectError]    = useState("");
   const [syncing,         setSyncing]         = useState(false);
+  const [polling,         setPolling]         = useState(false);
+  const [configWf,        setConfigWf]        = useState<WorkflowMeta | null>(null);
 
   const token = () => localStorage.getItem("iqpipe_token") ?? "";
 
@@ -341,6 +527,22 @@ export default function AutomationHealthPage() {
     }
   }
 
+  async function handlePollNow() {
+    if (!workspaceId || polling) return;
+    setPolling(true);
+    try {
+      await fetch(`${API_BASE_URL}/api/n8n-connect/poll-now`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      // Reload queue stats after a brief delay
+      setTimeout(() => load(workspaceId, period), 3000);
+    } finally {
+      setPolling(false);
+    }
+  }
+
   const n8n   = data?.n8n;
   const make  = data?.make;
   const openErrors = (n8n?.errors.length ?? 0) + (make?.errors.length ?? 0);
@@ -348,6 +550,17 @@ export default function AutomationHealthPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-6 py-6 space-y-6 max-w-5xl">
+
+      {/* Configure Events modal */}
+      {configWf && (
+        <ConfigureEventsModal
+          wf={configWf}
+          token={token()}
+          workspaceId={workspaceId}
+          onClose={() => setConfigWf(null)}
+          onSaved={() => loadWorkflowMeta(workspaceId)}
+        />
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -434,12 +647,21 @@ export default function AutomationHealthPage() {
                 {connStatus?.connected && (
                   <>
                     <button
+                      onClick={handlePollNow}
+                      disabled={polling}
+                      title="Pull latest execution events from n8n (runs every 5 min automatically)"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 text-xs text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
+                    >
+                      <Play size={11} className={polling ? "animate-pulse" : ""} />
+                      {polling ? "Polling…" : "Poll Executions"}
+                    </button>
+                    <button
                       onClick={handleSyncNow}
                       disabled={syncing}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-600 text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-50"
                     >
                       <RefreshCw size={11} className={syncing ? "animate-spin" : ""} />
-                      {syncing ? "Syncing\u2026" : "Sync Now"}
+                      {syncing ? "Syncing\u2026" : "Sync Workflows"}
                     </button>
                     <button
                       onClick={handleDisconnect}
@@ -471,8 +693,12 @@ export default function AutomationHealthPage() {
                   <p className="text-sm font-bold text-white">{connStatus.workflowCount}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Last Synced</p>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Metadata Synced</p>
                   <p className="text-xs text-slate-400">{connStatus.lastSyncAt ? relativeTime(connStatus.lastSyncAt) : "Syncing\u2026"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Last Exec Poll</p>
+                  <p className="text-xs text-slate-400">{connStatus.lastExecPollAt ? relativeTime(connStatus.lastExecPollAt) : "Not yet"}</p>
                 </div>
                 {connStatus.lastError && (
                   <div className="flex items-center gap-1.5 text-xs text-amber-400">
@@ -593,12 +819,22 @@ export default function AutomationHealthPage() {
                           )}
                         </div>
                       </div>
-                      <div className="shrink-0 text-right space-y-1">
+                      <div className="shrink-0 text-right space-y-1.5">
+                        <button
+                          onClick={() => setConfigWf(wf)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 text-[10px] text-slate-500 hover:text-indigo-400 transition-colors ml-auto"
+                        >
+                          <Settings2 size={10} />
+                          Configure
+                        </button>
                         <p className="text-[10px] text-slate-700">{wf.nodeCount} nodes</p>
                         {wf.lastUpdatedAt && (
                           <p className="text-[10px] text-slate-700">Updated {relativeTime(wf.lastUpdatedAt)}</p>
                         )}
-                        <p className="text-[10px] text-slate-800">Synced {relativeTime(wf.syncedAt)}</p>
+                        <div className="flex items-center gap-1 justify-end">
+                          <span className={`w-1.5 h-1.5 rounded-full ${wf.execSyncEnabled ? "bg-indigo-500" : "bg-slate-700"}`} />
+                          <span className="text-[10px] text-slate-700">{wf.execSyncEnabled ? "Exec sync on" : "Exec sync off"}</span>
+                        </div>
                       </div>
                     </div>
                   ))}

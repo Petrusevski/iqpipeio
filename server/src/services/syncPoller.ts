@@ -12,10 +12,11 @@
 
 import { syncAllWorkspaces } from "./syncService";
 import { startN8nQueueProcessor } from "./n8nQueueProcessor";
-import { syncAllN8nConnections } from "./n8nClient";
+import { syncAllN8nConnections, pollAllN8nExecutions } from "./n8nClient";
 import { prisma } from "../db";
 
-const POLL_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
+const POLL_INTERVAL_MS     = 2 * 60 * 60 * 1000; // 2 hours  — workflow metadata sync
+const EXEC_POLL_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes — execution event poll
 
 async function purgeStaleIdempotencyRecords(): Promise<void> {
   try {
@@ -38,16 +39,28 @@ async function runCycle(): Promise<void> {
 }
 
 export function startSyncPoller(): void {
-  console.log(`[syncPoller] Started — API poll every ${POLL_INTERVAL_MS / 60_000}m`);
+  console.log(
+    `[syncPoller] Started — metadata sync every ${POLL_INTERVAL_MS / 60_000}m, ` +
+    `execution poll every ${EXEC_POLL_INTERVAL_MS / 60_000}m`
+  );
 
   // Start n8n async queue processor (independent loop, every 15s)
   startN8nQueueProcessor();
 
-  // Run API poll immediately on startup
+  // Run full API poll immediately on startup
   runCycle().catch(console.error);
 
-  // Then repeat on 2-hour interval
+  // Repeat metadata sync on 2-hour interval
   setInterval(() => {
     runCycle().catch(console.error);
   }, POLL_INTERVAL_MS);
+
+  // Poll n8n execution events every 5 minutes
+  // Delay first run by 30s to let the server finish booting
+  setTimeout(() => {
+    pollAllN8nExecutions().catch(console.error);
+    setInterval(() => {
+      pollAllN8nExecutions().catch(console.error);
+    }, EXEC_POLL_INTERVAL_MS);
+  }, 30_000);
 }

@@ -9,6 +9,7 @@
  */
 
 import axios from "axios";
+import { createHash } from "crypto";
 import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
 
@@ -353,6 +354,301 @@ export async function syncN8nConnection(
 
   console.log(`[n8nClient] Workspace ${workspaceId}: synced ${synced} workflows, ${errors} errors`);
   return { synced, errors };
+}
+
+// ── Execution polling ─────────────────────────────────────────────────────────
+
+interface ContactFields {
+  email?: string;
+  linkedin?: string;
+  phone?: string;
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  title?: string;
+}
+
+/** Extract contact identifiers + metadata from a single n8n node output item. */
+function extractContactFromJson(json: Record<string, any>): ContactFields | null {
+  if (!json || typeof json !== "object") return null;
+
+  // Some tools (HubSpot, Pipedrive) nest fields under `properties`
+  const props: any = json.properties ?? {};
+
+  const email =
+    json.email ?? json.emailAddress ?? json.email_address ??
+    json["Email"] ?? json["email address"] ??
+    props.email ?? props.hs_email_address;
+
+  const linkedin =
+    json.linkedin_url ?? json.linkedinUrl ?? json.linkedin ??
+    json.profileUrl ?? json["LinkedIn URL"] ??
+    props.linkedin ?? props.hs_linkedin_bio;
+
+  const phone =
+    json.phone ?? json.phoneNumber ?? json.phone_number ??
+    json["Phone"] ?? props.phone ?? props.mobilephone;
+
+  if (!email && !linkedin && !phone) return null;
+
+  const name = typeof json.name === "string" ? json.name : "";
+  const firstName =
+    json.first_name ?? json.firstName ?? json["First Name"] ??
+    props.firstname ?? props.first_name ??
+    (name ? name.split(" ")[0] : undefined);
+
+  const lastName =
+    json.last_name ?? json.lastName ?? json["Last Name"] ??
+    props.lastname ?? props.last_name ??
+    (name ? name.split(" ").slice(1).join(" ") : undefined);
+
+  const company =
+    json.company ?? json.organization ?? json.companyName ?? json.company_name ??
+    json["Company"] ?? props.company ?? json.account?.name;
+
+  const title =
+    json.title ?? json.jobTitle ?? json.job_title ??
+    json["Title"] ?? json["Job Title"] ?? json.position ??
+    props.jobtitle ?? props.title;
+
+  return {
+    email:     typeof email     === "string" ? email.trim().toLowerCase() : undefined,
+    linkedin:  typeof linkedin  === "string" ? linkedin.trim() : undefined,
+    phone:     typeof phone     === "string" ? phone.trim() : undefined,
+    firstName: typeof firstName === "string" ? firstName.trim() : undefined,
+    lastName:  typeof lastName  === "string" ? lastName.trim() : undefined,
+    company:   typeof company   === "string" ? company.trim() : undefined,
+    title:     typeof title     === "string" ? title.trim() : undefined,
+  };
+}
+
+const LINKEDIN_APPS = new Set(["HeyReach", "Expandi", "Dripify", "Waalaxy"]);
+const EMAIL_APPS    = new Set(["Instantly", "Lemlist", "Smartlead", "Mailshake", "QuickMail", "Woodpecker", "Reply.io", "Klenty", "Mixmax", "Outreach", "Salesloft"]);
+const ENRICH_APPS   = new Set(["Clay", "Clearbit", "ZoomInfo", "Hunter.io", "Lusha", "Cognism", "PhantomBuster", "People Data Labs", "Snov.io", "RocketReach"]);
+const CRM_APPS      = new Set(["HubSpot", "Pipedrive", "Salesforce", "Attio", "Close CRM", "Freshsales", "Zoho CRM"]);
+const BILLING_APPS  = new Set(["Stripe", "Chargebee", "Paddle"]);
+
+/** Heuristically infer the iqpipe event type from a node name and its app. */
+function inferEventType(nodeName: string, appName: string): string {
+  const lc = nodeName.toLowerCase();
+  if (lc.includes("reply") || lc.includes("replied"))                         return "reply_received";
+  if (lc.includes("meeting") || lc.includes("book") || lc.includes("booked")) return "meeting_booked";
+  if (lc.includes("deal won") || lc.includes("closed won"))                   return "deal_won";
+  if (lc.includes("deal lost") || lc.includes("closed lost"))                 return "deal_lost";
+  if (lc.includes("enrich"))                                                   return "enriched";
+  if (lc.includes("deal") && (lc.includes("creat") || lc.includes("new")))    return "deal_created";
+  if (LINKEDIN_APPS.has(appName))                                              return "linkedin_message_sent";
+  if (EMAIL_APPS.has(appName))                                                 return "email_sent";
+  if (ENRICH_APPS.has(appName))                                                return "enriched";
+  if (CRM_APPS.has(appName))                                                   return "crm_updated";
+  if (BILLING_APPS.has(appName))                                               return "deal_created";
+  return "contacted";
+}
+
+/** Fuzzy-match a node name against known apps in the workflow's appsUsed list. */
+function findAppForNode(nodeName: string, appsUsed: string[]): string | undefined {
+  const lc = nodeName.toLowerCase();
+  for (const app of appsUsed) {
+    if (lc.includes(app.toLowerCase())) return app;
+  }
+  for (const [slug, appName] of Object.entries(NODE_APP_MAP)) {
+    if (lc.includes(slug.toLowerCase()) || lc.includes(appName.toLowerCase())) {
+      return appName;
+    }
+  }
+  return undefined;
+}
+
+async function fetchExecutions(
+  baseUrl: string,
+  apiKey: string,
+  workflowId: string,
+  limit = 50,
+): Promise<any[]> {
+  try {
+    const path = `/executions?workflowId=${encodeURIComponent(workflowId)}&status=success&limit=${limit}&includeData=true`;
+    const resp = await n8nGet(baseUrl, apiKey, path);
+    return resp?.data ?? [];
+  } catch (err: any) {
+    console.warn(`[n8nExec] fetchExecutions error for workflow ${workflowId}:`, err.message);
+    return [];
+  }
+}
+
+type WfMetaForPoll = {
+  id: string;
+  n8nId: string;
+  name: string;
+  lastExecCursor: string | null;
+  eventFilter: string | null;
+  execSyncEnabled: boolean;
+  appsUsed: string;
+};
+
+/**
+ * Poll new executions for a single workflow and enqueue contact events.
+ * Returns the number of events queued.
+ */
+async function processWorkflowExecutions(
+  workspaceId: string,
+  wfMeta: WfMetaForPoll,
+  baseUrl: string,
+  apiKey: string,
+): Promise<number> {
+  if (!wfMeta.execSyncEnabled) return 0;
+
+  let filter: { enabled: boolean; apps: string[]; eventTypes: string[] } | null = null;
+  if (wfMeta.eventFilter) {
+    try { filter = JSON.parse(wfMeta.eventFilter); } catch {}
+  }
+  if (filter && !filter.enabled) return 0;
+
+  const executions = await fetchExecutions(baseUrl, apiKey, wfMeta.n8nId);
+  if (executions.length === 0) return 0;
+
+  // n8n returns newest-first; collect everything newer than the stored cursor
+  const lastCursor = wfMeta.lastExecCursor;
+  const newExecs: any[] = [];
+  let newestId: string | null = null;
+
+  for (const exec of executions) {
+    const execId = String(exec.id ?? "");
+    if (!execId) continue;
+    if (lastCursor && execId === lastCursor) break; // reached already-processed
+    newExecs.push(exec);
+    if (!newestId) newestId = execId; // first item = newest
+  }
+
+  if (newExecs.length === 0) return 0;
+
+  // Process oldest-first for chronological ordering
+  newExecs.reverse();
+
+  const appsUsed: string[] = JSON.parse(wfMeta.appsUsed || "[]");
+  let queued = 0;
+
+  for (const exec of newExecs) {
+    const execId = String(exec.id ?? "");
+    const runData: Record<string, any[]> = exec?.data?.resultData?.runData ?? {};
+
+    let nodeIdx = 0;
+    for (const [nodeName, nodeRuns] of Object.entries(runData)) {
+      nodeIdx++;
+      const items: any[] = (nodeRuns?.[0]?.data?.main ?? []).flat();
+      if (items.length === 0) continue;
+
+      const appName = findAppForNode(nodeName, appsUsed) ?? "";
+
+      // Apply app filter
+      if (filter?.apps?.length && appName && !filter.apps.includes(appName)) continue;
+
+      let itemIdx = 0;
+      for (const item of items) {
+        itemIdx++;
+        const json = item?.json ?? item;
+        if (!json || typeof json !== "object") continue;
+
+        const contact = extractContactFromJson(json as Record<string, any>);
+        if (!contact) continue;
+
+        const eventType = inferEventType(nodeName, appName);
+
+        // Apply event type filter
+        if (filter?.eventTypes?.length && !filter.eventTypes.includes(eventType)) continue;
+
+        // Stable idempotency key per execution × node × item
+        const iKey = createHash("sha256")
+          .update(`exec:${workspaceId}:${execId}:${nodeName}:${itemIdx}`)
+          .digest("hex")
+          .slice(0, 48);
+
+        const exists = await prisma.n8nQueuedEvent.findUnique({
+          where: { workspaceId_idempotencyKey: { workspaceId, idempotencyKey: iKey } },
+          select: { id: true },
+        });
+        if (exists) continue;
+
+        await prisma.n8nQueuedEvent.create({
+          data: {
+            workspaceId,
+            workflowId:     wfMeta.n8nId,
+            stepId:         nodeName,
+            sourceApp:      appName || "n8n",
+            externalId:     contact.email ?? contact.linkedin ?? iKey,
+            eventType,
+            contact: JSON.stringify({
+              email:        contact.email        ?? null,
+              linkedin_url: contact.linkedin     ?? null,
+              phone:        contact.phone        ?? null,
+              first_name:   contact.firstName    ?? null,
+              last_name:    contact.lastName     ?? null,
+              company:      contact.company      ?? null,
+              title:        contact.title        ?? null,
+            }),
+            idempotencyKey: iKey,
+            sourceType:     "n8n_workflow",
+            sourcePriority: 3,
+          },
+        });
+        queued++;
+      }
+    }
+  }
+
+  // Advance cursor to the newest execution we just processed
+  if (newestId && newestId !== lastCursor) {
+    await prisma.n8nWorkflowMeta.updateMany({
+      where: { workspaceId, n8nId: wfMeta.n8nId },
+      data:  { lastExecCursor: newestId },
+    });
+  }
+
+  return queued;
+}
+
+/** Poll all workflows in one workspace for new execution events. */
+export async function pollN8nExecutions(workspaceId: string): Promise<void> {
+  const conn = await prisma.n8nConnection.findUnique({ where: { workspaceId } });
+  if (!conn || conn.status === "disconnected") return;
+
+  let apiKey: string;
+  try { apiKey = decrypt(conn.apiKeyEnc); } catch { return; }
+
+  const workflows = await prisma.n8nWorkflowMeta.findMany({
+    where:  { workspaceId, execSyncEnabled: true },
+    select: { id: true, n8nId: true, name: true, lastExecCursor: true, eventFilter: true, execSyncEnabled: true, appsUsed: true },
+  });
+
+  let totalQueued = 0;
+  for (const wf of workflows) {
+    try {
+      totalQueued += await processWorkflowExecutions(workspaceId, wf, conn.baseUrl, apiKey);
+    } catch (err: any) {
+      console.error(`[n8nExec] Error polling workflow ${wf.n8nId}:`, err.message);
+    }
+  }
+
+  await prisma.n8nConnection.update({
+    where: { workspaceId },
+    data:  { lastExecPollAt: new Date() },
+  });
+
+  if (totalQueued > 0) {
+    console.log(`[n8nExec] Workspace ${workspaceId}: queued ${totalQueued} contact events from executions`);
+  }
+}
+
+/** Poll all connected workspaces. Called from syncPoller every 5 minutes. */
+export async function pollAllN8nExecutions(): Promise<void> {
+  const connections = await prisma.n8nConnection.findMany({
+    where:  { status: { not: "disconnected" } },
+    select: { workspaceId: true },
+  });
+  for (const { workspaceId } of connections) {
+    await pollN8nExecutions(workspaceId).catch(err =>
+      console.error(`[n8nExec] pollAllN8nExecutions error for ${workspaceId}:`, err.message)
+    );
+  }
 }
 
 /**
