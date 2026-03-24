@@ -31,13 +31,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen flex bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
+    <div className="h-screen flex overflow-hidden bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
 
       {/* Setup Wizard */}
       {wizardOpen && <SetupWizard onClose={() => setWizardOpen(false)} />}
 
-      {/* 1. Desktop Sidebar */}
-      <div className="hidden md:block h-screen sticky top-0 overflow-y-auto border-r border-slate-800 bg-slate-950 shadow-xl z-30">
+      {/* 1. Desktop Sidebar — fixed height, always visible */}
+      <div className="hidden md:flex flex-col shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-950 shadow-xl z-30">
         <Sidebar />
       </div>
 
@@ -81,8 +81,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
         )}
       </AnimatePresence>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main Content Area — scrolls independently */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Topbar
           onMenuClick={() => setMobileSidebarOpen(true)}
           onOpenSetup={() => setWizardOpen(true)}
