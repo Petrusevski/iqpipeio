@@ -1920,14 +1920,24 @@ router.post("/n8n", async (req: Request, res: Response) => {
 
 // ─── Make.com ─────────────────────────────────────────────────────────────────
 // Users add an HTTP module at the end of any scenario, POST JSON to this URL.
-// Expected payload fields (all optional):
-//   email, linkedin_url, phone, first_name, last_name, full_name, company, title
-//   event_type   — iqpipe standard type; auto-detected if missing
-//   source_tool  — if set, credit this event to that tool instead of "make"
-//                  (deduplicates against that tool's direct webhook automatically)
-//   scenario_id, execution_id, scenario_name — for meta/tracing
+//
+// Webhook URL: POST /api/webhooks/make?workspaceId={id}&scenarioId={makeId}
+//
+// Required in JSON body (at least one contact identifier):
+//   email, linkedin_url, phone
+//
+// Optional body fields:
+//   first_name, last_name, full_name, company, title
+//   event_type   — iqpipe standard type (email_sent, reply_received, etc.)
+//                  falls back to scenario's configured defaultEventType, then "contacted"
+//   source_tool  — attribute event to underlying tool instead of "make"
+//   scenario_id, execution_id, scenario_name — for tracing/meta
+//
+// Idempotency: deduplicates on execution_id when present, otherwise on
+// hash(scenarioId:contact:eventType:1h-bucket) — safe to retry.
 router.post("/make", async (req: Request, res: Response) => {
   const workspaceId = req.query.workspaceId as string;
+  const scenarioIdParam = req.query.scenarioId as string | undefined;
   if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
 
   try {
@@ -1941,25 +1951,68 @@ router.post("/make", async (req: Request, res: Response) => {
     const company    = body.company      || body.Company      || null;
     const title      = body.title        || body.job_title    || body.jobTitle  || null;
 
-    const rawEvent  = body.event_type || body.eventType || body.event || "";
-    const eventType = rawEvent || "scenario.completed";
+    const scenarioId  = body.scenario_id  || body.scenarioId  || scenarioIdParam || null;
+    const executionId = body.execution_id || body.executionId || null;
 
-    // source_tool relay: attribute to the underlying tool, not to make itself.
+    // Resolve event type: body → scenario default → fallback
+    let rawEvent = body.event_type || body.eventType || body.event || "";
+    if (!rawEvent && scenarioId) {
+      const meta = await (prisma as any).makeScenarioMeta.findUnique({
+        where:  { workspaceId_makeId: { workspaceId, makeId: String(scenarioId) } },
+        select: { eventFilter: true, execSyncEnabled: true },
+      }).catch(() => null);
+
+      if (meta?.execSyncEnabled === false) {
+        return res.json({ received: false, reason: "Scenario event capture disabled" });
+      }
+      if (meta?.eventFilter) {
+        try {
+          const ef = JSON.parse(meta.eventFilter);
+          if (ef.defaultEventType) rawEvent = ef.defaultEventType;
+        } catch {}
+      }
+    }
+    const eventType = rawEvent || "contacted";
+
+    // source_tool relay: attribute to the underlying tool, not to make itself
     const recordingTool = (body.source_tool || body.sourceTool || "make").toLowerCase().trim();
 
-    const meta: Record<string, any> = {
-      scenarioId:    body.scenario_id   || body.scenarioId   || null,
-      executionId:   body.execution_id  || body.executionId  || null,
+    // ── Idempotency dedup ─────────────────────────────────────────────────────
+    const contactKey = email || linkedin || phone || "unknown";
+    const timeBucket = Math.floor(Date.now() / (60 * 60 * 1000)); // 1-hour buckets
+    const rawKey     = executionId
+      ? `make:exec:${executionId}`
+      : `make:${workspaceId}:${scenarioId ?? "ns"}:${contactKey}:${eventType}:${timeBucket}`;
+
+    const iKey = require("crypto").createHash("sha256").update(rawKey).digest("hex").slice(0, 48);
+
+    const existing = await prisma.idempotencyRecord.findUnique({
+      where: { workspaceId_key: { workspaceId, key: iKey } },
+      select: { id: true },
+    });
+    if (existing) {
+      return res.json({ received: true, duplicate: true });
+    }
+
+    // Store idempotency record
+    await prisma.idempotencyRecord.create({
+      data: { workspaceId, key: iKey },
+    }).catch(() => {});  // ignore race-condition duplicates
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const eventMeta: Record<string, any> = {
+      scenarioId,
+      executionId,
       scenarioName:  body.scenario_name || body.scenarioName || null,
       viaAutomation: recordingTool !== "make" ? "make" : undefined,
     };
 
-    const externalId = meta.executionId || meta.scenarioId || `make-${Date.now()}`;
+    const externalId = executionId || scenarioId || `make-${Date.now()}`;
 
     await recordEvent(
       workspaceId, eventType,
       { firstName, lastName, email, linkedin, phone, company, title },
-      recordingTool, String(externalId), meta,
+      recordingTool, String(externalId), eventMeta,
     );
 
     return res.json({ received: true, recordedAs: recordingTool });

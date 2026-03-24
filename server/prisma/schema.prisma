@@ -541,6 +541,41 @@ model PushSubscription {
   @@index([workspaceId])
 }
 
+model MakeConnection {
+  id            String    @id @default(cuid())
+  workspaceId   String    @unique
+  apiKeyEnc     String
+  region        String    @default("us1")   // "us1" | "eu1" | "eu2"
+  teamId        String?                     // Make team ID for /scenarios queries
+  organizationId String?
+  status        String    @default("connected")
+  lastSyncAt    DateTime?
+  lastError     String?
+  scenarioCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model MakeScenarioMeta {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  makeId          String    // Make scenario ID (numeric, stored as string)
+  name            String
+  active          Boolean   @default(false)
+  teamId          String?
+  appsUsed        String    @default("[]")   // JSON: string[]
+  moduleTypes     String    @default("[]")   // JSON: string[]
+  moduleCount     Int       @default(0)
+  triggerType     String    @default("schedule")
+  lastUpdatedAt   DateTime?
+  syncedAt        DateTime  @default(now())
+  execSyncEnabled Boolean   @default(true)
+  eventFilter     String?   // JSON: { enabled, apps, eventTypes, defaultEventType }
+
+  @@unique([workspaceId, makeId])
+  @@index([workspaceId])
+}
+
 model N8nConnection {
   id              String    @id @default(cuid())
   workspaceId     String    @unique

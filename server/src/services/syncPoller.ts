@@ -13,6 +13,7 @@
 import { syncAllWorkspaces } from "./syncService";
 import { startN8nQueueProcessor } from "./n8nQueueProcessor";
 import { syncAllN8nConnections, pollAllN8nExecutions } from "./n8nClient";
+import { syncAllMakeConnections } from "./makeClient";
 import { prisma } from "../db";
 
 const POLL_INTERVAL_MS     = 2 * 60 * 60 * 1000; // 2 hours  — workflow metadata sync
@@ -36,6 +37,7 @@ async function runCycle(): Promise<void> {
   await syncAllWorkspaces();
   await purgeStaleIdempotencyRecords();
   await syncAllN8nConnections();
+  await syncAllMakeConnections();
 }
 
 export function startSyncPoller(): void {

@@ -4,6 +4,7 @@ import {
   AlertTriangle, XCircle, Activity, GitBranch, Layers,
   ChevronRight, Workflow, Settings2, X, Play,
 } from "lucide-react";
+import MakeSetupGuide from "../components/MakeSetupGuide";
 import { API_BASE_URL } from "../../config";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -52,6 +53,20 @@ const ALL_EVENT_TYPES = [
   { value: "deal_won",               label: "Deal won" },
   { value: "contacted",              label: "Contacted (generic)" },
 ];
+
+interface ScenarioMeta {
+  id: string;
+  makeId: string;
+  name: string;
+  active: boolean;
+  appsUsed: string[];
+  moduleCount: number;
+  triggerType: string;
+  lastUpdatedAt: string | null;
+  syncedAt: string;
+  execSyncEnabled: boolean;
+  eventFilter: EventFilter | null;
+}
 
 interface AutomationData {
   n8n: {
@@ -424,6 +439,19 @@ export default function AutomationHealthPage() {
   const [polling,         setPolling]         = useState(false);
   const [configWf,        setConfigWf]        = useState<WorkflowMeta | null>(null);
 
+  // Make.com state
+  const [makeConn,        setMakeConn]        = useState<any>(null);
+  const [makeScenarios,   setMakeScenarios]   = useState<ScenarioMeta[]>([]);
+  const [makeMetaLoading, setMakeMetaLoading] = useState(false);
+  const [showMakeForm,    setShowMakeForm]    = useState(false);
+  const [makeApiKey,      setMakeApiKey]      = useState("");
+  const [makeRegion,      setMakeRegion]      = useState("us1");
+  const [makeConnecting,  setMakeConnecting]  = useState(false);
+  const [makeConnError,   setMakeConnError]   = useState("");
+  const [makeSyncing,     setMakeSyncing]     = useState(false);
+  const [guideScenario,   setGuideScenario]   = useState<ScenarioMeta | null>(null);
+  const [guideUrl,        setGuideUrl]        = useState("");
+
   const token = () => localStorage.getItem("iqpipe_token") ?? "";
 
   useEffect(() => {
@@ -468,13 +496,36 @@ export default function AutomationHealthPage() {
     } catch {} finally { setMetaLoading(false); }
   }, []);
 
+  const loadMakeConn = useCallback(async (wsId: string) => {
+    if (!wsId) return;
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/make-connect/status?workspaceId=${wsId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (r.ok) setMakeConn(await r.json());
+    } catch {}
+  }, []);
+
+  const loadMakeScenarios = useCallback(async (wsId: string) => {
+    if (!wsId) return;
+    setMakeMetaLoading(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/make-connect/scenarios?workspaceId=${wsId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (r.ok) setMakeScenarios(await r.json());
+    } catch {} finally { setMakeMetaLoading(false); }
+  }, []);
+
   useEffect(() => {
     if (workspaceId) {
       load(workspaceId, period);
       loadConnStatus(workspaceId);
       loadWorkflowMeta(workspaceId);
+      loadMakeConn(workspaceId);
+      loadMakeScenarios(workspaceId);
     }
-  }, [workspaceId, period, load, loadConnStatus, loadWorkflowMeta]);
+  }, [workspaceId, period, load, loadConnStatus, loadWorkflowMeta, loadMakeConn, loadMakeScenarios]);
 
   async function handleConnect(e: React.FormEvent) {
     e.preventDefault();
@@ -541,6 +592,59 @@ export default function AutomationHealthPage() {
     } finally {
       setPolling(false);
     }
+  }
+
+  async function handleMakeConnect(e: React.FormEvent) {
+    e.preventDefault();
+    if (!workspaceId || !makeApiKey) return;
+    setMakeConnecting(true); setMakeConnError("");
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/make-connect/connect`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, apiKey: makeApiKey, region: makeRegion }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setMakeConnError(d.error || "Connection failed"); return; }
+      setShowMakeForm(false); setMakeApiKey("");
+      await loadMakeConn(workspaceId);
+      setTimeout(() => loadMakeScenarios(workspaceId), 3000);
+    } catch (err: any) { setMakeConnError(err.message); }
+    finally { setMakeConnecting(false); }
+  }
+
+  async function handleMakeDisconnect() {
+    if (!workspaceId) return;
+    if (!confirm("Disconnect Make.com? All synced scenario metadata will be removed.")) return;
+    await fetch(`${API_BASE_URL}/api/make-connect?workspaceId=${workspaceId}`, {
+      method: "DELETE", headers: { Authorization: `Bearer ${token()}` },
+    });
+    setMakeConn(null); setMakeScenarios([]);
+  }
+
+  async function handleMakeSyncNow() {
+    if (!workspaceId || makeSyncing) return;
+    setMakeSyncing(true);
+    try {
+      await fetch(`${API_BASE_URL}/api/make-connect/sync`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId }),
+      });
+      await loadMakeConn(workspaceId);
+      await loadMakeScenarios(workspaceId);
+    } finally { setMakeSyncing(false); }
+  }
+
+  async function openGuide(sc: ScenarioMeta) {
+    setGuideScenario(sc);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/make-connect/webhook-url?workspaceId=${workspaceId}&makeId=${sc.makeId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      const d = await r.json();
+      setGuideUrl(d.url ?? "");
+    } catch { setGuideUrl(""); }
   }
 
   const n8n   = data?.n8n;
@@ -909,66 +1013,265 @@ export default function AutomationHealthPage() {
             )}
           </div>
 
-          {/* ── Make.com Section ── */}
+          {/* ── Make.com Connection Panel ── */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
-              <Layers size={14} className="text-purple-400" />
-              <span className="text-sm font-semibold text-white">Make.com</span>
-              {make?.isConnected ? (
-                <span className="ml-2 flex items-center gap-1 text-[10px] text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Connected
-                </span>
-              ) : (
-                <span className="ml-2 text-[10px] text-slate-600">Not connected</span>
-              )}
+            <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Layers size={14} className="text-purple-400" />
+                <span className="text-sm font-semibold text-white">Make.com</span>
+                {makeConn?.connected ? (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-600">Not connected</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {makeConn?.connected && (
+                  <>
+                    <button
+                      onClick={handleMakeSyncNow}
+                      disabled={makeSyncing}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-600 text-xs text-slate-400 hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw size={11} className={makeSyncing ? "animate-spin" : ""} />
+                      {makeSyncing ? "Syncing…" : "Sync Scenarios"}
+                    </button>
+                    <button
+                      onClick={handleMakeDisconnect}
+                      className="px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-colors"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                )}
+                {!makeConn?.connected && (
+                  <button
+                    onClick={() => setShowMakeForm(v => !v)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-xs text-purple-400 transition-colors"
+                  >
+                    Connect Make.com
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="p-5">
-              {make?.isConnected || (make?.totalEvents ?? 0) > 0 ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex flex-col">
-                      <span className="text-2xl font-black text-white tabular-nums">{(make?.totalEvents ?? 0).toLocaleString()}</span>
-                      <span className="text-[10px] text-slate-600">events in period</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className={`text-2xl font-black tabular-nums ${(make?.errors.length ?? 0) === 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {make?.errors.length ?? 0}
-                      </span>
-                      <span className="text-[10px] text-slate-600">open errors</span>
-                    </div>
+            {makeConn?.connected ? (
+              <div className="px-5 py-4 flex items-center gap-6 flex-wrap">
+                <div>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Region</p>
+                  <p className="text-xs font-mono text-slate-300 mt-0.5">{makeConn.region}.make.com</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Scenarios</p>
+                  <p className="text-sm font-bold text-white">{makeConn.scenarioCount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-600 uppercase tracking-wider">Last Synced</p>
+                  <p className="text-xs text-slate-400">{makeConn.lastSyncAt ? relativeTime(makeConn.lastSyncAt) : "Syncing…"}</p>
+                </div>
+                {makeConn.lastError && (
+                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                    <AlertTriangle size={12} />{makeConn.lastError}
                   </div>
-                  {(make?.errors.length ?? 0) > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold">Recent Errors</p>
-                      {make!.errors.map(err => (
-                        <div key={err.id} className="flex items-start gap-3 bg-slate-800/50 rounded-lg px-3 py-2.5">
-                          <XCircle size={12} className="text-rose-400 mt-0.5 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-mono font-semibold text-rose-400">{err.errorCode}</span>
-                              <span className="text-[10px] text-slate-600">· {err.retryCount} retries</span>
-                              <span className="text-[10px] text-slate-700 ml-auto">{relativeTime(err.createdAt)}</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 truncate mt-0.5">{err.errorDetail}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                )}
+              </div>
+            ) : showMakeForm ? (
+              <form onSubmit={handleMakeConnect} className="p-5 space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-slate-500 font-medium">API Token</label>
+                    <input
+                      type="password"
+                      placeholder="Your Make.com API token"
+                      value={makeApiKey}
+                      onChange={e => setMakeApiKey(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 focus:border-purple-500 focus:outline-none text-sm text-white placeholder-slate-600 transition-colors"
+                    />
+                    <p className="text-[10px] text-slate-700">Profile → API access → Generate API token</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] text-slate-500 font-medium">Region</label>
+                    <select
+                      value={makeRegion}
+                      onChange={e => setMakeRegion(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 focus:border-purple-500 focus:outline-none text-sm text-white transition-colors"
+                    >
+                      <option value="us1">us1 (United States)</option>
+                      <option value="eu1">eu1 (Europe)</option>
+                      <option value="eu2">eu2 (Europe 2)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-700">Check your Make.com URL to identify your region</p>
+                  </div>
+                </div>
+                {makeConnError && (
+                  <div className="flex items-center gap-2 text-xs text-rose-400 bg-rose-500/5 border border-rose-500/20 rounded-lg px-3 py-2">
+                    <XCircle size={12} />{makeConnError}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={makeConnecting}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium transition-colors disabled:opacity-60"
+                  >
+                    {makeConnecting ? <><RefreshCw size={12} className="animate-spin" /> Testing…</> : "Connect & Sync"}
+                  </button>
+                  <button type="button" onClick={() => setShowMakeForm(false)} className="px-3 py-2 text-xs text-slate-500 hover:text-slate-300">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="px-5 py-6 text-center">
+                <p className="text-sm text-slate-600">Connect Make.com to sync your scenarios and set up webhook event capture</p>
+                <p className="text-[11px] text-slate-700 mt-1">API token required — no scenario logic or data is imported</p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Make Scenarios List ── */}
+          {makeConn?.connected && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Layers size={14} className="text-purple-400" />
+                  <span className="text-sm font-semibold text-white">Scenarios</span>
+                  <span className="ml-1 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] text-purple-400 font-semibold">
+                    {makeScenarios.length}
+                  </span>
+                </div>
+                {makeMetaLoading && <RefreshCw size={12} className="text-slate-600 animate-spin" />}
+              </div>
+
+              {makeMetaLoading && makeScenarios.length === 0 ? (
+                <div className="flex items-center justify-center h-24 gap-2 text-slate-600 text-xs">
+                  <RefreshCw size={12} className="animate-spin" /> Loading scenarios…
+                </div>
+              ) : makeScenarios.length === 0 ? (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-slate-600">No scenarios synced yet</p>
+                  <p className="text-[11px] text-slate-700 mt-1">Click "Sync Scenarios" to fetch your Make.com scenarios</p>
                 </div>
               ) : (
-                <div className="text-center py-6">
-                  <Layers size={24} className="text-slate-700 mx-auto mb-2" />
-                  <p className="text-sm text-slate-600 font-medium">Make.com not connected</p>
-                  <p className="text-[11px] text-slate-700 mt-1">
-                    Send events via <span className="font-mono text-slate-500">POST /api/webhooks/make</span> to see automation reports here
-                  </p>
+                <div className="divide-y divide-slate-800/50">
+                  {makeScenarios.map(sc => (
+                    <div key={sc.id} className="px-5 py-3.5 flex items-start gap-4 hover:bg-slate-800/20 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${sc.active ? "bg-emerald-500" : "bg-slate-700"}`} />
+                          <span className="text-sm font-medium text-white truncate">{sc.name}</span>
+                          <span className="text-[10px] text-slate-600 font-mono shrink-0">
+                            {sc.triggerType === "webhook" ? "⚡ webhook" : sc.triggerType === "email" ? "✉ email" : "🕐 schedule"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          {sc.appsUsed.slice(0, 8).map(app => (
+                            <span key={app} className="px-2 py-0.5 rounded-full text-[10px] bg-slate-800/80 border border-slate-700/80 text-slate-400 font-medium">
+                              {app}
+                            </span>
+                          ))}
+                          {sc.appsUsed.length > 8 && (
+                            <span className="text-[10px] text-slate-600">+{sc.appsUsed.length - 8} more</span>
+                          )}
+                          {sc.appsUsed.length === 0 && (
+                            <span className="text-[10px] text-slate-700">No external apps detected</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right space-y-1.5">
+                        <button
+                          onClick={() => openGuide(sc)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-[10px] text-purple-400 hover:text-purple-300 transition-colors ml-auto"
+                        >
+                          <Zap size={10} />
+                          Set up capture
+                        </button>
+                        <p className="text-[10px] text-slate-700">{sc.moduleCount} modules</p>
+                        {sc.lastUpdatedAt && (
+                          <p className="text-[10px] text-slate-700">Updated {relativeTime(sc.lastUpdatedAt)}</p>
+                        )}
+                        <div className="flex items-center gap-1 justify-end">
+                          <span className={`w-1.5 h-1.5 rounded-full ${sc.execSyncEnabled ? "bg-purple-500" : "bg-slate-700"}`} />
+                          <span className="text-[10px] text-slate-700">{sc.execSyncEnabled ? "Capture on" : "Capture off"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
+          )}
+
+          {/* ── Make Setup Guide Modal ── */}
+          {guideScenario && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 shrink-0">
+                  <div>
+                    <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Layers size={14} className="text-purple-400" />
+                      Set up event capture
+                    </h2>
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-sm">{guideScenario.name}</p>
+                  </div>
+                  <button onClick={() => { setGuideScenario(null); setGuideUrl(""); }} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-white transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-5">
+                  <MakeSetupGuide
+                    webhookUrl={guideUrl || `…/api/webhooks/make?workspaceId=${workspaceId}&scenarioId=${guideScenario.makeId}`}
+                    scenarioName={guideScenario.name}
+                    defaultEventType={guideScenario.eventFilter?.eventTypes?.[0]}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Make event stats (if events received) ── */}
+          {(make?.totalEvents ?? 0) > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+                <Layers size={14} className="text-purple-400" />
+                <span className="text-sm font-semibold text-white">Make.com Events</span>
+                <span className="text-[10px] text-slate-600 ml-1">{PERIOD_LABELS[period]}</span>
+              </div>
+              <div className="px-5 py-4 flex items-center gap-8 flex-wrap">
+                <div>
+                  <p className="text-2xl font-black text-white tabular-nums">{(make?.totalEvents ?? 0).toLocaleString()}</p>
+                  <p className="text-[10px] text-slate-600">total events</p>
+                </div>
+                <div>
+                  <p className={`text-2xl font-black tabular-nums ${(make?.errors.length ?? 0) === 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                    {make?.errors.length ?? 0}
+                  </p>
+                  <p className="text-[10px] text-slate-600">open errors</p>
+                </div>
+              </div>
+              {(make?.errors.length ?? 0) > 0 && (
+                <div className="border-t border-slate-800 divide-y divide-slate-800/50">
+                  {make!.errors.map(err => (
+                    <div key={err.id} className="px-5 py-3 flex items-start gap-3">
+                      <XCircle size={12} className="text-rose-400 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-semibold text-rose-400">{err.errorCode}</span>
+                          <span className="text-[10px] text-slate-600">· {err.retryCount} retries</span>
+                          <span className="text-[10px] text-slate-700 ml-auto">{relativeTime(err.createdAt)}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate mt-0.5">{err.errorDetail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Global Error Log ── */}
           {(n8n?.errors.length ?? 0) > 0 && (
