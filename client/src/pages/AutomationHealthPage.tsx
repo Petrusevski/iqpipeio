@@ -942,7 +942,7 @@ export default function AutomationHealthPage() {
                 <p className="text-[11px] text-slate-700 mt-1">API key required &#8212; no workflow canvas data is imported</p>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* ── Connected Workflows (from n8n instance) ── */}
           {connStatus?.connected && (
@@ -1089,7 +1089,7 @@ export default function AutomationHealthPage() {
                 </p>
               </div>
             )}
-          </div>}
+          </div>
 
           {/* ── Make.com Connection Panel ── */}
           {selectedPlatform === "make" && <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
@@ -1209,7 +1209,7 @@ export default function AutomationHealthPage() {
                 <p className="text-[11px] text-slate-700 mt-1">API token required — no scenario logic or data is imported</p>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* ── Make Scenarios List ── */}
           {makeConn?.connected && (
@@ -1350,7 +1350,6 @@ export default function AutomationHealthPage() {
               )}
             </div>
           )}
-          </div>}
 
           {/* ── Global Error Log ── */}
           {selectedPlatform === "n8n" && (n8n?.errors.length ?? 0) > 0 && (
@@ -1385,7 +1384,7 @@ export default function AutomationHealthPage() {
             n8n events are staged in the ingestion queue and processed asynchronously. Outcome events update canonical lead data; process events power workflow-level analytics only.
           </p>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
