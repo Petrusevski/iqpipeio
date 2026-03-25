@@ -180,138 +180,6 @@ const HeroVisualization = () => {
   );
 };
 
-// --- INTEGRATIONS CAROUSEL ---
-
-const ALL_INTEGRATIONS = [
-  // Prospecting
-  { name: "Clay",          domain: "clay.com",            category: "Prospecting"   },
-  { name: "Apollo",        domain: "apollo.io",           category: "Prospecting"   },
-  { name: "PhantomBuster", domain: "phantombuster.com",   category: "Prospecting"   },
-  // Enrichment
-  { name: "Clearbit",      domain: "clearbit.com",        category: "Enrichment"    },
-  { name: "ZoomInfo",      domain: "zoominfo.com",        category: "Enrichment"    },
-  { name: "PDL",           domain: "peopledatalabs.com",  category: "Enrichment"    },
-  { name: "Hunter.io",     domain: "hunter.io",           category: "Enrichment"    },
-  { name: "Lusha",         domain: "lusha.com",           category: "Enrichment"    },
-  { name: "Cognism",       domain: "cognism.com",         category: "Enrichment"    },
-  { name: "Snov.io",       domain: "snov.io",             category: "Enrichment"    },
-  { name: "RocketReach",   domain: "rocketreach.co",      category: "Enrichment"    },
-  // LinkedIn
-  { name: "HeyReach",      domain: "heyreach.io",         category: "LinkedIn"      },
-  { name: "Expandi",       domain: "expandi.io",          category: "LinkedIn"      },
-  { name: "Dripify",       domain: "dripify.io",          category: "LinkedIn"      },
-  { name: "Waalaxy",       domain: "waalaxy.com",         category: "LinkedIn"      },
-  { name: "Meet Alfred",   domain: "meetalfred.com",      category: "LinkedIn"      },
-  // Email
-  { name: "Smartlead",     domain: "smartlead.ai",        category: "Email"         },
-  { name: "Instantly",     domain: "instantly.ai",        category: "Email"         },
-  { name: "Lemlist",       domain: "lemlist.com",         category: "Email"         },
-  { name: "Mailshake",     domain: "mailshake.com",       category: "Email"         },
-  // Multichannel
-  { name: "Outreach",      domain: "outreach.io",         category: "Multichannel"  },
-  { name: "Salesloft",     domain: "salesloft.com",       category: "Multichannel"  },
-  { name: "Reply.io",      domain: "reply.io",            category: "Multichannel"  },
-  { name: "Klenty",        domain: "klenty.com",          category: "Multichannel"  },
-  // Calling
-  { name: "Aircall",       domain: "aircall.io",          category: "Calling"       },
-  { name: "Dialpad",       domain: "dialpad.com",         category: "Calling"       },
-  { name: "Kixie",         domain: "kixie.com",           category: "Calling"       },
-  { name: "Orum",          domain: "orum.io",             category: "Calling"       },
-  // SMS
-  { name: "Twilio",        domain: "twilio.com",          category: "SMS"           },
-  { name: "Sakari",        domain: "sakari.io",           category: "SMS"           },
-  { name: "WATI",          domain: "wati.io",             category: "SMS"           },
-  // CRM
-  { name: "HubSpot",       domain: "hubspot.com",         category: "CRM"           },
-  { name: "Pipedrive",     domain: "pipedrive.com",       category: "CRM"           },
-  { name: "Salesforce",    domain: "salesforce.com",      category: "CRM"           },
-  // Billing
-  { name: "Stripe",        domain: "stripe.com",          category: "Billing"       },
-  { name: "Chargebee",     domain: "chargebee.com",       category: "Billing"       },
-  // Automation
-  { name: "n8n",           domain: "n8n.io",              category: "Automation"    },
-  { name: "Make",          domain: "make.com",            category: "Automation"    },
-];
-
-const CATEGORY_COLOR: Record<string, string> = {
-  Prospecting:  "text-violet-400  bg-violet-500/10  border-violet-500/20",
-  Enrichment:   "text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20",
-  LinkedIn:     "text-blue-400    bg-blue-500/10    border-blue-500/20",
-  Email:        "text-sky-400     bg-sky-500/10     border-sky-500/20",
-  Multichannel: "text-indigo-400  bg-indigo-500/10  border-indigo-500/20",
-  Calling:      "text-orange-400  bg-orange-500/10  border-orange-500/20",
-  SMS:          "text-amber-400   bg-amber-500/10   border-amber-500/20",
-  CRM:          "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-  Billing:      "text-yellow-400  bg-yellow-500/10  border-yellow-500/20",
-  Automation:   "text-slate-400   bg-slate-500/10   border-slate-500/20",
-};
-
-function IntegrationChip({ name, domain, category }: { name: string; domain: string; category: string }) {
-  const [err, setErr] = useState(false);
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-800 bg-slate-900/60 shrink-0">
-      {!err ? (
-        <div className="w-5 h-5 rounded bg-white flex items-center justify-center overflow-hidden shrink-0">
-          <img
-            src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
-            alt={name}
-            width={14}
-            height={14}
-            className="object-contain"
-            onError={() => setErr(true)}
-          />
-        </div>
-      ) : (
-        <div className="w-5 h-5 rounded bg-slate-700 flex items-center justify-center text-[9px] font-bold text-slate-300 shrink-0">
-          {name[0]}
-        </div>
-      )}
-      <span className="text-xs font-medium text-slate-300 whitespace-nowrap">{name}</span>
-      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${CATEGORY_COLOR[category]}`}>
-        {category}
-      </span>
-    </div>
-  );
-}
-
-const ROW_A = ALL_INTEGRATIONS.slice(0, 20);
-const ROW_B = ALL_INTEGRATIONS.slice(20);
-
-const IntegrationsCarousel = () => (
-  <div className="space-y-3 select-none">
-    {/* Row 1 — scrolls left */}
-    <div className="relative overflow-hidden">
-      <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none" />
-      <motion.div
-        className="flex gap-3"
-        animate={{ x: ["0%", "-50%"] }}
-        transition={{ repeat: Infinity, ease: "linear", duration: 45 }}
-        style={{ width: "max-content" }}
-      >
-        {[...ROW_A, ...ROW_A].map((tool, i) => (
-          <IntegrationChip key={i} {...tool} />
-        ))}
-      </motion.div>
-    </div>
-
-    {/* Row 2 — scrolls right */}
-    <div className="relative overflow-hidden">
-      <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-slate-950 to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-slate-950 to-transparent z-10 pointer-events-none" />
-      <motion.div
-        className="flex gap-3"
-        animate={{ x: ["-50%", "0%"] }}
-        transition={{ repeat: Infinity, ease: "linear", duration: 40 }}
-        style={{ width: "max-content" }}
-      >
-        {[...ROW_B, ...ROW_B].map((tool, i) => (
-          <IntegrationChip key={i} {...tool} />
-        ))}
-      </motion.div>
-    </div>
-  </div>
-);
 
 // --- STOCK TICKER ---
 const StockTicker = () => {
@@ -781,21 +649,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── Integrations carousel ──────────────────────────────────────────── */}
-        <section className="border-t border-slate-900 bg-slate-950 py-16 overflow-hidden">
-          <p className="text-center text-xs font-semibold text-slate-600 uppercase tracking-widest mb-10">
-            Connects with every tool in your stack — 38 integrations
-          </p>
-          <IntegrationsCarousel />
-          <div className="text-center mt-10">
-            <a
-              href="/integrations"
-              className="inline-flex items-center gap-2 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 px-5 py-2.5 rounded-full text-sm font-medium transition-all"
-            >
-              See all 38 integrations →
-            </a>
-          </div>
-        </section>
 
         {/* ── Pricing ───────────────────────────────────────────────────────── */}
         <section id="pricing" className="relative bg-slate-950 py-24 border-t border-slate-900">
@@ -850,6 +703,38 @@ export default function LandingPage() {
                 <a href="/signup?plan=agency" className="mt-7 block w-full rounded-xl bg-white py-3 text-center text-sm font-bold text-slate-950 hover:bg-slate-100 transition-colors shadow-lg">
                   Start 30-day free trial
                 </a>
+              </div>
+            </div>
+
+            {/* Agency Add-on */}
+            <div className="mt-8 mx-auto max-w-4xl">
+              <div className="p-6 rounded-3xl border border-amber-500/30 bg-amber-500/5 relative overflow-hidden">
+                <div className="absolute top-3 right-4 text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 uppercase tracking-widest">Agency Only</div>
+                <div className="flex flex-col md:flex-row md:items-center gap-6">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-amber-400 mb-1">Additional Workspace Add-on</div>
+                    <h3 className="text-xl font-bold text-white mb-2">+1 Workspace · +5 Automations · 75K events/mo</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-3">
+                      Scale client capacity without moving up a plan. Each add-on workspace comes with 5 dedicated automations and 75,000 events/month — sized for a full GTM sequence running 5 automations × 2 runs/week.
+                    </p>
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      {[
+                        "~200 contacts/run × 7 events = 1,400 events/run",
+                        "5 automations × 2 runs/week × 4.3 weeks",
+                        "~60,200 events/mo + 25% headroom = 75K",
+                      ].map((note) => (
+                        <span key={note} className="px-2.5 py-1 rounded-full border border-slate-800 bg-slate-900/60 text-slate-500">{note}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-center md:text-right">
+                    <div className="text-3xl font-bold text-white">$49<span className="text-base text-slate-500 font-normal">/mo</span></div>
+                    <div className="text-xs text-slate-500 mb-4">per additional workspace</div>
+                    <a href="/signup?plan=agency&addon=workspace" className="inline-flex items-center gap-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 px-5 py-2.5 text-sm font-bold hover:bg-amber-500/30 transition-all">
+                      Add to Agency plan <ArrowRight size={14} />
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
