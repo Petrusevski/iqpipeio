@@ -213,16 +213,16 @@ export default function GTMStackPage() {
           <div className="mx-auto max-w-5xl">
             <div className="text-center mb-12">
               <h2 className="text-xl font-bold text-white mb-2">How iqpipe fits into your automation</h2>
-              <p className="text-slate-400 text-sm max-w-lg mx-auto">You add one HTTP step to your existing automations. That's it. iqpipe listens — your tools keep running exactly as before.</p>
+              <p className="text-slate-400 text-sm max-w-lg mx-auto">Connect your Make.com or n8n account. iqpipe reads your workflows, shows them visually, and lets you pick which events to record per app node.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-4 items-center">
               {/* Left: automation platforms */}
               <div className="space-y-3">
-                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-4 text-center md:text-left">Your automation — it runs the workflow</div>
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-4 text-center md:text-left">Your automation platform</div>
                 {[
-                  { platform: "Make.com", domain: "make.com",  step: "HTTP Request module" },
-                  { platform: "n8n",      domain: "n8n.io",    step: "HTTP Request node"   },
+                  { platform: "Make.com", domain: "make.com", step: "OAuth connect → workflows imported" },
+                  { platform: "n8n",      domain: "n8n.io",   step: "OAuth connect → workflows imported" },
                 ].map((p) => (
                   <motion.div
                     key={p.platform}
@@ -234,13 +234,13 @@ export default function GTMStackPage() {
                     <PlatformLogo domain={p.domain} name={p.platform} size={6} />
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-semibold text-slate-300">{p.platform}</div>
-                      <div className="text-[10px] text-slate-500">{p.step} → iqpipe</div>
+                      <div className="text-[10px] text-slate-500">{p.step}</div>
                     </div>
                     <ArrowRight size={12} className="text-indigo-400 shrink-0" />
                   </motion.div>
                 ))}
                 <div className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-slate-800 text-center justify-center">
-                  <span className="text-[10px] text-slate-600">Any platform with HTTP POST support</span>
+                  <span className="text-[10px] text-slate-600">Workflows read automatically — no manual steps</span>
                 </div>
               </div>
 
@@ -310,7 +310,7 @@ export default function GTMStackPage() {
           <div className="mx-auto max-w-4xl">
             <div className="text-center mb-12">
               <h2 className="text-2xl font-bold text-white mb-3">Three steps to connect your automations</h2>
-              <p className="text-slate-400 text-sm max-w-lg mx-auto">No code changes to your tools. Just add one HTTP step to each automation you want to track.</p>
+              <p className="text-slate-400 text-sm max-w-lg mx-auto">No code. No changes to your workflows. iqpipe reads your flows and lets you configure event recording per app node.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6">
@@ -319,24 +319,24 @@ export default function GTMStackPage() {
                   step: "1",
                   color: "indigo",
                   icon: Fingerprint,
-                  title: "Copy your webhook URL",
-                  body: "In iqpipe Settings → Connections, copy your workspace webhook URL. This is the endpoint all your automations will POST events to.",
-                  code: "https://app.iqpipe.io/wh/ws_4f2a9c...",
+                  title: "Connect your Make.com or n8n account",
+                  body: "OAuth-connect your automation platform in iqpipe Settings. iqpipe immediately fetches all your existing workflows — no copying, no manual steps.",
+                  code: "Settings → Connections\n→ Connect Make.com or n8n\n→ Workflows imported automatically",
                 },
                 {
                   step: "2",
                   color: "fuchsia",
                   icon: Workflow,
-                  title: "Add an HTTP step to your automation",
-                  body: "In Make.com, add an HTTP Request module after any step you want to track. In n8n, add an HTTP Request node. Paste your webhook URL and send the event payload.",
-                  code: 'POST {webhook_url}\n{\n  "event": "lead_imported",\n  "email": "{{contact.email}}"\n}',
+                  title: "iqpipe visualises your workflow",
+                  body: "Your automation is shown as a visual node graph — one node per app. Click any app node to see the events it offers and select which ones iqpipe should record.",
+                  code: "Clay → Clearbit → HeyReach\n  → HubSpot → Stripe\n[click node → pick events]",
                 },
                 {
                   step: "3",
                   color: "emerald",
                   icon: Eye,
-                  title: "Watch analytics appear",
-                  body: "As your automation runs, events flow into iqpipe. Live Feed shows each event as it fires. Contact Inspector builds a cross-tool journey. Pipeline Health monitors automation status.",
+                  title: "Analytics appear automatically",
+                  body: "As your automation runs, only the events you selected flow into iqpipe. Live Feed, Contact Inspector, Pipeline Health, and GTM Report all populate automatically.",
                   code: "iq_4f2a9c → 8 events across 5 steps\nSource: Clay → Close: Stripe $18,400",
                 },
               ].map((card) => {

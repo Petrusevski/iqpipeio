@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Zap,
   ChevronRight,
-  Code2,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -134,7 +133,7 @@ export default function PublicIntegrationsPage() {
                   </div>
                   <div className="text-center">
                     <div className="text-sm font-bold text-white">Make.com</div>
-                    <div className="text-[10px] text-violet-400 mt-0.5">HTTP Request module</div>
+                    <div className="text-[10px] text-violet-400 mt-0.5">OAuth connect · workflows imported</div>
                   </div>
                 </motion.div>
 
@@ -177,7 +176,7 @@ export default function PublicIntegrationsPage() {
                   </div>
                   <div className="text-center">
                     <div className="text-sm font-bold text-white">n8n</div>
-                    <div className="text-[10px] text-orange-400 mt-0.5">HTTP Request node</div>
+                    <div className="text-[10px] text-orange-400 mt-0.5">OAuth connect · workflows imported</div>
                   </div>
                 </motion.div>
 
@@ -199,30 +198,30 @@ export default function PublicIntegrationsPage() {
         <section className="border-b border-slate-900 py-16 px-4 bg-slate-950/60">
           <div className="mx-auto max-w-4xl">
             <div className="text-center mb-10">
-              <h2 className="text-2xl font-bold text-white mb-3">One HTTP step. Full event tracking.</h2>
-              <p className="text-slate-400 text-sm max-w-lg mx-auto">Add an HTTP Request step to any existing Make.com scenario or n8n workflow. That's the entire integration.</p>
+              <h2 className="text-2xl font-bold text-white mb-3">Connect your account. Pick your events.</h2>
+              <p className="text-slate-400 text-sm max-w-lg mx-auto">iqpipe reads your existing Make.com or n8n workflows and lets you configure event recording per app node — no changes to your automation required.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-5">
               {[
                 {
                   step: "1",
                   color: "indigo",
-                  title: "Copy your webhook URL",
-                  body: "In iqpipe Settings → Connections, copy your workspace webhook URL. This is the single endpoint all your automations POST events to.",
-                  code: "https://app.iqpipe.io/wh/ws_...",
+                  title: "OAuth-connect your platform",
+                  body: "Connect your Make.com or n8n account in iqpipe Settings. iqpipe immediately fetches all your existing workflows — no manual steps, no copying URLs.",
+                  code: "Settings → Connections\n→ Connect Make.com or n8n\n→ Workflows imported automatically",
                 },
                 {
                   step: "2",
                   color: "fuchsia",
-                  title: "Add HTTP step to your automation",
-                  body: "In Make.com, add an HTTP Request module after any step you want to track. In n8n, add an HTTP Request node. POST the event payload to your webhook URL.",
-                  code: 'POST {webhook}\n{ "event": "lead_imported",\n  "email": "{{email}}" }',
+                  title: "See your workflow as a visual flow",
+                  body: "iqpipe displays your automation as a node graph. Each app in the flow is a clickable node. Click any node to see the events that app offers and select which to record.",
+                  code: "Clay → Clearbit → HeyReach\n  → HubSpot → Stripe\n[click node → pick events]",
                 },
                 {
                   step: "3",
                   color: "emerald",
                   title: "Analytics appear automatically",
-                  body: "Events flow into Live Feed instantly. iqpipe builds contact journeys, monitors automation health, and attributes revenue to each workflow — no config needed.",
+                  body: "As your automation runs, only selected events flow into iqpipe. Live Feed, Contact Inspector, Pipeline Health, and GTM Report populate automatically.",
                   code: "iq_4f2a9c · 8 events · 5 steps\nClay → HeyReach → Stripe $18,400",
                 },
               ].map((card) => (
@@ -274,28 +273,22 @@ export default function PublicIntegrationsPage() {
                   </div>
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Build or extend your existing Make.com scenarios. After any module that processes a contact (Clay, HeyReach, HubSpot), add an <strong className="text-slate-200">HTTP → Make an HTTP request</strong> module. Set method to POST, paste your iqpipe webhook URL, and send the event JSON as the request body.
+                  OAuth-connect your Make.com account and iqpipe imports your scenarios automatically. Your flows are shown as visual node graphs — click any module to see its available events and choose which ones iqpipe should record. No changes to your scenarios required.
                 </p>
                 <div className="space-y-2 text-xs">
-                  {["Drag-and-drop — no code needed", "Map contact fields directly from prior modules", "Works with all 500+ Make.com app modules"].map((f) => (
+                  {["OAuth connect — no manual setup", "Workflows imported and visualised automatically", "Click any module node to configure event recording"].map((f) => (
                     <div key={f} className="flex items-center gap-2 text-slate-300">
                       <CheckCircle2 size={13} className="text-violet-400 shrink-0" />{f}
                     </div>
                   ))}
                 </div>
-                <div className="rounded-xl border border-violet-500/20 bg-slate-950/60 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Code2 size={11} className="text-slate-500" />
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Make.com HTTP module body</span>
-                  </div>
-                  <pre className="text-[11px] font-mono text-slate-300 leading-relaxed overflow-x-auto">{`{
-  "event": "lead_imported",
-  "source": "clay",
-  "email": "{{1.email}}",
-  "properties": {
-    "company": "{{1.company}}"
-  }
-}`}</pre>
+                <div className="rounded-xl border border-violet-500/20 bg-slate-950/60 p-4 space-y-2">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">What iqpipe shows after connecting</div>
+                  {["Clay scenario imported · 4 events available", "HeyReach module · 3 events available", "HubSpot module · 4 events available"].map((line) => (
+                    <div key={line} className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <CheckCircle2 size={11} className="text-violet-400 shrink-0" />{line}
+                    </div>
+                  ))}
                 </div>
               </motion.div>
 
@@ -317,28 +310,22 @@ export default function PublicIntegrationsPage() {
                   </div>
                 </div>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Add an <strong className="text-slate-200">HTTP Request node</strong> anywhere in your n8n workflow. Set the method to POST, enter your iqpipe webhook URL, set body content type to JSON, and map the contact fields you want to track. Works on n8n Cloud, self-hosted, or desktop.
+                  OAuth-connect your n8n account and iqpipe pulls in your existing workflows. Each workflow is displayed as a visual graph of nodes. Click any app node — Clay, HeyReach, HubSpot — to see the events it emits and select which ones to record. Works on n8n Cloud and self-hosted.
                 </p>
                 <div className="space-y-2 text-xs">
-                  {["Works on n8n Cloud, self-hosted, and desktop", "Full JavaScript/Python expression support", "400+ native integrations already in your workflow"].map((f) => (
+                  {["Works on n8n Cloud, self-hosted, and desktop", "Workflows imported and visualised automatically", "Click any node to configure event recording per app"].map((f) => (
                     <div key={f} className="flex items-center gap-2 text-slate-300">
                       <CheckCircle2 size={13} className="text-orange-400 shrink-0" />{f}
                     </div>
                   ))}
                 </div>
-                <div className="rounded-xl border border-orange-500/20 bg-slate-950/60 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Code2 size={11} className="text-slate-500" />
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">n8n HTTP Request node body</span>
-                  </div>
-                  <pre className="text-[11px] font-mono text-slate-300 leading-relaxed overflow-x-auto">{`{
-  "event": "sequence_started",
-  "source": "heyreach",
-  "email": "={{ $json.email }}",
-  "properties": {
-    "campaign": "={{ $json.campaign }}"
-  }
-}`}</pre>
+                <div className="rounded-xl border border-orange-500/20 bg-slate-950/60 p-4 space-y-2">
+                  <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-3">What iqpipe shows after connecting</div>
+                  {["Enrichment workflow imported · 3 events available", "HeyReach node · 4 events available", "Stripe node · 3 events available"].map((line) => (
+                    <div key={line} className="flex items-center gap-2 text-[11px] text-slate-400">
+                      <CheckCircle2 size={11} className="text-orange-400 shrink-0" />{line}
+                    </div>
+                  ))}
                 </div>
               </motion.div>
 

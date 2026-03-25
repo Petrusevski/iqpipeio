@@ -11,9 +11,11 @@ import {
   ChevronRight,
   Fingerprint,
   Workflow,
-  Code2,
   TrendingUp,
   Play,
+  Link2,
+  MousePointerClick,
+  ListChecks,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -79,109 +81,278 @@ const STACKS = [
   { name: "n8n enrichment-only flow",   reply: 6,  close: 1.8,  rev: "$12,800", winner: false },
 ];
 
+// ── Workflow node definitions ─────────────────────────────────────────────────
+const WORKFLOW_NODES = [
+  {
+    id: "clay",
+    name: "Clay",
+    domain: "clay.com",
+    color: "sky",
+    events: [
+      { id: "lead_imported",    label: "lead_imported",    checked: true  },
+      { id: "list_uploaded",    label: "list_uploaded",    checked: true  },
+      { id: "row_scraped",      label: "row_scraped",      checked: false },
+      { id: "prospect_created", label: "prospect_created", checked: false },
+    ],
+  },
+  {
+    id: "clearbit",
+    name: "Clearbit",
+    domain: "clearbit.com",
+    color: "violet",
+    events: [
+      { id: "record_enriched",  label: "record_enriched",  checked: true  },
+      { id: "email_verified",   label: "email_verified",   checked: true  },
+      { id: "company_matched",  label: "company_matched",  checked: false },
+    ],
+  },
+  {
+    id: "heyreach",
+    name: "HeyReach",
+    domain: "heyreach.io",
+    color: "blue",
+    events: [
+      { id: "connection_sent",     label: "connection_sent",     checked: true  },
+      { id: "message_sent",        label: "message_sent",        checked: false },
+      { id: "reply_received",      label: "reply_received",      checked: true  },
+      { id: "connection_accepted", label: "connection_accepted", checked: true  },
+    ],
+  },
+  {
+    id: "hubspot",
+    name: "HubSpot",
+    domain: "hubspot.com",
+    color: "emerald",
+    events: [
+      { id: "deal_created",    label: "deal_created",    checked: true  },
+      { id: "stage_changed",   label: "stage_changed",   checked: true  },
+      { id: "deal_won",        label: "deal_won",        checked: true  },
+      { id: "contact_updated", label: "contact_updated", checked: false },
+    ],
+  },
+  {
+    id: "stripe",
+    name: "Stripe",
+    domain: "stripe.com",
+    color: "green",
+    events: [
+      { id: "payment_succeeded",    label: "payment_succeeded",    checked: true  },
+      { id: "subscription_created", label: "subscription_created", checked: true  },
+      { id: "invoice_paid",         label: "invoice_paid",         checked: false },
+    ],
+  },
+];
+
+const NODE_COLOR: Record<string, { border: string; bg: string; text: string; ring: string }> = {
+  sky:     { border: "border-sky-500/40",     bg: "bg-sky-500/10",     text: "text-sky-300",     ring: "ring-sky-500/30"     },
+  violet:  { border: "border-violet-500/40",  bg: "bg-violet-500/10",  text: "text-violet-300",  ring: "ring-violet-500/30"  },
+  blue:    { border: "border-blue-500/40",    bg: "bg-blue-500/10",    text: "text-blue-300",    ring: "ring-blue-500/30"    },
+  emerald: { border: "border-emerald-500/40", bg: "bg-emerald-500/10", text: "text-emerald-300", ring: "ring-emerald-500/30" },
+  green:   { border: "border-green-500/40",   bg: "bg-green-500/10",   text: "text-green-300",   ring: "ring-green-500/30"   },
+};
+
 // ── Panels ────────────────────────────────────────────────────────────────────
 
 function FlowPanel() {
+  const [activePlatform, setActivePlatform] = useState<"make" | "n8n">("make");
+  const [selectedNode, setSelectedNode] = useState<string>("clay");
+  const [checkedEvents, setCheckedEvents] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    WORKFLOW_NODES.forEach((n) => n.events.forEach((e) => { init[`${n.id}:${e.id}`] = e.checked; }));
+    return init;
+  });
+
+  const activeNode = WORKFLOW_NODES.find((n) => n.id === selectedNode)!;
+  const nc = NODE_COLOR[activeNode.color];
+
+  const toggleEvent = (nodeId: string, evId: string) => {
+    const key = `${nodeId}:${evId}`;
+    setCheckedEvents((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const selectedCount = (nodeId: string) =>
+    WORKFLOW_NODES.find((n) => n.id === nodeId)!.events.filter((e) => checkedEvents[`${nodeId}:${e.id}`]).length;
+
   return (
-    <div className="space-y-8">
-      {/* Animated diagram */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-8">
-        <div className="text-center mb-6">
-          <div className="text-sm font-bold text-white mb-1">Your automations → iqpipe webhook → analytics</div>
-          <p className="text-xs text-slate-500">Add one HTTP step to any Make.com or n8n workflow. Every event it fires shows up here.</p>
-        </div>
+    <div className="space-y-6">
 
-        {/* Platforms */}
-        <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
-          {[
-            { label: "Make.com scenario", domain: "make.com", color: "border-violet-500/30 bg-violet-500/5", text: "text-violet-400" },
-            { label: "n8n workflow",       domain: "n8n.io",   color: "border-orange-500/30 bg-orange-500/5", text: "text-orange-400" },
-          ].map((p) => (
-            <div key={p.domain} className={`flex items-center gap-3 px-5 py-3 rounded-xl border ${p.color}`}>
-              <Logo domain={p.domain} name={p.label} size={7} />
+      {/* ── Step indicators ── */}
+      <div className="grid md:grid-cols-3 gap-3">
+        {[
+          { step: "1", color: "indigo",  icon: Link2,            title: "Connect your account",        desc: "OAuth-connect your Make.com or n8n account. iqpipe fetches all your existing workflows."         },
+          { step: "2", color: "fuchsia", icon: MousePointerClick, title: "iqpipe reads your flows",      desc: "Your workflows are visualised below as connected nodes — one node per app in the automation."   },
+          { step: "3", color: "emerald", icon: ListChecks,        title: "Pick events per app node",     desc: "Click any app node, see the events it offers, and choose which ones iqpipe should record."      },
+        ].map((card) => {
+          const CardIcon = card.icon;
+          return (
+            <div key={card.step} className={`rounded-xl border border-${card.color}-500/20 bg-${card.color}-500/5 p-4 flex gap-3`}>
+              <div className={`w-7 h-7 rounded-full bg-${card.color}-500/15 border border-${card.color}-500/25 flex items-center justify-center text-[11px] font-bold text-${card.color}-400 shrink-0`}>
+                {card.step}
+              </div>
               <div>
-                <div className="text-xs font-semibold text-white">{p.label}</div>
-                <div className={`text-[10px] ${p.text}`}>HTTP Request step → iqpipe webhook</div>
+                <div className={`flex items-center gap-1.5 text-xs font-bold text-${card.color}-300 mb-1`}>
+                  <CardIcon size={12} />
+                  {card.title}
+                </div>
+                <p className="text-[11px] text-slate-500 leading-relaxed">{card.desc}</p>
               </div>
             </div>
-          ))}
-        </div>
-
-        {/* Step-by-step */}
-        <div className="grid md:grid-cols-3 gap-4">
-          {[
-            {
-              step: "1", color: "indigo",
-              title: "Copy your webhook URL",
-              code: "Settings → Connections\n→ Copy workspace webhook URL",
-            },
-            {
-              step: "2", color: "fuchsia",
-              title: "Add HTTP step to automation",
-              code: 'POST {webhook}\n{\n  "event": "lead_imported",\n  "email": "{{contact.email}}"\n}',
-            },
-            {
-              step: "3", color: "emerald",
-              title: "Watch analytics appear",
-              code: "Live Feed · Contact Inspector\nPipeline Health · GTM Report",
-            },
-          ].map((card) => (
-            <div key={card.step} className={`rounded-xl border border-${card.color}-500/20 bg-${card.color}-500/5 p-4`}>
-              <div className={`text-[10px] font-bold text-${card.color}-400 mb-2 flex items-center gap-1.5`}>
-                <span className={`w-5 h-5 rounded-full bg-${card.color}-500/15 border border-${card.color}-500/25 flex items-center justify-center text-[10px]`}>{card.step}</span>
-                Step {card.step}
-              </div>
-              <div className="text-xs font-semibold text-white mb-2">{card.title}</div>
-              <pre className="text-[10px] font-mono text-slate-400 leading-relaxed whitespace-pre">{card.code}</pre>
-            </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      {/* Event payload format */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Code2 size={14} className="text-indigo-400" />
-          <span className="text-sm font-bold text-white">Universal event payload format</span>
+      {/* ── Platform toggle + connect status ── */}
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <div className="text-xs font-semibold text-slate-400">Connected automation platform</div>
+          <div className="flex rounded-xl border border-slate-800 overflow-hidden text-xs font-semibold">
+            {(["make", "n8n"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setActivePlatform(p)}
+                className={`flex items-center gap-2 px-4 py-2 transition-all ${activePlatform === p ? "bg-indigo-500/15 text-indigo-200 border-r border-slate-800" : "text-slate-500 hover:text-slate-300"}`}
+              >
+                <Logo domain={p === "make" ? "make.com" : "n8n.io"} name={p} size={4} />
+                {p === "make" ? "Make.com" : "n8n"}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="grid md:grid-cols-2 gap-4">
-          {[
-            {
-              label: "Make.com",
-              domain: "make.com",
-              code: `{
-  "event": "lead_imported",
-  "source": "clay",
-  "email": "{{1.email}}",
-  "properties": {
-    "company": "{{1.company}}",
-    "title": "{{1.job_title}}"
-  }
-}`,
-            },
-            {
-              label: "n8n",
-              domain: "n8n.io",
-              code: `{
-  "event": "sequence_started",
-  "source": "heyreach",
-  "email": "={{ $json.email }}",
-  "properties": {
-    "campaign": "={{ $json.campaign_name }}"
-  }
-}`,
-            },
-          ].map((p) => (
-            <div key={p.label} className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-800 bg-slate-900/60">
-                <Logo domain={p.domain} name={p.label} size={4} />
-                <span className="text-[11px] font-semibold text-slate-300">{p.label}</span>
+
+        {/* Connected badge */}
+        <div className="flex items-center gap-2 mb-6 px-3 py-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 w-fit">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[11px] text-emerald-300 font-medium">
+            {activePlatform === "make" ? "Make.com" : "n8n"} account connected · 1 workflow imported
+          </span>
+        </div>
+
+        {/* ── Workflow node graph ── */}
+        <div className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-3">
+          {activePlatform === "make" ? "Make.com scenario" : "n8n workflow"} · Q2 GTM Outreach
+        </div>
+
+        <div className="overflow-x-auto pb-2">
+          <div className="flex items-center gap-0 min-w-max">
+            {/* Platform source node */}
+            <div className="flex flex-col items-center gap-1.5 mr-1">
+              <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-md">
+                <img
+                  src={`https://www.google.com/s2/favicons?domain=${activePlatform === "make" ? "make.com" : "n8n.io"}&sz=64`}
+                  alt={activePlatform}
+                  width={22} height={22}
+                  className="object-contain"
+                />
               </div>
-              <pre className="text-[11px] font-mono text-slate-300 leading-relaxed p-4 overflow-x-auto">{p.code}</pre>
+              <span className="text-[9px] text-slate-600">{activePlatform === "make" ? "Make" : "n8n"}</span>
             </div>
-          ))}
+
+            {WORKFLOW_NODES.map((node, i) => {
+              const c = NODE_COLOR[node.color];
+              const isActive = selectedNode === node.id;
+              const count = selectedCount(node.id);
+              return (
+                <div key={node.id} className="flex items-center">
+                  {/* Arrow */}
+                  <div className="relative w-8 flex items-center justify-center mx-1">
+                    <div className="h-px w-full bg-slate-700" />
+                    <motion.div
+                      className="absolute w-1.5 h-1.5 rounded-full bg-indigo-400"
+                      animate={{ left: ["0%", "100%"], opacity: [0, 1, 0] }}
+                      transition={{ duration: 1.2, delay: i * 0.25, repeat: Infinity, ease: "linear" }}
+                      style={{ top: "50%", translateY: "-50%", position: "absolute" }}
+                    />
+                    <ChevronRight size={10} className="absolute right-0 text-slate-600" />
+                  </div>
+
+                  {/* Node */}
+                  <button
+                    onClick={() => setSelectedNode(node.id)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all cursor-pointer ${
+                      isActive
+                        ? `${c.border} ${c.bg} ring-2 ${c.ring} shadow-lg`
+                        : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center overflow-hidden shadow-sm">
+                      <img
+                        src={`https://www.google.com/s2/favicons?domain=${node.domain}&sz=64`}
+                        alt={node.name}
+                        width={20} height={20}
+                        className="object-contain"
+                      />
+                    </div>
+                    <span className={`text-[10px] font-semibold ${isActive ? c.text : "text-slate-400"}`}>{node.name}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${count > 0 ? `${c.bg} ${c.border} ${c.text}` : "border-slate-800 text-slate-600"}`}>
+                      {count}/{node.events.length} events
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        <p className="text-[10px] text-slate-600 mt-3">Click any app node to configure which events iqpipe records from it.</p>
       </div>
+
+      {/* ── Event selector for active node ── */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={selectedNode}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.15 }}
+          className={`rounded-2xl border ${nc.border} ${nc.bg} p-5`}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+              <img
+                src={`https://www.google.com/s2/favicons?domain=${activeNode.domain}&sz=64`}
+                alt={activeNode.name}
+                width={20} height={20}
+                className="object-contain"
+              />
+            </div>
+            <div>
+              <div className={`text-sm font-bold ${nc.text}`}>{activeNode.name}</div>
+              <div className="text-[10px] text-slate-500">
+                {selectedCount(activeNode.id)} of {activeNode.events.length} events selected for recording
+              </div>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-2">
+            {activeNode.events.map((ev) => {
+              const key = `${activeNode.id}:${ev.id}`;
+              const isChecked = checkedEvents[key];
+              return (
+                <button
+                  key={ev.id}
+                  onClick={() => toggleEvent(activeNode.id, ev.id)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                    isChecked
+                      ? `${nc.border} ${nc.bg}`
+                      : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${isChecked ? `${nc.border} ${nc.bg}` : "border-slate-700 bg-slate-900"}`}>
+                    {isChecked && <CheckCircle2 size={12} className={nc.text} />}
+                  </div>
+                  <code className={`text-[11px] font-mono ${isChecked ? "text-slate-200" : "text-slate-500"}`}>{ev.label}</code>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 text-[11px] text-slate-500">
+            <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+            Selected events will appear in Live Feed and be attributed to contacts automatically.
+          </div>
+        </motion.div>
+      </AnimatePresence>
+
     </div>
   );
 }
@@ -573,7 +744,7 @@ export default function DemoPage() {
                   icon: Workflow,
                   color: "indigo",
                   title: "Your workflow is already running",
-                  body: "You don't build new automations for iqpipe. You add one HTTP Request step to automations you already have. If Clay → HeyReach runs today, it can send to iqpipe today.",
+                  body: "You don't rebuild anything. iqpipe connects to your Make.com or n8n account, reads your existing flows, and lets you pick events per app node — without touching the workflow itself.",
                 },
                 {
                   icon: TrendingUp,
