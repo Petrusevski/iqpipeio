@@ -811,9 +811,9 @@ export default function LandingPage() {
               <div className="p-7 rounded-3xl border border-slate-800 bg-slate-900/30 flex flex-col">
                 <div className="text-sm font-semibold text-slate-400 mb-2">Starter</div>
                 <div className="text-4xl font-bold text-white mb-1">$29<span className="text-base text-slate-500 font-normal">/mo</span></div>
-                <div className="text-xs text-slate-600 mb-6">1 seat · 1 workspace · 5 apps · 10K events</div>
+                <div className="text-xs text-slate-600 mb-6">1 seat · 1 workspace · 2 automations · 10K events</div>
                 <ul className="space-y-2.5 text-sm text-slate-400 flex-1">
-                  {["1 Seat · 1 Workspace", "5 apps simultaneously", "10,000 events / month", "Live Feed + Contact Inspector", "Pipeline Health monitoring"].map((f) => (
+                  {["1 Seat · 1 Workspace", "2 Make.com or n8n automations", "10,000 events / month", "Live Feed + Contact Inspector", "Pipeline Health monitoring"].map((f) => (
                     <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-indigo-400 shrink-0 mt-0.5" />{f}</li>
                   ))}
                 </ul>
@@ -826,9 +826,9 @@ export default function LandingPage() {
               <div className="p-7 rounded-3xl border border-slate-800 bg-slate-900/30 flex flex-col">
                 <div className="text-sm font-semibold text-slate-400 mb-2">Growth</div>
                 <div className="text-4xl font-bold text-white mb-1">$99<span className="text-base text-slate-500 font-normal">/mo</span></div>
-                <div className="text-xs text-slate-600 mb-6">3 seats · 3 workspaces · 15 apps · 500K events</div>
+                <div className="text-xs text-slate-600 mb-6">3 seats · 3 workspaces · 10 automations · 500K events</div>
                 <ul className="space-y-2.5 text-sm text-slate-400 flex-1">
-                  {["3 Seats · 3 Workspaces", "15 apps simultaneously", "500,000 events / month", "All features incl. Workflow Health", "GTM Report PDF/XLSX export"].map((f) => (
+                  {["3 Seats · 3 Workspaces", "10 Make.com or n8n automations", "500,000 events / month", "All features incl. Workflow Health", "GTM Report PDF/XLSX export"].map((f) => (
                     <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-indigo-400 shrink-0 mt-0.5" />{f}</li>
                   ))}
                 </ul>
@@ -841,9 +841,9 @@ export default function LandingPage() {
               <div className="p-7 rounded-3xl border border-slate-800 bg-slate-900/30 relative overflow-hidden flex flex-col">
                 <div className="text-sm font-semibold text-slate-400 mb-2">Agency</div>
                 <div className="text-4xl font-bold text-white mb-1">$299<span className="text-base text-slate-500 font-normal">/mo</span></div>
-                <div className="text-xs text-slate-500 mb-6">Unlimited seats · workspaces · all apps · 5M events</div>
+                <div className="text-xs text-slate-500 mb-6">Unlimited seats · 20 workspaces · 50 automations · 5M events</div>
                 <ul className="space-y-2.5 text-sm text-slate-300 flex-1">
-                  {["Unlimited Seats & Workspaces", "All apps connected", "5,000,000 events / month", "All features + Workflow Health", "API access + webhooks", "Priority 24/7 support"].map((f) => (
+                  {["Unlimited Seats · 20 Workspaces", "50 Make.com or n8n automations", "5,000,000 events / month", "All features + Workflow Health", "API access + webhooks", "Priority 24/7 support"].map((f) => (
                     <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />{f}</li>
                   ))}
                 </ul>
