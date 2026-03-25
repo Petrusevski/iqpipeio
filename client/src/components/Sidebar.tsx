@@ -98,7 +98,7 @@ export default function Sidebar() {
 
           <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-1">
             <NavLink
-              to="/automation-health"
+              to="/automations"
               className={({ isActive }) =>
                 `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
                   isActive

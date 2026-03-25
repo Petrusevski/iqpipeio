@@ -28,6 +28,7 @@ import PipelineHealthPage      from "./pages/PipelineHealthPage";
 import WorkflowHealthPage     from "./pages/WorkflowHealthPage";
 import MyWorkflowPage        from "./pages/MyWorkflowPage";
 import AutomationHealthPage  from "./pages/AutomationHealthPage";
+import AutomationsPage        from "./pages/AutomationsPage";
 import IntegrationsPage     from "./pages/IntegrationsPage";
 import SettingsPage         from "./pages/SettingsPage";
 
@@ -101,6 +102,7 @@ function App() {
           <Route path="/health"            element={<PipelineHealthPage />} />
           <Route path="/workflow-health"  element={<WorkflowHealthPage />} />
           <Route path="/my-workflow"      element={<MyWorkflowPage />} />
+          <Route path="/automations"       element={<AutomationsPage />} />
           <Route path="/automation-health" element={<AutomationHealthPage />} />
           <Route path="/integrations"  element={<IntegrationsPage />} />
           <Route path="/settings"      element={<SettingsPage />} />
