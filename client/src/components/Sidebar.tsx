@@ -5,7 +5,6 @@ import {
   Search,
   Activity,
   GitMerge,
-  Plug,
   Settings,
   FileText,
   HeartPulse,
@@ -13,7 +12,6 @@ import {
   Fingerprint,
   Bot,
 } from "lucide-react";
-import { useIntegrations } from "../context/IntegrationsContext";
 import { API_BASE_URL } from "../../config";
 
 const navGroups = [
@@ -43,14 +41,12 @@ const navGroups = [
   {
     title: "Setup",
     items: [
-      { label: "Integrations",      path: "/integrations",     icon: Plug     },
       { label: "Settings",          path: "/settings",         icon: Settings },
     ],
   },
 ];
 
 export default function Sidebar() {
-  const { connectedTools } = useIntegrations();
   const navigate = useNavigate();
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
 
@@ -72,8 +68,6 @@ export default function Sidebar() {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-
-  const toolCount = connectedTools.size;
 
   return (
     <aside className="w-full md:w-56 h-full flex flex-col bg-slate-950">
@@ -141,16 +135,7 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 min-w-0 text-left">
             <p className="text-xs font-medium text-slate-300 truncate group-hover:text-white">{displayName}</p>
-            <p className="text-[10px] mt-0.5">
-              {toolCount > 0 ? (
-                <span className="text-emerald-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                  {toolCount} tool{toolCount !== 1 ? "s" : ""} live
-                </span>
-              ) : (
-                <span className="text-slate-600">No tools connected</span>
-              )}
-            </p>
+            <p className="text-[10px] text-slate-600 mt-0.5">Settings</p>
           </div>
           <Settings size={12} className="text-slate-600 group-hover:text-slate-400 shrink-0" />
         </button>
