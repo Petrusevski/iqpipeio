@@ -63,7 +63,8 @@ function App() {
         <Route path="/blog"        element={<BlogPage />} />
         <Route path="/privacy"     element={<PrivacyPage />} />
         <Route path="/terms"       element={<TermsPage />} />
-        <Route path="/demo"        element={<DemoPage />} />
+        <Route path="/demo"         element={<DemoPage />} />
+        <Route path="/how-it-works" element={<Navigate to="/demo" replace />} />
         <Route path="/gtm-stack"      element={<GTMStackPage />} />
         <Route path="/careers"        element={<CareersPage />} />
         <Route path="/integrations"     element={<PublicIntegrationsPage />} />
