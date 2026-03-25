@@ -18,12 +18,12 @@ const PLANS = [
     name: "Starter",
     monthlyPrice: 29,
     yearlyPrice: 23,
-    toolLimit: "5 apps connected",
+    toolLimit: "2 automations",
     seats: "1 Seat",
     features: [
       "1 Seat",
       "1 Workspace",
-      "5 apps simultaneously",
+      "2 Make.com or n8n automations",
       "10,000 events / month",
       "Live Feed + Contact Inspector",
       "Pipeline Health monitoring",
@@ -37,12 +37,12 @@ const PLANS = [
     name: "Growth",
     monthlyPrice: 99,
     yearlyPrice: 79,
-    toolLimit: "15 apps connected",
+    toolLimit: "10 automations",
     seats: "3 Seats",
     features: [
       "3 Seats",
       "3 Workspaces",
-      "15 apps simultaneously",
+      "10 Make.com or n8n automations",
       "500,000 events / month",
       "All features incl. Workflow Health",
       "GTM Report (PDF/XLSX)",
@@ -56,11 +56,11 @@ const PLANS = [
     name: "Agency",
     monthlyPrice: 299,
     yearlyPrice: 239,
-    toolLimit: "All apps · unlimited",
+    toolLimit: "50 automations",
     seats: "Unlimited",
     features: [
-      "Unlimited Seats & Workspaces",
-      "All apps connected",
+      "Unlimited Seats · 20 Workspaces",
+      "50 Make.com or n8n automations",
       "5,000,000 events / month",
       "All features + Workflow Health",
       "GTM Report (PDF/XLSX)",
@@ -507,8 +507,8 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
                   </div>
                   <div className="text-slate-500 mt-1">
                     {workspace.plan === "trial" && (days > 0 ? `${days} days remaining` : "Expired")}
-                    {workspace.plan === "starter" && "$29 / mo · 1 seat · 5 apps · 10K events"}
-                    {workspace.plan === "growth"  && "$99 / mo · 3 seats · 15 apps · 500K events"}
+                    {workspace.plan === "starter" && "$29 / mo · 1 seat · 2 automations · 10K events"}
+                    {workspace.plan === "growth"  && "$99 / mo · 3 seats · 10 automations · 500K events"}
                     {workspace.plan === "agency"  && "$299 / mo · unlimited"}
                   </div>
                 </div>
