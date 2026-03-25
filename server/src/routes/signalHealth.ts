@@ -427,6 +427,8 @@ router.get("/feed", requireAuth, async (req: Request, res: Response) => {
         recordedAt: true,
         iqLeadId: true,
         meta: true,
+        sourceType: true,
+        workflowId: true,
       },
     });
 

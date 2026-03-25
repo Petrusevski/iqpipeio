@@ -36,6 +36,8 @@ interface SignalEvent {
   recordedAt: string;
   iqLeadId: string;
   meta: Record<string, unknown> | null;
+  sourceType?: string;
+  workflowId?: string | null;
 }
 
 interface WorkflowStep { tool: string; }
@@ -84,11 +86,77 @@ const TOOL_DOMAINS: Record<string, string> = {
   chargebee:     "chargebee.com",
   n8n:           "n8n.io",
   make:          "make.com",
+  // ── Additional automation tool domains ──
+  gmail:              "google.com",
+  "google-gmail":     "google.com",
+  "google-sheets":    "google.com",
+  "google-drive":     "google.com",
+  "google-calendar":  "google.com",
+  "google-docs":      "google.com",
+  sendgrid:           "sendgrid.com",
+  mailchimp:          "mailchimp.com",
+  mailgun:            "mailgun.com",
+  postmark:           "postmarkapp.com",
+  brevo:              "brevo.com",
+  sendinblue:         "brevo.com",
+  slack:              "slack.com",
+  discord:            "discord.com",
+  telegram:           "telegram.org",
+  notion:             "notion.so",
+  airtable:           "airtable.com",
+  asana:              "asana.com",
+  trello:             "trello.com",
+  jira:               "atlassian.com",
+  bitbucket:          "bitbucket.org",
+  linear:             "linear.app",
+  clickup:            "clickup.com",
+  monday:             "monday.com",
+  "monday-crm":       "monday.com",
+  basecamp:           "basecamp.com",
+  github:             "github.com",
+  gitlab:             "gitlab.com",
+  paddle:             "paddle.com",
+  xero:               "xero.com",
+  typeform:           "typeform.com",
+  jotform:            "jotform.com",
+  tally:              "tally.so",
+  calendly:           "calendly.com",
+  cal:                "cal.com",
+  segment:            "segment.com",
+  mixpanel:           "mixpanel.com",
+  amplitude:          "amplitude.com",
+  posthog:            "posthog.com",
+  plausible:          "plausible.io",
+  openai:             "openai.com",
+  anthropic:          "anthropic.com",
+  intercom:           "intercom.com",
+  drift:              "drift.com",
+  zendesk:            "zendesk.com",
+  freshdesk:          "freshworks.com",
+  freshsales:         "freshworks.com",
+  attio:              "attio.com",
+  close:              "close.com",
+  "zoho-crm":         "zoho.com",
+  copper:             "copper.com",
+  woodpecker:         "woodpecker.co",
+  mixmax:             "mixmax.com",
+  snov:               "snov.io",
+  supabase:           "supabase.com",
+  mongodb:            "mongodb.com",
+  postgresql:         "postgresql.org",
+  mysql:              "mysql.com",
+  surveymonkey:       "surveymonkey.com",
+  reply:              "reply.io",
+  "microsoft-365-email": "microsoft.com",
+  "microsoft-teams":  "microsoft.com",
+  "microsoft-excel":  "microsoft.com",
+  sharepoint:         "microsoft.com",
 };
 
 function ToolLogo({ tool, label }: { tool: string; label: string }) {
   const [errored, setErrored] = useState(false);
-  const domain = TOOL_DOMAINS[tool];
+  // Explicit map first, then best-guess .com for simple slugs
+  const domain = TOOL_DOMAINS[tool] ?? (/^[a-z][a-z0-9]+$/.test(tool) ? `${tool}.com` : undefined);
 
   if (!domain || errored) {
     return (
@@ -146,6 +214,75 @@ const SIGNAL_CFG: Record<string, { icon: typeof TrendingUp; color: string; label
   email_bounced:       { icon: MailX,             color: "text-rose-400 bg-rose-500/10 border-rose-500/20",         label: "Email bounced"       },
   unsubscribed:        { icon: BellOff,           color: "text-orange-400 bg-orange-500/10 border-orange-500/20",   label: "Unsubscribed"        },
 };
+
+// ── Automation app display labels ─────────────────────────────────────────────
+const APP_LABELS: Record<string, string> = {
+  hubspot: "HubSpot", pipedrive: "Pipedrive", salesforce: "Salesforce",
+  "zoho-crm": "Zoho CRM", freshsales: "Freshsales", attio: "Attio",
+  copper: "Copper", close: "Close CRM",
+  instantly: "Instantly", lemlist: "Lemlist", smartlead: "Smartlead",
+  apollo: "Apollo", outreach: "Outreach", salesloft: "Salesloft",
+  reply: "Reply.io", woodpecker: "Woodpecker", mailshake: "Mailshake",
+  mixmax: "Mixmax", klenty: "Klenty",
+  heyreach: "HeyReach", expandi: "Expandi", dripify: "Dripify", waalaxy: "Waalaxy",
+  gmail: "Gmail", "google-gmail": "Gmail", "google-sheets": "Google Sheets",
+  "google-drive": "Google Drive", "google-calendar": "Google Calendar",
+  sendgrid: "SendGrid", mailchimp: "Mailchimp", mailgun: "Mailgun",
+  postmark: "Postmark", "microsoft-365-email": "Outlook", brevo: "Brevo",
+  sendinblue: "Brevo", smtp: "SMTP",
+  clearbit: "Clearbit", hunter: "Hunter.io", clay: "Clay",
+  lusha: "Lusha", cognism: "Cognism", zoominfo: "ZoomInfo",
+  phantombuster: "PhantomBuster", snov: "Snov.io",
+  airtable: "Airtable", notion: "Notion", "microsoft-excel": "Excel",
+  "microsoft-teams": "Microsoft Teams", sharepoint: "SharePoint",
+  dropbox: "Dropbox", box: "Box",
+  slack: "Slack", discord: "Discord", telegram: "Telegram",
+  intercom: "Intercom", drift: "Drift", zendesk: "Zendesk",
+  freshdesk: "Freshdesk", crisp: "Crisp",
+  jira: "Jira", asana: "Asana", trello: "Trello",
+  linear: "Linear", clickup: "ClickUp", monday: "Monday.com",
+  "monday-crm": "Monday.com", basecamp: "Basecamp", todoist: "Todoist",
+  github: "GitHub", gitlab: "GitLab", bitbucket: "Bitbucket",
+  stripe: "Stripe", chargebee: "Chargebee", paddle: "Paddle",
+  quickbooks: "QuickBooks", xero: "Xero",
+  typeform: "Typeform", jotform: "JotForm", surveymonkey: "SurveyMonkey", tally: "Tally",
+  segment: "Segment", mixpanel: "Mixpanel", amplitude: "Amplitude",
+  posthog: "PostHog", plausible: "Plausible",
+  openai: "OpenAI", anthropic: "Anthropic",
+  postgresql: "PostgreSQL", mysql: "MySQL", mongodb: "MongoDB", supabase: "Supabase",
+  calendly: "Calendly", cal: "Cal.com",
+  twilio: "Twilio", aircall: "Aircall", dialpad: "Dialpad", kixie: "Kixie",
+  n8n: "n8n", make: "Make.com",
+  pdl: "People Data Labs", rocketreach: "RocketReach", lusha2: "Lusha",
+  meetalfred: "MeetAlfred", replyio: "Reply.io", sakari: "Sakari",
+  wati: "WATI", orum: "Orum",
+};
+
+function appLabel(slug: string): string {
+  return APP_LABELS[slug] ?? slug.replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Automation app card (for tools used in n8n/Make workflows with no touchpoints yet) ──
+function AutomationAppCard({ slug, hasEvents }: { slug: string; hasEvents: boolean }) {
+  const label = appLabel(slug);
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+      <div className="flex items-start gap-2.5 mb-2">
+        <ToolLogo tool={slug} label={label} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-white leading-tight truncate">{label}</p>
+          <span className="text-[10px] text-slate-600 inline-block mt-1">via automation</span>
+        </div>
+        {hasEvents && (
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mt-1 shrink-0" />
+        )}
+      </div>
+      {!hasEvents && (
+        <p className="text-[10px] text-slate-700 mt-1">No events captured yet</p>
+      )}
+    </div>
+  );
+}
 
 // Ordered list used to populate the Events filter panel
 const SIGNAL_EVENT_OPTIONS = Object.entries(SIGNAL_CFG).map(([value, cfg]) => ({
@@ -383,6 +520,16 @@ function SignalRow({ event }: { event: SignalEvent }) {
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${chColor(event.channel)}`}>
               {event.channel}
             </span>
+            {event.sourceType === "n8n_workflow" && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 font-medium">
+                n8n
+              </span>
+            )}
+            {(event.sourceType === "make_scenario" || event.meta?.viaAutomation === "make") && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-400 font-medium">
+                Make
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <button
@@ -846,6 +993,13 @@ export default function LiveFeedPage() {
   const [historyEvents,  setHistoryEvents]  = useState<SignalEvent[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // ── Source tabs ──
+  const [sourceTab, setSourceTab] = useState<"all" | "integrations" | "n8n" | "make">("all");
+  const [n8nApps,   setN8nApps]   = useState<string[]>([]);
+  const [makeApps,  setMakeApps]  = useState<string[]>([]);
+  const [n8nAppsLoading,  setN8nAppsLoading]  = useState(false);
+  const [makeAppsLoading, setMakeAppsLoading] = useState(false);
+
   // ── Filters ──
   const [filterEvents, setFilterEvents] = useState<Set<string>>(new Set());
   const [filterApps,   setFilterApps]   = useState<Set<string>>(new Set());
@@ -919,6 +1073,47 @@ export default function LiveFeedPage() {
     }
   };
 
+  // ── Automation app fetchers ───────────────────────────────────────────────
+
+  const fetchN8nApps = useCallback(async (wsId: string) => {
+    if (!wsId) return;
+    setN8nAppsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/n8n-connect/workflows?workspaceId=${wsId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (res.ok) {
+        const workflows: { appsUsed: string[] }[] = await res.json();
+        const apps = new Set<string>();
+        for (const wf of workflows) for (const a of (wf.appsUsed ?? [])) apps.add(a);
+        setN8nApps(Array.from(apps).sort());
+      }
+    } catch {} finally { setN8nAppsLoading(false); }
+  }, []);
+
+  const fetchMakeApps = useCallback(async (wsId: string) => {
+    if (!wsId) return;
+    setMakeAppsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/make-connect/scenarios?workspaceId=${wsId}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (res.ok) {
+        const scenarios: { appsUsed: string[] }[] = await res.json();
+        const apps = new Set<string>();
+        for (const sc of scenarios) for (const a of (sc.appsUsed ?? [])) apps.add(a);
+        setMakeApps(Array.from(apps).sort());
+      }
+    } catch {} finally { setMakeAppsLoading(false); }
+  }, []);
+
+  // Fetch automation apps on tab switch
+  useEffect(() => {
+    if (!workspaceId) return;
+    if (sourceTab === "n8n"  && n8nApps.length  === 0) fetchN8nApps(workspaceId);
+    if (sourceTab === "make" && makeApps.length === 0)  fetchMakeApps(workspaceId);
+  }, [sourceTab, workspaceId, n8nApps.length, makeApps.length, fetchN8nApps, fetchMakeApps]);
+
   // ── Filter logic ──────────────────────────────────────────────────────────
 
   // Tools that belong to the selected stacks (union across selected stacks)
@@ -939,9 +1134,25 @@ export default function LiveFeedPage() {
     return true;
   }
 
-  const filteredCards = cards.filter(c => toolPassesFilters(c.tool));
+  // Source tab signal filter
+  function signalPassesSourceTab(ev: SignalEvent): boolean {
+    if (sourceTab === "all") return true;
+    if (sourceTab === "n8n") return ev.sourceType === "n8n_workflow";
+    if (sourceTab === "make") return ev.sourceType === "make_scenario" || ev.meta?.viaAutomation === "make";
+    // integrations: direct webhooks/API, NOT from automation
+    return ev.sourceType !== "n8n_workflow" && ev.sourceType !== "make_scenario" && ev.meta?.viaAutomation !== "make";
+  }
+
+  // For n8n/make tabs, only show cards for tools used in those automation systems
+  const automationTabTools = sourceTab === "n8n" ? new Set(n8nApps) : sourceTab === "make" ? new Set(makeApps) : null;
+  const filteredCards = cards.filter(c => {
+    if (!toolPassesFilters(c.tool)) return false;
+    if (automationTabTools && !automationTabTools.has(c.tool)) return false;
+    return true;
+  });
 
   const filteredSignals = signals.filter(ev => {
+    if (!signalPassesSourceTab(ev)) return false;
     if (filterEvents.size > 0 && !filterEvents.has(ev.eventType)) return false;
     if (!toolPassesFilters(ev.tool)) return false;
     return true;
@@ -1129,6 +1340,49 @@ export default function LiveFeedPage() {
         </div>
       </div>
 
+      {/* ── Source tabs ── */}
+      <div className="shrink-0 px-6 border-b border-slate-800/40 flex items-center gap-1">
+        {(["all", "integrations", "n8n", "make"] as const).map(tab => {
+          const labels: Record<string, string> = { all: "All", integrations: "Integrations", n8n: "n8n", make: "Make.com" };
+          const active = sourceTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setSourceTab(tab)}
+              className={`relative py-3 px-3 text-xs font-medium transition-colors border-b-2 -mb-px ${
+                active
+                  ? "text-white border-indigo-500"
+                  : "text-slate-500 border-transparent hover:text-slate-300 hover:border-slate-700"
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                {tab === "n8n" && (
+                  <span className="w-4 h-4 rounded overflow-hidden inline-flex items-center justify-center bg-white shrink-0">
+                    <img src={`${API_BASE_URL}/api/proxy/favicon?domain=n8n.io`} width={12} height={12} alt="" className="object-contain" />
+                  </span>
+                )}
+                {tab === "make" && (
+                  <span className="w-4 h-4 rounded overflow-hidden inline-flex items-center justify-center bg-white shrink-0">
+                    <img src={`${API_BASE_URL}/api/proxy/favicon?domain=make.com`} width={12} height={12} alt="" className="object-contain" />
+                  </span>
+                )}
+                {labels[tab]}
+                {tab === "n8n" && n8nApps.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-[9px] text-slate-500 tabular-nums">
+                    {n8nApps.length}
+                  </span>
+                )}
+                {tab === "make" && makeApps.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-[9px] text-slate-500 tabular-nums">
+                    {makeApps.length}
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* ── Filter bar ── */}
       {hasAnyData && (
         <div className="shrink-0 px-6 py-3 border-b border-slate-800/40 bg-slate-950/80 space-y-2">
@@ -1224,29 +1478,69 @@ export default function LiveFeedPage() {
       ) : (
         <div className="flex-1 overflow-y-auto">
 
+          {/* ── n8n / Make automation apps ── */}
+          {(sourceTab === "n8n" || sourceTab === "make") && (() => {
+            const automationApps = sourceTab === "n8n" ? n8nApps : makeApps;
+            const isLoading = sourceTab === "n8n" ? n8nAppsLoading : makeAppsLoading;
+            const source = sourceTab === "n8n" ? "n8n" : "Make.com";
+            const toolsWithData = new Set(cards.map(c => c.tool));
+            const appsWithoutCards = automationApps.filter(a => !toolsWithData.has(a));
+            if (isLoading) return (
+              <div className="px-6 py-4 border-b border-slate-800/40 flex items-center gap-2 text-slate-600 text-xs">
+                <RefreshCw size={11} className="animate-spin"/> Loading {source} apps…
+              </div>
+            );
+            if (automationApps.length === 0) return (
+              <div className="px-6 py-4 border-b border-slate-800/40">
+                <p className="text-[11px] text-slate-600">
+                  No {source} {sourceTab === "n8n" ? "workflows" : "scenarios"} connected yet. Head to{" "}
+                  <span className="text-indigo-400">Automation Health</span> to connect.
+                </p>
+              </div>
+            );
+            return (
+              <div className="px-6 py-4 border-b border-slate-800/40">
+                <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-3">
+                  {source} apps · {automationApps.length} detected
+                </p>
+                {appsWithoutCards.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-3">
+                    {appsWithoutCards.map(slug => (
+                      <AutomationAppCard key={slug} slug={slug} hasEvents={false} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* ── Tool KPI cards ── */}
-          {cards.length > 0 && (
+          {(sourceTab === "all" || sourceTab === "integrations" || filteredCards.length > 0) && filteredCards.length > 0 && (
             <div className="px-6 py-4 border-b border-slate-800/40">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">
-                  Connected tools · click to expand event breakdown
+                  {sourceTab === "n8n" || sourceTab === "make"
+                    ? "Apps with captured events"
+                    : "Connected tools · click to expand event breakdown"}
                   {(filterApps.size > 0 || filterStacks.size > 0) && (
                     <span className="ml-2 normal-case text-slate-700">
                       — {filteredCards.length} of {cards.length} shown
                     </span>
                   )}
                 </p>
-                <button
-                  onClick={takeSnapshot}
-                  disabled={snapping}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-xs text-slate-300 font-medium transition-all disabled:opacity-50"
-                >
-                  {snapping
-                    ? <RefreshCw size={11} className="animate-spin"/>
-                    : <Camera size={11}/>
-                  }
-                  {snapping ? "Capturing…" : "Take a snapshot"}
-                </button>
+                {(sourceTab === "all" || sourceTab === "integrations") && (
+                  <button
+                    onClick={takeSnapshot}
+                    disabled={snapping}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-xs text-slate-300 font-medium transition-all disabled:opacity-50"
+                  >
+                    {snapping
+                      ? <RefreshCw size={11} className="animate-spin"/>
+                      : <Camera size={11}/>
+                    }
+                    {snapping ? "Capturing…" : "Take a snapshot"}
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {filteredCards.map(card => <ToolKpiCard key={card.tool} card={card}/>)}
@@ -1260,6 +1554,11 @@ export default function LiveFeedPage() {
               <div>
                 <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">
                   Signal events · last 20
+                  {sourceTab !== "all" && (
+                    <span className="ml-2 normal-case text-slate-700 font-normal">
+                      — {sourceTab === "n8n" ? "n8n only" : sourceTab === "make" ? "Make.com only" : "direct integrations only"}
+                    </span>
+                  )}
                 </p>
                 <p className="text-[10px] text-slate-700 mt-0.5">
                   Replies · meetings · deals · clicks · unsubscribes — the events that matter

@@ -71,7 +71,7 @@ async function recordEvent(
   source: string,
   externalId: string,
   meta: Record<string, any> = {},
-  opts: { experimentId?: string | null; stackVariant?: string | null } = {},
+  opts: { experimentId?: string | null; stackVariant?: string | null; sourceType?: string } = {},
 ): Promise<boolean> {
   const { firstName, lastName, email, linkedin, phone, company, title } = contact;
 
@@ -91,6 +91,7 @@ async function recordEvent(
     { ...meta, externalId },
     opts.experimentId,
     opts.stackVariant,
+    opts.sourceType,
   );
 
   // ── 3. Backward-compat: maintain Contact + Lead + Activity for existing UI ─
@@ -2013,6 +2014,7 @@ router.post("/make", async (req: Request, res: Response) => {
       workspaceId, eventType,
       { firstName, lastName, email, linkedin, phone, company, title },
       recordingTool, String(externalId), eventMeta,
+      { sourceType: "make_scenario" },
     );
 
     return res.json({ received: true, recordedAs: recordingTool });
