@@ -19,18 +19,17 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
 
 // App pages
 import LiveFeedPage         from "./pages/LiveFeedPage";
-import FunnelPage           from "./pages/FunnelPage";
 import GTMReportPage        from "./pages/GTMReportPage";
 import ReportingPage        from "./pages/ReportingPage";
 import LinkedInCardsPage    from "./pages/LinkedInCardsPage";
 import ContactInspectorPage from "./pages/ContactInspectorPage";
-import PipelineHealthPage      from "./pages/PipelineHealthPage";
 import WorkflowHealthPage     from "./pages/WorkflowHealthPage";
 import MyWorkflowPage        from "./pages/MyWorkflowPage";
 import AutomationHealthPage  from "./pages/AutomationHealthPage";
 import AutomationsPage        from "./pages/AutomationsPage";
 import IntegrationsPage     from "./pages/IntegrationsPage";
 import SettingsPage         from "./pages/SettingsPage";
+import WorkflowComparePage  from "./pages/WorkflowComparePage";
 
 // Public pages
 import LandingPage   from "./pages/LandingPage";
@@ -94,16 +93,15 @@ function App() {
         <Routes>
           <Route path="/"              element={<Navigate to="/feed" replace />} />
           <Route path="/feed"          element={<LiveFeedPage />} />
-          <Route path="/funnel"        element={<FunnelPage />} />
           <Route path="/gtm-report"    element={<GTMReportPage />} />
           <Route path="/reports"       element={<ReportingPage />} />
           <Route path="/linkedin"      element={<LinkedInCardsPage />} />
           <Route path="/inspect"       element={<ContactInspectorPage />} />
-          <Route path="/health"            element={<PipelineHealthPage />} />
           <Route path="/workflow-health"  element={<WorkflowHealthPage />} />
           <Route path="/my-workflow"      element={<MyWorkflowPage />} />
           <Route path="/automations"       element={<AutomationsPage />} />
           <Route path="/automation-health" element={<AutomationHealthPage />} />
+          <Route path="/compare"       element={<WorkflowComparePage />} />
           <Route path="/integrations"  element={<IntegrationsPage />} />
           <Route path="/settings"      element={<SettingsPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />

@@ -3,14 +3,13 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   Zap,
   Search,
-  Activity,
-  GitMerge,
   Settings,
   FileText,
   HeartPulse,
   GitBranch,
   Fingerprint,
   Workflow,
+  BarChart3,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -19,15 +18,19 @@ const navGroups = [
     title: "Observe",
     items: [
       { label: "Live Feed",         path: "/feed",             icon: Zap      },
-      { label: "Pipeline Funnel",   path: "/funnel",           icon: GitMerge },
       { label: "Contact Inspector", path: "/inspect",          icon: Search   },
+    ],
+  },
+  {
+    title: "Analyze",
+    items: [
+      { label: "Workflow Compare",  path: "/compare",          icon: BarChart3 },
     ],
   },
   {
     title: "Health",
     items: [
       { label: "Workflow Health",   path: "/workflow-health",  icon: HeartPulse },
-      { label: "Pipeline Health",   path: "/health",           icon: Activity   },
       { label: "My Workflow",       path: "/my-workflow",      icon: GitBranch  },
     ],
   },
