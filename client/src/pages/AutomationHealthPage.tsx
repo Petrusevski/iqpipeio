@@ -439,6 +439,9 @@ export default function AutomationHealthPage() {
   const [polling,         setPolling]         = useState(false);
   const [configWf,        setConfigWf]        = useState<WorkflowMeta | null>(null);
 
+  // Platform picker
+  const [selectedPlatform, setSelectedPlatform] = useState<"n8n" | "make" | null>(null);
+
   // Make.com state
   const [makeConn,        setMakeConn]        = useState<any>(null);
   const [makeScenarios,   setMakeScenarios]   = useState<ScenarioMeta[]>([]);
@@ -526,6 +529,13 @@ export default function AutomationHealthPage() {
       loadMakeScenarios(workspaceId);
     }
   }, [workspaceId, period, load, loadConnStatus, loadWorkflowMeta, loadMakeConn, loadMakeScenarios]);
+
+  // Auto-select platform once connection status loads
+  useEffect(() => {
+    if (selectedPlatform !== null) return; // user already chose
+    if (connStatus?.connected) { setSelectedPlatform("n8n"); return; }
+    if (makeConn?.connected)   { setSelectedPlatform("make"); return; }
+  }, [connStatus, makeConn, selectedPlatform]);
 
   async function handleConnect(e: React.FormEvent) {
     e.preventDefault();
@@ -715,13 +725,81 @@ export default function AutomationHealthPage() {
         </div>
       </div>
 
-      {loading ? (
+      {/* ── Platform picker (shown when no platform selected yet) ── */}
+      {!loading && selectedPlatform === null && (
+        <div className="flex flex-col items-center justify-center py-16 px-4">
+          <div className="text-center mb-10">
+            <h2 className="text-lg font-bold text-white mb-2">Choose your automation platform</h2>
+            <p className="text-sm text-slate-400 max-w-md mx-auto">
+              iqpipe connects to your existing Make.com or n8n account, reads your workflows, and lets you select which events to record per app node.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-5 w-full max-w-xl">
+            {/* n8n card */}
+            <button
+              onClick={() => setSelectedPlatform("n8n")}
+              className="group flex flex-col items-center gap-4 p-8 rounded-2xl border border-slate-800 bg-slate-900/40 hover:border-orange-500/40 hover:bg-orange-500/5 transition-all text-left"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-slate-900/50 group-hover:shadow-orange-500/10 transition-all">
+                <img src={`${API_BASE_URL}/api/proxy/favicon?domain=n8n.io`} width={34} height={34} alt="n8n" className="object-contain" />
+              </div>
+              <div className="text-center">
+                <div className="text-base font-bold text-white mb-1">n8n</div>
+                <div className="text-xs text-slate-500 leading-relaxed">Self-hosted or n8n Cloud · code-friendly workflows · 400+ integrations</div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-400 group-hover:text-orange-300 transition-colors">
+                Connect n8n <ChevronRight size={13} />
+              </div>
+            </button>
+            {/* Make.com card */}
+            <button
+              onClick={() => setSelectedPlatform("make")}
+              className="group flex flex-col items-center gap-4 p-8 rounded-2xl border border-slate-800 bg-slate-900/40 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all text-left"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg shadow-slate-900/50 group-hover:shadow-violet-500/10 transition-all">
+                <img src={`${API_BASE_URL}/api/proxy/favicon?domain=make.com`} width={34} height={34} alt="Make" className="object-contain" />
+              </div>
+              <div className="text-center">
+                <div className="text-base font-bold text-white mb-1">Make.com</div>
+                <div className="text-xs text-slate-500 leading-relaxed">Visual scenario builder · 500+ app modules · drag-and-drop</div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-400 group-hover:text-violet-300 transition-colors">
+                Connect Make.com <ChevronRight size={13} />
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Platform breadcrumb — shown once a platform is selected */}
+      {selectedPlatform !== null && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSelectedPlatform(null)}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            ← All platforms
+          </button>
+          <span className="text-slate-700">/</span>
+          <div className="flex items-center gap-1.5">
+            <img
+              src={`${API_BASE_URL}/api/proxy/favicon?domain=${selectedPlatform === "n8n" ? "n8n.io" : "make.com"}`}
+              width={13} height={13}
+              alt={selectedPlatform}
+              className="object-contain rounded"
+            />
+            <span className="text-xs font-semibold text-slate-300">{selectedPlatform === "n8n" ? "n8n" : "Make.com"}</span>
+          </div>
+        </div>
+      )}
+
+      {selectedPlatform !== null && loading ? (
         <div className="flex items-center justify-center h-48 text-slate-600 text-sm gap-2">
           <RefreshCw size={14} className="animate-spin" /> Loading automation data…
         </div>
-      ) : !data ? (
+      ) : selectedPlatform !== null && !data ? (
         <div className="flex items-center justify-center h-48 text-slate-700 text-sm">No data available</div>
-      ) : (
+      ) : selectedPlatform !== null ? (
         <>
           {/* Overview stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -733,7 +811,7 @@ export default function AutomationHealthPage() {
           </div>
 
           {/* ── n8n Connection Panel ── */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          {selectedPlatform === "n8n" && <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Bot size={14} className="text-indigo-400" />
@@ -1011,10 +1089,10 @@ export default function AutomationHealthPage() {
                 </p>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* ── Make.com Connection Panel ── */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          {selectedPlatform === "make" && <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Layers size={14} className="text-purple-400" />
@@ -1272,9 +1350,10 @@ export default function AutomationHealthPage() {
               )}
             </div>
           )}
+          </div>}
 
           {/* ── Global Error Log ── */}
-          {(n8n?.errors.length ?? 0) > 0 && (
+          {selectedPlatform === "n8n" && (n8n?.errors.length ?? 0) > 0 && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
               <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
                 <XCircle size={14} className="text-rose-400" />

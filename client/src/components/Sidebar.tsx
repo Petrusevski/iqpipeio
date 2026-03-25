@@ -10,7 +10,7 @@ import {
   HeartPulse,
   GitBranch,
   Fingerprint,
-  Bot,
+  Workflow,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -96,8 +96,7 @@ export default function Sidebar() {
             </h3>
           </div>
 
-          <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-1 space-y-0.5">
-            {/* Make.com */}
+          <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-1">
             <NavLink
               to="/automation-health"
               className={({ isActive }) =>
@@ -110,42 +109,8 @@ export default function Sidebar() {
             >
               {({ isActive }) => (
                 <>
-                  <span className="h-5 w-5 rounded bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                    <img
-                      src={`${API_BASE_URL}/api/proxy/favicon?domain=make.com`}
-                      width={14} height={14}
-                      alt="Make"
-                      className="object-contain"
-                    />
-                  </span>
-                  <span>Make.com</span>
-                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />}
-                </>
-              )}
-            </NavLink>
-
-            {/* n8n */}
-            <NavLink
-              to="/automation-health"
-              className={({ isActive }) =>
-                `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? "bg-indigo-500/15 text-white border border-indigo-500/25"
-                    : "text-slate-400 hover:bg-indigo-500/10 hover:text-white border border-transparent"
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span className="h-5 w-5 rounded bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                    <img
-                      src={`${API_BASE_URL}/api/proxy/favicon?domain=n8n.io`}
-                      width={14} height={14}
-                      alt="n8n"
-                      className="object-contain"
-                    />
-                  </span>
-                  <span>n8n</span>
+                  <Workflow size={15} className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"}`} />
+                  <span>Automations</span>
                   {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />}
                 </>
               )}
