@@ -29,7 +29,6 @@ const navGroups = [
       { label: "Workflow Health",   path: "/workflow-health",  icon: HeartPulse },
       { label: "Pipeline Health",   path: "/health",           icon: Activity   },
       { label: "My Workflow",       path: "/my-workflow",      icon: GitBranch  },
-      { label: "Automation Health", path: "/automation-health", icon: Bot        },
     ],
   },
   {
@@ -86,7 +85,75 @@ export default function Sidebar() {
       </div>
 
       {/* NAV */}
-      <nav className="flex-1 px-3 py-5 space-y-6 overflow-y-auto no-scrollbar">
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto no-scrollbar">
+
+        {/* ── AUTOMATIONS — featured section ── */}
+        <div>
+          <div className="flex items-center gap-2 px-3 mb-2">
+            <div className="w-1 h-3 rounded-full bg-indigo-500 shrink-0" />
+            <h3 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+              Automations
+            </h3>
+          </div>
+
+          <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-1 space-y-0.5">
+            {/* Make.com */}
+            <NavLink
+              to="/automation-health"
+              className={({ isActive }) =>
+                `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
+                  isActive
+                    ? "bg-indigo-500/15 text-white border border-indigo-500/25"
+                    : "text-slate-400 hover:bg-indigo-500/10 hover:text-white border border-transparent"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span className="h-5 w-5 rounded bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                    <img
+                      src={`${API_BASE_URL}/api/proxy/favicon?domain=make.com`}
+                      width={14} height={14}
+                      alt="Make"
+                      className="object-contain"
+                    />
+                  </span>
+                  <span>Make.com</span>
+                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />}
+                </>
+              )}
+            </NavLink>
+
+            {/* n8n */}
+            <NavLink
+              to="/automation-health"
+              className={({ isActive }) =>
+                `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
+                  isActive
+                    ? "bg-indigo-500/15 text-white border border-indigo-500/25"
+                    : "text-slate-400 hover:bg-indigo-500/10 hover:text-white border border-transparent"
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span className="h-5 w-5 rounded bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                    <img
+                      src={`${API_BASE_URL}/api/proxy/favicon?domain=n8n.io`}
+                      width={14} height={14}
+                      alt="n8n"
+                      className="object-contain"
+                    />
+                  </span>
+                  <span>n8n</span>
+                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />}
+                </>
+              )}
+            </NavLink>
+          </div>
+        </div>
+
+        {/* ── Regular nav groups ── */}
         {navGroups.map((group, idx) => (
           <div key={idx}>
             <h3 className="px-3 text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1.5">

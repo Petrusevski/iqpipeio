@@ -10,6 +10,9 @@ import {
   Zap,
   X,
   Loader2,
+  Plus,
+  BarChart2,
+  Building2,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -396,6 +399,131 @@ export default function PricingPage() {
                 <p className="text-slate-400 text-sm leading-relaxed">{faq.a}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* ── Agency Add-on ── */}
+        <section className="py-20 max-w-4xl mx-auto px-4">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <Building2 size={14} className="text-amber-400" />
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">Agency plan exclusive</span>
+          </div>
+          <h2 className="text-3xl font-bold text-center mb-2">Need more capacity?</h2>
+          <p className="text-slate-400 text-center text-sm mb-10">
+            Agency subscribers can purchase additional workspaces à la carte — each pre-loaded with 5 automations and a dedicated event budget.
+          </p>
+
+          <div className="grid md:grid-cols-2 gap-6 items-start">
+
+            {/* Add-on card */}
+            <div className="rounded-3xl border border-amber-500/25 bg-gradient-to-b from-amber-500/5 to-slate-950 p-7 shadow-2xl relative">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-bold text-amber-300 uppercase tracking-wider">
+                <Plus size={9} /> Add-on
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-amber-400/80 uppercase tracking-wider mb-5 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1 w-fit">
+                <Zap size={10} className="text-amber-400" />
+                +1 Workspace · +5 automations
+              </div>
+
+              <h3 className="text-xl font-bold text-white mb-1">Additional Workspace</h3>
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                One fully isolated workspace with its own automation quota and event budget. Connect up to 5 Make.com scenarios or n8n workflows.
+              </p>
+
+              <div className="mb-6">
+                <div className="flex items-end gap-1">
+                  <span className="text-4xl font-bold text-slate-50">$49</span>
+                  <span className="text-slate-400 mb-1.5 text-sm">/mo per workspace</span>
+                </div>
+                <div className="text-xs text-slate-500 mt-1">or $39/mo billed yearly</div>
+              </div>
+
+              <div className="space-y-2.5 mb-7">
+                {[
+                  "1 additional isolated workspace",
+                  "5 Make.com or n8n automations",
+                  "75,000 events / month",
+                  "Full Live Feed + attribution",
+                  "Included in Agency billing — no new subscription",
+                ].map(f => (
+                  <div key={f} className="flex items-start gap-2.5 text-sm text-slate-300">
+                    <CheckCircle2 size={15} className="text-amber-400 shrink-0 mt-0.5" />
+                    <span>{f}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                className="w-full py-3 rounded-xl font-bold text-sm border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition-all flex items-center justify-center gap-2"
+                onClick={() => window.location.href = "/settings?tab=billing"}
+              >
+                <Plus size={14} /> Add workspace — Agency only
+              </button>
+              <p className="text-center text-[11px] text-slate-600 mt-3">Requires active Agency subscription</p>
+            </div>
+
+            {/* Event calculation breakdown */}
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-7">
+              <div className="flex items-center gap-2 mb-5">
+                <BarChart2 size={15} className="text-indigo-400" />
+                <h3 className="text-sm font-bold text-white">How we size the 75,000 events</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+                We analysed typical GTM agency automation stacks to predict monthly event volume per workspace. Here's the model:
+              </p>
+
+              {/* Per-run breakdown table */}
+              <div className="mb-5">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Per flow run · 200 contacts</p>
+                <div className="space-y-1.5">
+                  {[
+                    { step: "Lead source / import",      events: 1,   total: 200, color: "text-violet-400" },
+                    { step: "Data enrichment",           events: 1,   total: 200, color: "text-blue-400"   },
+                    { step: "Email sequence (×3 sends)", events: 3,   total: 600, color: "text-sky-400"    },
+                    { step: "LinkedIn outreach",         events: 2,   total: 400, color: "text-cyan-400"   },
+                    { step: "CRM update",                events: 1,   total: 200, color: "text-emerald-400"},
+                  ].map(row => (
+                    <div key={row.step} className="flex items-center gap-2 text-xs">
+                      <span className="flex-1 text-slate-400 truncate">{row.step}</span>
+                      <span className="text-slate-600 shrink-0">×{row.events}</span>
+                      <span className={`w-12 text-right font-semibold tabular-nums shrink-0 ${row.color}`}>{row.total.toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t border-slate-800 flex items-center gap-2 text-xs font-bold">
+                    <span className="flex-1 text-slate-300">Total per flow run</span>
+                    <span className="text-white tabular-nums">~1,600 events</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Monthly projection */}
+              <div className="mb-5 bg-slate-900 rounded-xl p-4 space-y-2 text-xs">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Monthly projection · 5 automations</p>
+                {[
+                  ["5 automations", "×"],
+                  ["2 runs / week",  "×"],
+                  ["4.3 weeks",      "="],
+                ].map(([label, sym]) => (
+                  <div key={label} className="flex items-center justify-between text-slate-400">
+                    <span>{label}</span>
+                    <span className="text-slate-600">{sym}</span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between font-bold">
+                  <span className="text-slate-300">~43 runs × 1,600</span>
+                  <span className="text-white tabular-nums">~68,800 events</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3">
+                <Zap size={13} className="text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-300/80 leading-relaxed">
+                  We provision <strong className="text-amber-300">75,000 events / month</strong> — covering average agency usage with ~9% headroom for signal spikes (replies, meetings booked, deals created).
+                </p>
+              </div>
+            </div>
+
           </div>
         </section>
 
