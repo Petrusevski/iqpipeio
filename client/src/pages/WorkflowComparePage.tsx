@@ -13,7 +13,7 @@ import {
   Trophy, TrendingUp, RefreshCw, ChevronDown,
   Bot, Layers, AlertTriangle, CheckCircle2,
   BarChart3, Zap, ShieldCheck,
-  Network, Star, ArrowUpRight, Info, Download,
+  Network, Star, ArrowUpRight, Info, Download, FileSpreadsheet, X,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -233,6 +233,11 @@ export default function WorkflowComparePage() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set()); // internalIds
 
+  // More modal — unlimited Excel export
+  const [showMoreModal,   setShowMoreModal]   = useState(false);
+  const [modalSelected,   setModalSelected]   = useState<Set<string>>(new Set()); // internalIds
+  const [exportingXlsx,   setExportingXlsx]   = useState(false);
+
   const scoreAbortRef = useRef<AbortController | null>(null);
 
   // ── Workspace ────────────────────────────────────────────────────────────────
@@ -353,6 +358,47 @@ export default function WorkflowComparePage() {
   function selectAll() {
     // Compare across both platforms — backend accepts platform=all with mixed IDs
     setSelected(new Set(allSelectables.slice(0, 4).map(w => w.internalId)));
+  }
+
+  function toggleModalSelect(internalId: string) {
+    setModalSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(internalId)) next.delete(internalId);
+      else next.add(internalId);
+      return next;
+    });
+  }
+
+  async function exportXlsx() {
+    if (!wsId || modalSelected.size === 0) return;
+    setExportingXlsx(true);
+    try {
+      // Resolve internalId → platformId for the selected items
+      const platformIds = allSelectables
+        .filter(w => modalSelected.has(w.internalId))
+        .map(w => w.platformId);
+
+      const params = new URLSearchParams({ workspaceId: wsId, period, platform: "all" });
+      platformIds.forEach(id => params.append("ids[]", id));
+
+      const res = await fetch(`${API_BASE_URL}/api/workflow-score/export-xlsx?${params}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `gtm-compare-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (e) {
+      console.error("[export-xlsx]", e);
+    } finally {
+      setExportingXlsx(false);
+    }
   }
 
   // ── Score data helpers ───────────────────────────────────────────────────────
@@ -798,6 +844,16 @@ export default function WorkflowComparePage() {
                       title="Compare top 4 across n8n and Make.com"
                     >
                       Compare All
+                    </button>
+                  )}
+                  {allSelectables.length > 0 && (
+                    <button
+                      onClick={() => { setModalSelected(new Set(allSelectables.map(w => w.internalId))); setShowMoreModal(true); }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-700 hover:border-emerald-500/50 hover:text-emerald-300 transition-colors"
+                      title="Export all workflows to Excel"
+                    >
+                      <FileSpreadsheet size={11} />
+                      More
                     </button>
                   )}
                   {selected.size > 0 && (
@@ -1269,5 +1325,97 @@ export default function WorkflowComparePage() {
         )}
       </div>
     </div>
+
+    {/* ── More / Excel Export Modal ── */}
+    {showMoreModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+
+          {/* Modal header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div>
+              <h2 className="text-base font-bold text-white">Export to Excel</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Select any number of workflows — no limit in the export</p>
+            </div>
+            <button onClick={() => setShowMoreModal(false)} className="text-slate-500 hover:text-white transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Select all / none */}
+          <div className="px-6 py-2.5 border-b border-slate-800 flex items-center justify-between">
+            <span className="text-xs text-slate-500">{modalSelected.size} of {allSelectables.length} selected</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setModalSelected(new Set(allSelectables.map(w => w.internalId)))}
+                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              >Select all</button>
+              <span className="text-slate-700">·</span>
+              <button
+                onClick={() => setModalSelected(new Set())}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              >Clear</button>
+            </div>
+          </div>
+
+          {/* Workflow list */}
+          <div className="overflow-y-auto flex-1 px-4 py-3 space-y-1.5">
+            {allSelectables.map(wf => {
+              const checked = modalSelected.has(wf.internalId);
+              return (
+                <button
+                  key={wf.internalId}
+                  onClick={() => toggleModalSelect(wf.internalId)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                    checked
+                      ? "border-emerald-500/40 bg-emerald-500/8"
+                      : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                    checked ? "bg-emerald-500 border-emerald-500" : "border-slate-600"
+                  }`}>
+                    {checked && <CheckCircle2 size={10} className="text-white" />}
+                  </div>
+                  {/* Active dot */}
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wf.active ? "bg-emerald-500" : "bg-slate-600"}`} />
+                  {/* Name */}
+                  <span className="text-sm text-white flex-1 truncate">{wf.name}</span>
+                  {/* Platform badge */}
+                  <span className={`shrink-0 flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    wf.platform === "n8n"
+                      ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                      : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                  }`}>
+                    {wf.platform === "n8n" ? <Bot size={8} /> : <Layers size={8} />}
+                    {wf.platform === "n8n" ? "n8n" : "Make"}
+                  </span>
+                  {/* App count */}
+                  <span className="text-[10px] text-slate-600 shrink-0">{wf.nodeCount} nodes</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between gap-4">
+            <p className="text-[10px] text-slate-600">
+              Excel includes: Grade · Alpha Score · 4 pillars · Leakage Risk · Failed executions · Apps used
+            </p>
+            <button
+              onClick={exportXlsx}
+              disabled={modalSelected.size === 0 || exportingXlsx}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-all shrink-0"
+            >
+              {exportingXlsx
+                ? <><RefreshCw size={13} className="animate-spin" /> Generating…</>
+                : <><FileSpreadsheet size={13} /> Export {modalSelected.size} workflow{modalSelected.size !== 1 ? "s" : ""}</>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
   );
 }

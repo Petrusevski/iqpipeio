@@ -17,6 +17,7 @@
 
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
+import ExcelJS from "exceljs";
 
 const router = Router();
 
@@ -536,5 +537,191 @@ function buildModelManifest(acv: number, currency: string) {
     normalization: "all pillar sub-scores are normalized within the comparison set (max=100)",
   };
 }
+
+// ── GET /api/workflow-score/export-xlsx ──────────────────────────────────────
+// Same params as main route but no workflow limit — exports ALL selected/available
+// workflows as a formatted Excel workbook.
+
+router.get("/export-xlsx", async (req: Request, res: Response) => {
+  const workspaceId = (req.query.workspaceId as string) ?? "";
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
+
+  const period   = (req.query.period   as string) || "30d";
+  const platform = (req.query.platform as string) || "all";
+
+  let ids: string[] = [];
+  const rawIds = req.query["ids[]"] ?? req.query.ids;
+  if (Array.isArray(rawIds))           ids = rawIds as string[];
+  else if (typeof rawIds === "string") ids = rawIds.split(",").map(s => s.trim()).filter(Boolean);
+
+  const since = periodStart(period);
+
+  try {
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { name: true, defaultCurrency: true },
+    });
+
+    let n8nIds: string[]  = [];
+    let makeIds: string[] = [];
+
+    if (platform === "n8n" || platform === "all") {
+      const metas = await prisma.n8nWorkflowMeta.findMany({
+        where: { workspaceId, ...(ids.length ? { n8nId: { in: ids } } : {}) },
+        select: { n8nId: true },
+      });
+      n8nIds = metas.map(m => m.n8nId);
+    }
+    if (platform === "make" || platform === "all") {
+      const metas = await prisma.makeScenarioMeta.findMany({
+        where: { workspaceId, ...(ids.length ? { makeId: { in: ids } } : {}) },
+        select: { makeId: true },
+      });
+      makeIds = metas.map(m => m.makeId);
+    }
+
+    const [n8nMetrics, makeMetrics] = await Promise.all([
+      n8nIds.length > 0  ? fetchN8nWorkflowMetrics(workspaceId, n8nIds, since)  : Promise.resolve([] as WorkflowMetrics[]),
+      makeIds.length > 0 ? fetchMakeScenarioMetrics(workspaceId, makeIds, since) : Promise.resolve([] as WorkflowMetrics[]),
+    ]);
+
+    const allMetrics = [...n8nMetrics, ...makeMetrics];
+    const scored     = allMetrics.length > 0 ? scoreWorkflows(allMetrics, 1, "USD") : [];
+
+    // Compute leakage risk (0–100) relative to this exported set
+    const maxFailed = Math.max(...scored.map(w => w.metrics.reliability.failed), 1);
+    const riskScore = (w: ScoredWorkflow) =>
+      Math.round((w.metrics.reliability.failed / maxFailed) * 100);
+
+    // ── Build Excel ──────────────────────────────────────────────────────────
+    const wb  = new ExcelJS.Workbook();
+    wb.creator  = "iqpipe";
+    wb.created  = new Date();
+
+    const ws  = wb.addWorksheet("GTM Alpha Score", { views: [{ state: "frozen", ySplit: 2 }] });
+
+    // Title row
+    ws.mergeCells("A1:R1");
+    const titleCell = ws.getCell("A1");
+    titleCell.value = `GTM Alpha Score — Workflow Comparison  ·  ${workspace?.name ?? ""}  ·  Period: ${period}  ·  Generated ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    titleCell.font  = { bold: true, size: 11, name: "Calibri", color: { argb: "FFFFFFFF" } };
+    titleCell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
+    titleCell.alignment = { vertical: "middle", horizontal: "left" };
+    ws.getRow(1).height = 26;
+
+    // Header row
+    const headers = [
+      "Workflow Name", "Platform", "Active", "Grade", "Alpha Score",
+      "Reliability", "Throughput", "Connectivity", "Business Criticality",
+      "Leakage Risk (0-100)", "Failed Executions",
+      "Done", "Failed", "Total Events",
+      "Outcome Events", "Process Events",
+      "Apps Used", "High-Value Apps",
+    ];
+    const colWidths = [36, 10, 8, 8, 13, 13, 13, 14, 20, 20, 20, 8, 8, 13, 16, 16, 40, 40];
+
+    headers.forEach((h, i) => {
+      const cell = ws.getCell(2, i + 1);
+      cell.value = h;
+      cell.font  = { bold: true, size: 10, name: "Calibri", color: { argb: "FFFFFFFF" } };
+      cell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF6366F1" } };
+      cell.alignment = { vertical: "middle", horizontal: "left" };
+      cell.border = { bottom: { style: "medium", color: { argb: "FF818CF8" } } };
+      ws.getColumn(i + 1).width = colWidths[i];
+    });
+    ws.getRow(2).height = 22;
+
+    // Grade colors
+    const GRADE_ARGB: Record<string, string> = {
+      A: "FF052e16", B: "FF1e3a5f", C: "FF451a03", D: "FF431407", F: "FF450a0a",
+    };
+    const GRADE_FONT_ARGB: Record<string, string> = {
+      A: "FF34d399", B: "FF818cf8", C: "FFfbbf24", D: "FFfb923c", F: "FFf87171",
+    };
+
+    scored.sort((a, b) => b.alphaScore - a.alphaScore).forEach((wf, ri) => {
+      const alt  = ri % 2 === 0;
+      const bgArgb = alt ? "FFF8FAFC" : "FFFFFFFF";
+      const row  = ws.getRow(ri + 3);
+
+      const vals = [
+        wf.name,
+        wf.platform === "n8n" ? "n8n" : "Make.com",
+        wf.active ? "Yes" : "No",
+        wf.grade,
+        wf.alphaScore,
+        wf.pillars.reliability,
+        wf.pillars.throughput,
+        wf.pillars.connectivity,
+        wf.pillars.criticality,
+        riskScore(wf),
+        wf.metrics.reliability.failed,
+        wf.metrics.reliability.done,
+        wf.metrics.reliability.failed,
+        wf.metrics.reliability.total,
+        wf.metrics.throughput.outcomeEvents,
+        wf.metrics.throughput.processEvents,
+        wf.appsUsed.join(", "),
+        wf.metrics.connectivity.highValueApps.join(", "),
+      ];
+
+      vals.forEach((v, ci) => {
+        const cell = row.getCell(ci + 1);
+        cell.value = v;
+        cell.font  = { size: 10, name: "Calibri" };
+        cell.alignment = { vertical: "middle" };
+        cell.border = {
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right:  { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+
+        // Grade cell — colour-coded
+        if (ci === 3) {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GRADE_ARGB[wf.grade] ?? "FF450a0a" } };
+          cell.font = { bold: true, size: 10, name: "Calibri", color: { argb: GRADE_FONT_ARGB[wf.grade] ?? "FFf87171" } };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        }
+        // Alpha Score — bold
+        else if (ci === 4) {
+          cell.font = { bold: true, size: 11, name: "Calibri",
+            color: { argb: GRADE_FONT_ARGB[wf.grade] ?? "FFf87171" } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: alt ? "FFF8FAFC" : "FFFFFFFF" } };
+        }
+        // Leakage risk — colour-coded
+        else if (ci === 9) {
+          const risk = riskScore(wf);
+          const riskArgb = risk === 0 ? "FF1e293b" : risk <= 33 ? "FFd1fae5" : risk <= 66 ? "FFFEF3C7" : "FFFEE2E2";
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: riskArgb } };
+          cell.font = { bold: risk > 0, size: 10, name: "Calibri" };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        }
+        // Failed executions — red if > 0
+        else if (ci === 10) {
+          const failed = wf.metrics.reliability.failed;
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: failed > 0 ? "FFFEE2E2" : (alt ? "FFF8FAFC" : "FFFFFFFF") } };
+          if (failed > 0) cell.font = { bold: true, size: 10, name: "Calibri", color: { argb: "FFdc2626" } };
+        }
+        else {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgArgb } };
+        }
+      });
+
+      row.height = 20;
+    });
+
+    // Auto-filter on header row
+    ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: headers.length } };
+
+    // Stream to response
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="gtm-compare-${date}.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err: any) {
+    console.error("[workflow-score/export-xlsx]", err);
+    if (!res.headersSent) res.status(500).json({ error: "Export failed" });
+  }
+});
 
 export default router;
