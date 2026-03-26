@@ -43,6 +43,19 @@ interface SignalEvent {
 interface WorkflowStep { tool: string; }
 interface WorkflowStack { id: string; name: string; steps: WorkflowStep[]; }
 
+interface BatchEvent {
+  sourceApp: string;
+  eventType: string;
+  label:     string;   // canonical label e.g. "Email Sent"
+  count:     number;
+  latestAt:  string;
+}
+
+// Union type for the merged feed
+type FeedEntry =
+  | { kind: "signal"; event: SignalEvent;  at: number }
+  | { kind: "batch";  batch: BatchEvent;   at: number }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────────────────────────────────────
@@ -572,6 +585,63 @@ function SignalRow({ event }: { event: SignalEvent }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// BATCH EVENT ROW  — compact, count-forward
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BATCH_CATEGORY_COLOR: Record<string, string> = {
+  contact_sourced:   "text-orange-400",
+  contact_enriched:  "text-violet-400",
+  list_added:        "text-orange-300",
+  email_sent:        "text-blue-400",
+  linkedin_sent:     "text-sky-400",
+  connection_sent:   "text-sky-300",
+  call_placed:       "text-teal-400",
+  sms_sent:          "text-teal-300",
+  sequence_enrolled: "text-indigo-400",
+};
+
+function BatchRow({ batch }: { batch: BatchEvent }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const label    = appLabel(batch.sourceApp);
+  const domain   = TOOL_DOMAINS[batch.sourceApp]
+    ?? (/^[a-z][a-z0-9_]+$/.test(batch.sourceApp) ? `${batch.sourceApp.replace(/_/g, "")}.com` : null);
+  const accentCls = BATCH_CATEGORY_COLOR[batch.eventType] ?? "text-slate-400";
+
+  return (
+    <div className="border-b border-slate-800/30 last:border-0">
+      <div className="flex items-center gap-3 px-5 py-2 hover:bg-slate-800/10 transition-colors">
+        {/* App logo — smaller than signal rows */}
+        <div className="w-5 h-5 rounded bg-white flex items-center justify-center overflow-hidden shrink-0 opacity-80">
+          {domain && !imgFailed
+            ? <img
+                src={`${API_BASE_URL}/api/proxy/favicon?domain=${domain}`}
+                width={14} height={14} className="object-contain"
+                crossOrigin="anonymous"
+                onError={() => setImgFailed(true)}
+              />
+            : <span className="text-[9px] font-bold text-slate-700">{label[0]}</span>
+          }
+        </div>
+
+        {/* Count + label + app */}
+        <div className="flex-1 min-w-0 flex items-baseline gap-1.5 flex-wrap">
+          <span className={`text-sm font-black tabular-nums leading-none ${accentCls}`}>
+            {fmtNum(batch.count)}
+          </span>
+          <span className="text-sm text-slate-400 leading-none">
+            {batch.label.toLowerCase()}
+          </span>
+          <span className="text-[11px] text-slate-600 leading-none">via</span>
+          <span className="text-[11px] font-medium text-slate-500 leading-none">{label}</span>
+        </div>
+
+        <span className="text-[11px] text-slate-700 tabular-nums shrink-0">{relTime(batch.latestAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SNAPSHOT MODAL
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -976,6 +1046,7 @@ async function drawCardsToCanvas(cards: ToolCard[]): Promise<string> {
 export default function LiveFeedPage() {
   const [cards,       setCards]       = useState<ToolCard[]>([]);
   const [signals,     setSignals]     = useState<SignalEvent[]>([]);
+  const [batchEvents, setBatchEvents] = useState<BatchEvent[]>([]);
   const [stacks,      setStacks]      = useState<WorkflowStack[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [workspaceId, setWorkspaceId] = useState("");
@@ -1018,7 +1089,7 @@ export default function LiveFeedPage() {
   const load = useCallback(async (wsId: string) => {
     if (!wsId) return;
     try {
-      const [cardsRes, signalsRes, mapRes] = await Promise.all([
+      const [cardsRes, signalsRes, mapRes, batchRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/signal-health/tool-cards?workspaceId=${wsId}`, {
           headers: { Authorization: `Bearer ${token()}` },
         }),
@@ -1026,6 +1097,9 @@ export default function LiveFeedPage() {
           headers: { Authorization: `Bearer ${token()}` },
         }),
         fetch(`${API_BASE_URL}/api/workflow-map?workspaceId=${wsId}`, {
+          headers: { Authorization: `Bearer ${token()}` },
+        }),
+        fetch(`${API_BASE_URL}/api/n8n-connect/batch-events?workspaceId=${wsId}`, {
           headers: { Authorization: `Bearer ${token()}` },
         }),
       ]);
@@ -1038,6 +1112,7 @@ export default function LiveFeedPage() {
         const mapData = await mapRes.json();
         setStacks(mapData.stacks ?? []);
       }
+      if (batchRes.ok) setBatchEvents(await batchRes.json());
       setLastRefresh(new Date());
     } catch {} finally {
       setLoading(false);
@@ -1548,69 +1623,129 @@ export default function LiveFeedPage() {
             </div>
           )}
 
-          {/* ── Signal events ── */}
-          <div>
-            <div className="px-6 py-3 border-b border-slate-800/40 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">
-                  Signal events · last 20
-                  {sourceTab !== "all" && (
-                    <span className="ml-2 normal-case text-slate-700 font-normal">
-                      — {sourceTab === "n8n" ? "n8n only" : sourceTab === "make" ? "Make.com only" : "direct integrations only"}
-                    </span>
-                  )}
-                </p>
-                <p className="text-[10px] text-slate-700 mt-0.5">
-                  Replies · meetings · deals · clicks · unsubscribes — the events that matter
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-600 tabular-nums">
-                  {Math.min(filteredSignals.length, 20)}{hasActiveFilter ? ` / ${signals.length}` : ""} event{signals.length !== 1 ? "s" : ""}
-                </span>
-                <button
-                  onClick={() => openHistory(30)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-xs text-slate-300 font-medium transition-all"
-                >
-                  <History size={11}/> Event History
-                </button>
-              </div>
-            </div>
+          {/* ── Unified Activity Feed ── */}
+          {(() => {
+            // Filter batch events by source tab + app filter
+            const filteredBatch = batchEvents.filter(b => {
+              if (filterApps.size > 0 && !filterApps.has(b.sourceApp)) return false;
+              // source tab: batch events come from n8n (no sourceType field; assume n8n for now)
+              if (sourceTab === "integrations") return false; // batch from n8n/make, not direct
+              return true;
+            });
 
-            {filteredSignals.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                {hasActiveFilter ? (
-                  <>
-                    <p className="text-slate-600 text-sm">No events match the active filters</p>
-                    <button onClick={clearAll} className="mt-3 text-[11px] text-indigo-400 hover:text-indigo-300 underline transition-colors">
-                      Clear filters
+            // Build merged feed entries
+            const entries: FeedEntry[] = [
+              ...filteredSignals.map(ev => ({
+                kind: "signal" as const,
+                event: ev,
+                at: new Date(ev.recordedAt).getTime(),
+              })),
+              ...filteredBatch.map(b => ({
+                kind: "batch" as const,
+                batch: b,
+                at: new Date(b.latestAt).getTime(),
+              })),
+            ].sort((a, b) => b.at - a.at);
+
+            const SIGNAL_LIMIT = 50;
+            const shown = entries.slice(0, SIGNAL_LIMIT);
+            const signalCount = filteredSignals.length;
+            const batchCount  = filteredBatch.length;
+
+            return (
+              <div>
+                {/* Section header */}
+                <div className="px-6 py-3 border-b border-slate-800/40 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest">
+                      Activity Feed
+                      {sourceTab !== "all" && (
+                        <span className="ml-2 normal-case text-slate-700 font-normal">
+                          — {sourceTab === "n8n" ? "n8n only" : sourceTab === "make" ? "Make.com only" : "direct integrations only"}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-slate-700 mt-0.5">
+                      <span className="text-slate-500">Important:</span> replies · meetings · deals &nbsp;·&nbsp;
+                      <span className="text-slate-600">Volume:</span> sourcing · enrichment · outbound
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-600 tabular-nums">
+                      {signalCount > 0 && <span>{signalCount} signal{signalCount !== 1 ? "s" : ""}</span>}
+                      {signalCount > 0 && batchCount > 0 && <span className="mx-1 text-slate-700">·</span>}
+                      {batchCount > 0 && <span>{batchCount} batch{batchCount !== 1 ? "es" : ""}</span>}
+                    </span>
+                    <button
+                      onClick={() => openHistory(30)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-xs text-slate-300 font-medium transition-all"
+                    >
+                      <History size={11}/> History
                     </button>
-                  </>
+                  </div>
+                </div>
+
+                {entries.length === 0 ? (
+                  <div className="px-6 py-12 text-center">
+                    {hasActiveFilter ? (
+                      <>
+                        <p className="text-slate-600 text-sm">No events match the active filters</p>
+                        <button onClick={clearAll} className="mt-3 text-[11px] text-indigo-400 hover:text-indigo-300 underline transition-colors">
+                          Clear filters
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-slate-600 text-sm">No activity yet</p>
+                        <p className="text-slate-700 text-xs mt-1">
+                          Connect n8n or Make.com workflows to start seeing sourcing, outbound, and reply events here.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <>
-                    <p className="text-slate-600 text-sm">No signal events yet</p>
-                    <p className="text-slate-700 text-xs mt-1">
-                      Volume events (imports, sends, enrichments) are shown in the tool cards above.
-                      <br/>Signal events appear here when leads reply, book meetings, click links, or unsubscribe.
-                    </p>
+                    {shown.map((entry, i) => {
+                      // Date separator
+                      const entryDate  = new Date(entry.at).toDateString();
+                      const prevDate   = i > 0 ? new Date(shown[i - 1].at).toDateString() : null;
+                      const showSep    = entryDate !== prevDate;
+                      const todayStr   = new Date().toDateString();
+                      const yestStr    = new Date(Date.now() - 86_400_000).toDateString();
+                      const sepLabel   = entryDate === todayStr ? "Today"
+                                       : entryDate === yestStr  ? "Yesterday"
+                                       : new Date(entry.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                      return (
+                        <div key={entry.kind === "signal" ? entry.event.id : `${entry.batch.sourceApp}:${entry.batch.eventType}:${entry.at}`}>
+                          {showSep && (
+                            <div className="flex items-center gap-3 px-5 py-2">
+                              <span className="text-[10px] font-semibold text-slate-700 uppercase tracking-widest">{sepLabel}</span>
+                              <div className="flex-1 h-px bg-slate-800/60" />
+                            </div>
+                          )}
+                          {entry.kind === "signal"
+                            ? <SignalRow event={entry.event} />
+                            : <BatchRow  batch={entry.batch} />
+                          }
+                        </div>
+                      );
+                    })}
+
+                    {entries.length > SIGNAL_LIMIT && (
+                      <div className="px-6 py-4 text-center border-t border-slate-800/40">
+                        <button
+                          onClick={() => openHistory(30)}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium transition-all"
+                        >
+                          <History size={12}/> View full history — {entries.length - SIGNAL_LIMIT} more
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
-            ) : (
-              filteredSignals.slice(0, 20).map(ev => <SignalRow key={ev.id} event={ev}/>)
-            )}
-
-            {filteredSignals.length > 20 && (
-              <div className="px-6 py-4 text-center border-t border-slate-800/40">
-                <button
-                  onClick={() => openHistory(30)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium transition-all"
-                >
-                  <History size={12}/> View full event history — {filteredSignals.length - 20} more
-                </button>
-              </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       )}
     </div>

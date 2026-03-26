@@ -236,6 +236,54 @@ router.get("/app-event-counts", async (req: Request, res: Response) => {
   return res.json(result);
 });
 
+// ── GET /api/n8n-connect/batch-events ────────────────────────────────────────
+// Returns sourcing + outreach events grouped by (sourceApp, eventType, hourBucket)
+// for the live feed batch display. Max last 7 days.
+
+router.get("/batch-events", async (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId required" }) as any;
+
+  // Only batch categories
+  const BATCH_TYPES = Object.entries(CANONICAL_EVENTS)
+    .filter(([, m]) => m.category === "sourcing" || m.category === "outreach")
+    .map(([k]) => k);
+
+  const raw = await prisma.n8nQueuedEvent.findMany({
+    where: {
+      workspaceId,
+      eventType: { in: BATCH_TYPES },
+      createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) },
+    },
+    select: { sourceApp: true, eventType: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 10_000,
+  });
+
+  // Group by sourceApp + eventType + hourly bucket
+  const map: Record<string, { sourceApp: string; eventType: string; count: number; latestAt: Date }> = {};
+  for (const e of raw) {
+    const bucket = Math.floor(e.createdAt.getTime() / 3_600_000);
+    const key = `${e.sourceApp}:${e.eventType}:${bucket}`;
+    if (!map[key]) map[key] = { sourceApp: e.sourceApp, eventType: e.eventType, count: 0, latestAt: e.createdAt };
+    map[key].count++;
+    if (e.createdAt > map[key].latestAt) map[key].latestAt = e.createdAt;
+  }
+
+  const result = Object.values(map)
+    .sort((a, b) => b.latestAt.getTime() - a.latestAt.getTime())
+    .slice(0, 100)
+    .map(g => ({
+      sourceApp: g.sourceApp,
+      eventType: g.eventType,
+      label:     getCanonicalMeta(g.eventType).label,
+      count:     g.count,
+      latestAt:  g.latestAt.toISOString(),
+    }));
+
+  return res.json(result);
+});
+
 // ── GET /api/n8n-connect/funnel ───────────────────────────────────────────────
 // Returns canonical event counts ordered by funnel position, with conversion
 // rates between adjacent stages.
