@@ -43,6 +43,8 @@ import workflowScoreRouter from "./routes/workflowScore";
 import checkoutRouter from "./routes/checkout";
 import pushRouter  from "./routes/push";
 import adminRouter from "./routes/admin";
+import workflowMirrorRouter from "./routes/workflowMirror";
+import appWebhooksRouter    from "./routes/appWebhooks";
 
 const app = express();
 
@@ -80,6 +82,12 @@ app.use("/api/webhooks/stripe",  express.raw({ type: "application/json" }));
 //     Secret:  STRIPE_WEBHOOK_SECRET env var
 //     URL:     /api/checkout/webhook  (registered in Stripe Dashboard → Webhooks)
 app.use("/api/checkout/webhook", express.raw({ type: "application/json" }));
+
+// [C] DIRECT APP WEBHOOKS — events from users' own app accounts (HubSpot, Pipedrive, etc.)
+//     Handler: server/src/routes/appWebhooks.ts
+//     Auth:    Per-app HMAC signature verified against WorkflowAppConnection.webhookSecret
+//     URL:     /api/app-webhooks/:appKey?workspaceId=<id>&mirrorId=<id>
+app.use("/api/app-webhooks", express.raw({ type: "application/json" }));
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -166,8 +174,10 @@ app.use("/api/automation-health", automationHealthRouter);
 app.use("/api/n8n-connect",   n8nConnectRouter);
 app.use("/api/make-connect", makeConnectRouter);
 app.use("/api/workflow-score", workflowScoreRouter);
-app.use("/api/checkout",      checkoutRouter);
-app.use("/api/push",         pushRouter);
-app.use("/api/admin",        adminRouter);
+app.use("/api/checkout",        checkoutRouter);
+app.use("/api/push",           pushRouter);
+app.use("/api/admin",          adminRouter);
+app.use("/api/workflow-mirror", workflowMirrorRouter);
+app.use("/api/app-webhooks",    appWebhooksRouter);
 
 export default app;

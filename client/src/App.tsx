@@ -24,7 +24,8 @@ import ReportingPage        from "./pages/ReportingPage";
 import LinkedInCardsPage    from "./pages/LinkedInCardsPage";
 import ContactInspectorPage from "./pages/ContactInspectorPage";
 import WorkflowHealthPage     from "./pages/WorkflowHealthPage";
-import MyWorkflowPage        from "./pages/MyWorkflowPage";
+import MyWorkflowPage             from "./pages/MyWorkflowPage";
+import WorkflowMirrorDetailPage   from "./pages/WorkflowMirrorDetailPage";
 import AutomationHealthPage  from "./pages/AutomationHealthPage";
 import AutomationsPage        from "./pages/AutomationsPage";
 import IntegrationsPage     from "./pages/IntegrationsPage";
@@ -98,7 +99,8 @@ function App() {
           <Route path="/linkedin"      element={<LinkedInCardsPage />} />
           <Route path="/inspect"       element={<ContactInspectorPage />} />
           <Route path="/workflow-health"  element={<WorkflowHealthPage />} />
-          <Route path="/my-workflow"      element={<MyWorkflowPage />} />
+          <Route path="/my-workflow"        element={<MyWorkflowPage />} />
+          <Route path="/my-workflow/:id"  element={<WorkflowMirrorDetailPage />} />
           <Route path="/automations"       element={<AutomationsPage />} />
           <Route path="/automation-health" element={<AutomationHealthPage />} />
           <Route path="/compare"       element={<WorkflowComparePage />} />

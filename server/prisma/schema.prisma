@@ -612,3 +612,100 @@ model N8nWorkflowMeta {
   @@unique([workspaceId, n8nId])
   @@index([workspaceId])
 }
+
+// ── Workflow Mirror ──────────────────────────────────────────────────────────
+// One mirror config per imported automation. Tracks per-automation app
+// connections, event selections, and the correlation key used to match
+// automation executions against direct app events.
+
+model WorkflowMirror {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  workflowId      String   // FK to N8nWorkflowMeta.id or MakeScenarioMeta.id
+  platform        String   // "n8n" | "make"
+  correlationKey  String?  // "email" | "domain" | "phone"
+  unknownMappings String   @default("{}") // JSON: { "HTTP Request": "hubspot" }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  appConnections  WorkflowAppConnection[]
+
+  @@unique([workspaceId, workflowId])
+  @@index([workspaceId])
+}
+
+// Per-automation, per-app credential store and connection status.
+model WorkflowAppConnection {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  mirrorId        String
+  appKey          String    // "hubspot" | "pipedrive" | "instantly" etc.
+  connectionType  String    // "webhook" | "polling"
+  credentialEnc   String?   // encrypted API key (polling apps)
+  webhookSecret   String?   // webhook signing secret (webhook apps)
+  status          String    @default("pending") // "pending" | "connected" | "error"
+  lastEventAt     DateTime?
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  mirror          WorkflowMirror  @relation(fields: [mirrorId], references: [id], onDelete: Cascade)
+  observedEvents  ObservedEvent[]
+
+  @@unique([mirrorId, appKey])
+  @@index([workspaceId])
+}
+
+// Which events the user chose to observe per app per automation.
+model ObservedEvent {
+  id           String   @id @default(cuid())
+  connectionId String
+  appKey       String
+  eventKey     String   // technical event key e.g. "deal.creation"
+  label        String   // user-facing label e.g. "Deal created"
+  createdAt    DateTime @default(now())
+
+  connection   WorkflowAppConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, eventKey])
+}
+
+// Raw inbound events received from direct app webhooks.
+model AppEvent {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  appKey           String
+  mirrorId         String?   // resolved mirror (set after correlation)
+  eventKey         String    // e.g. "deal.creation"
+  correlationValue String?   // extracted email / domain / phone
+  payload          String    // raw JSON payload from the app
+  receivedAt       DateTime  @default(now())
+  correlatedAt     DateTime?
+
+  correlations     CorrelationResult[]
+
+  @@index([workspaceId, appKey])
+  @@index([workspaceId, correlationValue])
+  @@index([receivedAt])
+}
+
+// Cross-reference between an n8n/make execution event and a direct app event.
+model CorrelationResult {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  mirrorId         String
+  n8nEventId       String?  // N8nQueuedEvent.id — null for Make
+  appEventId       String
+  appKey           String
+  correlationKey   String   // "email" | "domain" | "phone"
+  correlationValue String   // the matched value
+  verified         Boolean  @default(false)
+  discrepancy      String?  // JSON: fields that differ
+  matchedAt        DateTime @default(now())
+
+  appEvent         AppEvent @relation(fields: [appEventId], references: [id])
+
+  @@index([workspaceId, mirrorId])
+  @@index([correlationValue])
+  @@index([matchedAt])
+}
