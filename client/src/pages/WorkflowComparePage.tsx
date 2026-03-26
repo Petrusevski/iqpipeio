@@ -613,14 +613,14 @@ export default function WorkflowComparePage() {
     }
 
     // ── Leakage Risk row
-    const LH     = 64;
-    const maxRaw = Math.max(...scoredItems.map(wf => wf.leakage.totalLoss));
+    const LH         = 64;
+    const maxFailed  = Math.max(...scoredItems.map(wf => wf.metrics.reliability.failed));
     const svgRiskScore = (wf: ScoredWorkflow) =>
-      maxRaw > 0 ? Math.round((wf.leakage.totalLoss / maxRaw) * 100) : 0;
+      maxFailed > 0 ? Math.round((wf.metrics.reliability.failed / maxFailed) * 100) : 0;
     const minRisk = Math.min(...scoredItems.map(svgRiskScore));
 
     elems.push(Tx(PX + IP, y + 24, "Leakage Risk", 11, C.white, "500"));
-    elems.push(Tx(PX + IP, y + 38, "Relative failure impact \u00b7 0 = none", 9, C.slate7));
+    elems.push(Tx(PX + IP, y + 38, "Relative execution failures \u00b7 0 = none", 9, C.slate7));
     for (let i = 0; i < n; i++) {
       const wf    = scoredItems[i];
       const score = svgRiskScore(wf);
@@ -633,7 +633,7 @@ export default function WorkflowComparePage() {
       if (score > 0) elems.push(Rect(x0 + IP, y + 18, Math.round(94 * score / 100), 5, col, 2));
       // score number
       elems.push(Tx(x0 + IP + 98, y + 24, String(score), 11, col, "700"));
-      if (score === 0) elems.push(Tx(x0 + IP, y + 46, "No failed events", 9, C.slate7));
+      if (score === 0) elems.push(Tx(x0 + IP, y + 46, "No failed executions", 9, C.slate7));
       if (score > 0 && score === minRisk) elems.push(Tx(x0 + IP, y + 46, "\u25b2 Lowest risk", 9, C.emerald));
     }
     elems.push(HLine(PX, y + LH, W - PX, y + LH));
@@ -661,7 +661,7 @@ export default function WorkflowComparePage() {
     const FH = 30;
     elems.push(HLine(PX, y, W - PX, y, C.border, 0.5));
     elems.push(Tx(PX + IP, y + 20,
-      `Leakage Risk = relative failure impact score (0\u2013100) normalized within selected set  \u00b7  Pillar scores normalized within selected set`,
+      `Leakage Risk = relative execution failures (0\u2013100) normalized within selected set  \u00b7  Pillar scores normalized within selected set`,
       8, C.slate7));
     y += FH;
 
@@ -1163,9 +1163,9 @@ export default function WorkflowComparePage() {
 
                           {/* ── Leakage Risk ── */}
                           {(() => {
-                            const maxRaw = Math.max(...scoredItems.map(wf => wf.leakage.totalLoss));
+                            const maxFailed = Math.max(...scoredItems.map(wf => wf.metrics.reliability.failed));
                             const riskScore = (wf: ScoredWorkflow) =>
-                              maxRaw > 0 ? Math.round((wf.leakage.totalLoss / maxRaw) * 100) : 0;
+                              maxFailed > 0 ? Math.round((wf.metrics.reliability.failed / maxFailed) * 100) : 0;
                             const minScore  = Math.min(...scoredItems.map(riskScore));
                             return (
                               <tr>
@@ -1174,7 +1174,7 @@ export default function WorkflowComparePage() {
                                     <AlertTriangle size={13} className="text-rose-400 shrink-0" />
                                     <div>
                                       <p className="text-xs font-medium text-white">Leakage Risk</p>
-                                      <p className="text-[10px] text-slate-600">Relative failure impact · 0 = none</p>
+                                      <p className="text-[10px] text-slate-600">Relative execution failures · 0 = none</p>
                                     </div>
                                   </div>
                                 </td>
@@ -1199,16 +1199,12 @@ export default function WorkflowComparePage() {
                                           <span className={`text-sm font-bold tabular-nums ${textColor}`}>{score}</span>
                                         </div>
                                         {score > 0 && (
-                                          <div className="space-y-0.5">
-                                            {wf.leakage.breakdown.slice(0, 2).map(b => (
-                                              <p key={b.eventType} className="text-[10px] text-slate-600">
-                                                {b.eventType.replace(/_/g, " ")} × {b.failedCount}
-                                              </p>
-                                            ))}
-                                          </div>
+                                          <p className="text-[10px] text-slate-600">
+                                            {wf.metrics.reliability.failed} failed execution{wf.metrics.reliability.failed !== 1 ? "s" : ""}
+                                          </p>
                                         )}
                                         {isLowest && score > 0 && <span className="text-[10px] text-emerald-400">▲ Lowest risk</span>}
-                                        {score === 0 && <span className="text-[10px] text-slate-700">No failed events</span>}
+                                        {score === 0 && <span className="text-[10px] text-slate-700">No failed executions</span>}
                                       </div>
                                     </td>
                                   );
@@ -1252,7 +1248,7 @@ export default function WorkflowComparePage() {
                     <div className="px-5 py-3 border-t border-slate-800 flex items-center justify-between gap-4 text-[10px] text-slate-700">
                       <div className="flex items-center gap-2">
                         <Info size={10} />
-                        Leakage Risk = relative failure impact (0–100) normalized within the selected set. 0 = no failed events.
+                        Leakage Risk = relative execution failures (0–100) normalized within the selected set. 0 = no failed executions.
                         All pillar scores are normalized within the selected set.
                       </div>
                       <button
