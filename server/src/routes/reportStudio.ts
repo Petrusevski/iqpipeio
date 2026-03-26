@@ -617,7 +617,7 @@ function generateSVG(
   const H = insightY + insightSectionH + FOOTER_H;
 
   // Patch background rects now that H is known
-  body = body.replaceAll("__SVG_H__", String(H));
+  body = body.split("__SVG_H__").join(String(H));
 
   // ── Footer ──────────────────────────────────────────────────────────────────
   const footerParts = [];
