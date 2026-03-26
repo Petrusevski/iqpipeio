@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertTriangle, MinusCircle, Circle,
   TrendingUp, MessageSquare, Calendar, DollarSign,
   MousePointerClick, UserCheck, MailX, BellOff,
-  Filter, X, Check, Camera, Copy, Share2, History,
+  Filter, X, Check, Camera, Copy, History,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 import SeedBanner from "../components/SeedBanner";
@@ -646,50 +646,41 @@ function BatchRow({ batch }: { batch: BatchEvent }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SnapshotModal({
-  dataUrl,
+  svgStr,
   caption,
   onClose,
 }: {
-  dataUrl: string;
+  svgStr: string;
   caption: string;
   onClose: () => void;
 }) {
   const [editCaption,   setEditCaption]   = useState(caption);
   const [captionCopied, setCaptionCopied] = useState(false);
-  const [linkCopied,    setLinkCopied]    = useState(false);
-  const [imageUrl,      setImageUrl]      = useState<string | null>(null);
-  const [uploading,     setUploading]     = useState(true);
-  const [uploadError,   setUploadError]   = useState(false);
 
-  const token = () => localStorage.getItem("iqpipe_token") ?? "";
+  // Create a blob URL for the SVG preview
+  const previewUrl = useState(() => {
+    const blob = new Blob([svgStr], { type: "image/svg+xml" });
+    return URL.createObjectURL(blob);
+  })[0];
 
-  // Upload image on open, get a shareable URL back
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/proxy/snapshot`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ imageBase64: dataUrl }),
-    })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(d => setImageUrl(d.url))
-      .catch(() => setUploadError(true))
-      .finally(() => setUploading(false));
-  }, []);
+  useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl]);
+
+  const downloadSVG = () => {
+    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `gtm-stack-${new Date().toISOString().slice(0, 10)}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
 
   const copyCaption = async () => {
     await navigator.clipboard.writeText(editCaption);
     setCaptionCopied(true);
     setTimeout(() => setCaptionCopied(false), 2000);
-  };
-
-  const copyLink = async () => {
-    if (!imageUrl) return;
-    await navigator.clipboard.writeText(imageUrl);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   const openLinkedIn = () => {
@@ -698,9 +689,7 @@ function SnapshotModal({
   };
 
   const openX = () => {
-    const text = encodeURIComponent(
-      editCaption.slice(0, 240) + (imageUrl ? `\n${imageUrl}` : "")
-    );
+    const text = encodeURIComponent(editCaption.slice(0, 280));
     window.open(`https://x.com/intent/tweet?text=${text}`, "_blank", "noopener");
   };
 
@@ -721,45 +710,21 @@ function SnapshotModal({
 
         <div className="overflow-y-auto max-h-[80vh]">
 
-          {/* Image preview */}
+          {/* SVG preview */}
           <div className="px-5 pt-5">
-            <img src={dataUrl} alt="Snapshot preview"
-              className="w-full rounded-xl border border-slate-800 object-contain max-h-52"/>
+            <img src={previewUrl} alt="Snapshot preview"
+              className="w-full rounded-xl border border-slate-800 object-contain max-h-56 bg-slate-950"/>
           </div>
 
-          {/* Shareable link */}
+          {/* Download button */}
           <div className="px-5 pt-4">
-            <label className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider block mb-1.5">
-              Image link
-            </label>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-400 font-mono truncate select-all">
-                {uploading
-                  ? <span className="flex items-center gap-1.5"><RefreshCw size={10} className="animate-spin"/> Generating link…</span>
-                  : uploadError
-                    ? <span className="text-rose-400">Upload failed — use download instead</span>
-                    : imageUrl
-                }
-              </div>
-              <button
-                onClick={copyLink}
-                disabled={!imageUrl}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
-                  linkCopied
-                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"
-                    : "bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200"
-                }`}
-              >
-                {linkCopied ? <Check size={11}/> : <Copy size={11}/>}
-                {linkCopied ? "Copied!" : "Copy link"}
-              </button>
-              {imageUrl && (
-                <a href={imageUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-200 transition-colors shrink-0">
-                  <Share2 size={11}/> Open
-                </a>
-              )}
-            </div>
+            <button
+              onClick={downloadSVG}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download SVG
+            </button>
           </div>
 
           {/* Caption */}
@@ -814,31 +779,23 @@ function SnapshotModal({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CANVAS SNAPSHOT — draws KPI cards manually, no html2canvas grid issues
+// SVG SNAPSHOT
 // ─────────────────────────────────────────────────────────────────────────────
 
-function rr(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h);
-  ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r);
-  ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
-}
-
-function loadImg(src: string): Promise<HTMLImageElement | null> {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload  = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
+async function fetchAsBase64(url: string): Promise<string | null> {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return new Promise<string | null>(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror  = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
 }
 
 // Channel → accent colour (RGBA for canvas)
@@ -853,190 +810,131 @@ const CH_ACCENT: Record<string, string> = {
   other:       "#64748b",
 };
 
-async function drawCardsToCanvas(cards: ToolCard[]): Promise<string> {
-  const SCALE   = 2;
-  const COLS    = Math.min(5, Math.max(1, cards.length));
-  const ROWS    = Math.ceil(cards.length / COLS);
-  const CARD_W  = 210;
-  const CARD_H  = 178;
-  const GAP     = 12;
-  const PAD     = 24;
-  const HEAD_H  = 32;
-
-  const W = PAD * 2 + COLS * CARD_W + (COLS - 1) * GAP;
-  const H = PAD * 2 + HEAD_H + ROWS * CARD_H + (ROWS - 1) * GAP + PAD;
-
-  const canvas = document.createElement("canvas");
-  canvas.width  = W * SCALE;
-  canvas.height = H * SCALE;
-  const ctx = canvas.getContext("2d")!;
-  ctx.scale(SCALE, SCALE);
-
-  // ── Background ────────────────────────────────────────────────────────────
-  ctx.fillStyle = "#020617";
-  ctx.fillRect(0, 0, W, H);
-
-  // ── Section label + watermark ─────────────────────────────────────────────
-  ctx.fillStyle = "#475569";
-  ctx.font = "600 9px system-ui, sans-serif";
-  ctx.fillText("CONNECTED TOOLS", PAD, PAD + 12);
-
-  ctx.font = "600 9px system-ui, sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillStyle = "#334155";
-  ctx.fillText("iqpipe.io", W - PAD, PAD + 12);
-  ctx.textAlign = "left";
-
-  ctx.fillStyle = "#1e293b";
-  ctx.fillRect(PAD, PAD + 18, W - PAD * 2, 1);
-
-  // ── Pre-load logos ────────────────────────────────────────────────────────
-  const logos = await Promise.all(
-    cards.map(c => {
+async function generateSnapshotSVG(cards: ToolCard[]): Promise<string> {
+  // Pre-fetch favicons as base64 so they embed in the SVG
+  const faviconMap: Record<string, string | null> = {};
+  await Promise.all(
+    cards.map(async c => {
       const domain = TOOL_DOMAINS[c.tool];
-      if (!domain) return Promise.resolve(null);
-      return loadImg(`${API_BASE_URL}/api/proxy/favicon?domain=${domain}`);
+      if (domain) faviconMap[c.tool] = await fetchAsBase64(`${API_BASE_URL}/api/proxy/favicon?domain=${domain}`);
     })
   );
 
-  // ── Draw each card ────────────────────────────────────────────────────────
+  const COLS = Math.min(5, Math.max(1, cards.length));
+  const ROWS = Math.ceil(cards.length / COLS);
+  const CW   = 190;
+  const CH   = 118;
+  const GAP  = 10;
+  const PX   = 24;
+  const PY   = 20;
+  const TH   = 56;   // title bar
+  const FH   = 28;   // footer
+
+  const W      = PX * 2 + COLS * CW + (COLS - 1) * GAP;
+  const totalH = PY + TH + GAP + ROWS * CH + (ROWS - 1) * GAP + GAP + FH + PY;
+
+  const STATUS_COLOR: Record<string, string> = {
+    healthy: "#34d399", warning: "#fbbf24", silent: "#fb7185", never: "#475569",
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    healthy: "Live", warning: "Slow", silent: "Silent", never: "No data",
+  };
+
+  const X = (s: string) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  const Rect = (x: number, y: number, w: number, h: number, fill: string, rx = 0) =>
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" rx="${rx}"/>`;
+  const Tx = (x: number, y: number, txt: string, size: number, fill: string,
+    weight = "400", anchor = "start") =>
+    `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" font-weight="${weight}" text-anchor="${anchor}">${X(txt)}</text>`;
+
+  const elems: string[] = [];
+
+  // Title bar
+  elems.push(Rect(PX, PY, W - 2 * PX, TH, "#111827", 12));
+  elems.push(Tx(PX + 16, PY + 22, "iqpipe", 15, "#818cf8", "700"));
+  elems.push(Tx(PX + 16, PY + 40, "GTM Stack Snapshot", 10, "#475569"));
+  const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const total24h = cards.reduce((s, c) => s + c.events24h, 0);
+  const liveCount = cards.filter(c => c.status === "healthy").length;
+  elems.push(Tx(W - PX - 16, PY + 26, dateStr, 10, "#334155", "400", "end"));
+  elems.push(Tx(W - PX - 16, PY + 42,
+    `${cards.length} tools · ${liveCount} live · ${total24h.toLocaleString()} events (24h)`,
+    9, "#475569", "400", "end"));
+
+  // Cards
+  const gridY = PY + TH + GAP;
   cards.forEach((card, i) => {
     const col  = i % COLS;
     const row  = Math.floor(i / COLS);
-    const cx   = PAD + col * (CARD_W + GAP);
-    const cy   = PAD + HEAD_H + row * (CARD_H + GAP);
+    const x0   = PX + col * (CW + GAP);
+    const y0   = gridY + row * (CH + GAP);
     const acc  = CH_ACCENT[card.channel] ?? CH_ACCENT.other;
+    const sc   = STATUS_COLOR[card.status] ?? "#475569";
 
-    // Card background
-    ctx.fillStyle = "#0f172a";
-    rr(ctx, cx, cy, CARD_W, CARD_H, 14);
-    ctx.fill();
+    // Card bg + border
+    elems.push(Rect(x0, y0, CW, CH, "#0f172a", 10));
+    elems.push(`<rect x="${x0}" y="${y0}" width="${CW}" height="${CH}" rx="10" fill="none" stroke="#1e293b" stroke-width="1"/>`);
+    // Left accent line
+    elems.push(`<rect x="${x0}" y="${y0+6}" width="3" height="${CH-12}" fill="${acc}" rx="1.5" opacity="0.7"/>`);
 
-    // Card border
-    ctx.strokeStyle = "#1e293b";
-    ctx.lineWidth = 1;
-    rr(ctx, cx, cy, CARD_W, CARD_H, 14);
-    ctx.stroke();
-
-    // ── Logo ────────────────────────────────────────────────────
-    const lx = cx + 14, ly = cy + 14;
-    ctx.fillStyle = "#ffffff";
-    rr(ctx, lx, ly, 30, 30, 7);
-    ctx.fill();
-
-    const logo = logos[i];
-    if (logo) {
-      ctx.save();
-      rr(ctx, lx, ly, 30, 30, 7);
-      ctx.clip();
-      const imgSize = 20;
-      ctx.drawImage(logo, lx + (30 - imgSize) / 2, ly + (30 - imgSize) / 2, imgSize, imgSize);
-      ctx.restore();
+    // Favicon bg
+    elems.push(Rect(x0 + 12, y0 + 12, 26, 26, "#ffffff", 6));
+    const b64 = faviconMap[card.tool];
+    if (b64) {
+      elems.push(`<image href="${b64}" x="${x0+15}" y="${y0+15}" width="20" height="20" preserveAspectRatio="xMidYMid meet"/>`);
     } else {
-      ctx.fillStyle = "#334155";
-      ctx.font = "bold 12px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(card.label[0].toUpperCase(), lx + 15, ly + 15);
-      ctx.textAlign = "left";
-      ctx.textBaseline = "alphabetic";
+      elems.push(Tx(x0 + 25, y0 + 28, card.label.charAt(0).toUpperCase(), 11, "#334155", "700", "middle"));
     }
 
-    // ── Tool name ────────────────────────────────────────────────
-    ctx.fillStyle = "#f1f5f9";
-    ctx.font = "600 12px system-ui, sans-serif";
-    const nameX = lx + 36;
-    const maxNameW = CARD_W - 14 - 36 - 50; // leave room for status on right
-    let name = card.label;
-    while (ctx.measureText(name).width > maxNameW && name.length > 1) name = name.slice(0, -1);
-    if (name !== card.label) name += "…";
-    ctx.fillText(name, nameX, cy + 24);
+    // Tool name
+    const nameStr = card.label.length > 14 ? card.label.slice(0, 13) + "…" : card.label;
+    elems.push(Tx(x0 + 44, y0 + 22, nameStr, 11, "#f1f5f9", "600"));
 
-    // ── Channel pill ─────────────────────────────────────────────
-    ctx.font = "500 9px system-ui, sans-serif";
-    const pillText = card.channel;
-    const pillW = ctx.measureText(pillText).width + 10;
-    const pillY = cy + 30;
-    ctx.fillStyle = acc + "22";
-    rr(ctx, nameX, pillY, pillW, 14, 7);
-    ctx.fill();
-    ctx.strokeStyle = acc + "55";
-    ctx.lineWidth = 0.5;
-    rr(ctx, nameX, pillY, pillW, 14, 7);
-    ctx.stroke();
-    ctx.fillStyle = acc;
-    ctx.fillText(pillText, nameX + 5, pillY + 10);
+    // Channel pill
+    elems.push(Rect(x0 + 44, y0 + 27, 46, 12, acc + "22", 4));
+    elems.push(`<rect x="${x0+44}" y="${y0+27}" width="46" height="12" rx="4" fill="none" stroke="${acc}55" stroke-width="0.5"/>`);
+    elems.push(Tx(x0 + 47, y0 + 36, card.channel, 8, acc));
 
-    // ── Status dot + label (top right) ───────────────────────────
-    const dotColors: Record<string, string> = {
-      healthy: "#34d399", warning: "#fbbf24", silent: "#f87171", never: "#475569",
-    };
-    const statusLabels: Record<string, string> = {
-      healthy: "Live", warning: "Slow", silent: "Silent", never: "No data",
-    };
-    const dotCol = dotColors[card.status] ?? "#475569";
-    const statusLabel = statusLabels[card.status] ?? "";
-    ctx.font = "500 9px system-ui, sans-serif";
-    const slW = ctx.measureText(statusLabel).width;
-    const srX = cx + CARD_W - 14 - slW;
-    ctx.fillStyle = dotCol;
-    ctx.beginPath();
-    ctx.arc(srX - 6, cy + 20, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillText(statusLabel, srX, cy + 24);
+    // Status dot + label (top right)
+    elems.push(`<circle cx="${x0+CW-10}" cy="${y0+17}" r="3.5" fill="${sc}"/>`);
+    elems.push(Tx(x0 + CW - 16, y0 + 22, STATUS_LABEL[card.status] ?? "", 8, sc, "500", "end"));
 
-    // ── Primary metric ───────────────────────────────────────────
-    const metY = cy + 68;
-    if (card.primaryMetric) {
-      ctx.fillStyle = "#f1f5f9";
-      ctx.font      = "800 28px system-ui, sans-serif";
-      ctx.fillText(fmtNum(card.primaryMetric.count), cx + 14, metY);
-      ctx.fillStyle = "#64748b";
-      ctx.font      = "400 10px system-ui, sans-serif";
-      ctx.fillText(card.primaryMetric.label, cx + 14, metY + 16);
+    // Primary metric
+    if (card.primaryMetric && card.primaryMetric.count > 0) {
+      const numStr = card.primaryMetric.count >= 1000
+        ? `${(card.primaryMetric.count / 1000).toFixed(1)}k`
+        : String(card.primaryMetric.count);
+      elems.push(Tx(x0 + 12, y0 + 72, numStr, 26, "#f8fafc", "800"));
+      const metLabel = card.primaryMetric.label.length > 22
+        ? card.primaryMetric.label.slice(0, 21) + "…"
+        : card.primaryMetric.label;
+      elems.push(Tx(x0 + 12, y0 + 85, metLabel, 9, "#64748b"));
     } else {
-      ctx.fillStyle = "#334155";
-      ctx.font      = "800 28px system-ui, sans-serif";
-      ctx.fillText("0", cx + 14, metY);
-      ctx.fillStyle = "#334155";
-      ctx.font      = "400 10px system-ui, sans-serif";
-      ctx.fillText("no events yet", cx + 14, metY + 16);
+      elems.push(Tx(x0 + 12, y0 + 72, "—", 22, "#334155", "700"));
+      elems.push(Tx(x0 + 12, y0 + 85, "No events yet", 9, "#475569"));
     }
 
-    // ── 24h / 7d pills ───────────────────────────────────────────
-    const pillsY = cy + 105;
-    const drawPill = (text: string, px: number, active: boolean) => {
-      ctx.font = "600 9px system-ui, sans-serif";
-      const pw = ctx.measureText(text).width + 10;
-      ctx.fillStyle = active ? "#6366f122" : "#1e293b";
-      rr(ctx, px, pillsY, pw, 14, 4);
-      ctx.fill();
-      ctx.fillStyle = active ? "#818cf8" : "#475569";
-      ctx.fillText(text, px + 5, pillsY + 10);
-      return pw + 6;
-    };
-    const p1w = drawPill(`${fmtNum(card.events24h)} / 24h`, cx + 14, card.events24h > 0);
-    drawPill(`${fmtNum(card.events7d)} / 7d`, cx + 14 + p1w, card.events7d > 0);
+    // 24h / 7d
+    const fmt24 = card.events24h >= 1000 ? `${(card.events24h/1000).toFixed(1)}k` : String(card.events24h);
+    const fmt7d  = card.events7d  >= 1000 ? `${(card.events7d /1000).toFixed(1)}k` : String(card.events7d);
+    elems.push(Tx(x0 + 12, y0 + CH - 10, `24h: ${fmt24}`, 8, card.events24h > 0 ? "#818cf8" : "#334155"));
+    elems.push(Tx(x0 + CW - 12, y0 + CH - 10, `7d: ${fmt7d}`, 8, "#475569", "400", "end"));
 
-    // ── Last seen ────────────────────────────────────────────────
-    ctx.fillStyle = "#475569";
-    ctx.font = "400 9px system-ui, sans-serif";
-    const lastText = card.lastEventAt ? relTime(card.lastEventAt) : "Never fired";
-    ctx.fillText(lastText, cx + 14, cy + CARD_H - 12);
-
-    // ── Bottom accent line ───────────────────────────────────────
-    ctx.fillStyle = acc;
-    rr(ctx, cx + 14, cy + CARD_H - 5, CARD_W - 28, 2, 1);
-    ctx.fill();
+    // Bottom accent line
+    elems.push(`<rect x="${x0+10}" y="${y0+CH-3}" width="${CW-20}" height="2" fill="${acc}" rx="1" opacity="0.5"/>`);
   });
 
-  // ── Footer watermark ─────────────────────────────────────────────────────
-  ctx.fillStyle = "#1e293b";
-  ctx.font = "400 9px system-ui, sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText(`iqpipe · ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`, W - PAD, H - 10);
+  // Footer / watermark
+  const footerY = gridY + ROWS * CH + (ROWS - 1) * GAP + 10;
+  elems.push(Tx(W / 2, footerY + 14, "iqpipe.io — GTM Intelligence Platform", 9, "#334155", "400", "middle"));
 
-  return canvas.toDataURL("image/png");
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}">`,
+    `<defs><style>text{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}</style></defs>`,
+    Rect(0, 0, W, totalH, "#0f172a"),
+    ...elems,
+    `</svg>`,
+  ].join("\n");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1258,8 +1156,8 @@ export default function LiveFeedPage() {
   const takeSnapshot = async () => {
     setSnapping(true);
     try {
-      const dataUrl = await drawCardsToCanvas(filteredCards);
-      setSnapshotDataUrl(dataUrl);
+      const svgStr = await generateSnapshotSVG(filteredCards);
+      setSnapshotDataUrl(svgStr);
     } finally {
       setSnapping(false);
     }
@@ -1312,7 +1210,7 @@ export default function LiveFeedPage() {
 
       {snapshotDataUrl && (
         <SnapshotModal
-          dataUrl={snapshotDataUrl}
+          svgStr={snapshotDataUrl}
           caption={buildCaption()}
           onClose={() => setSnapshotDataUrl(null)}
         />

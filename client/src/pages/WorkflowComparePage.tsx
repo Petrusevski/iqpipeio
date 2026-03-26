@@ -428,8 +428,6 @@ export default function WorkflowComparePage() {
   const showEmptySelect = selected.size < 2;
   const showMatrix      = selected.size >= 2;
 
-  const currency = scoreData?.scoring_model?.leakage_config?.currency ?? "USD";
-
   // ─── SVG Export ──────────────────────────────────────────────────────────────
 
   async function exportSVG() {
@@ -739,6 +737,7 @@ export default function WorkflowComparePage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="min-h-screen bg-slate-950 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
@@ -1328,6 +1327,7 @@ export default function WorkflowComparePage() {
 
     {/* ── More / Excel Export Modal ── */}
     {showMoreModal && (
+
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
 
@@ -1417,5 +1417,6 @@ export default function WorkflowComparePage() {
         </div>
       </div>
     )}
+    </>
   );
 }
