@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Bot, RefreshCw, AlertTriangle, XCircle, Layers,
   ChevronRight, Workflow, X, Play, Settings2, CheckCircle2,
@@ -181,7 +181,6 @@ function ConfigureEventsModal({
 export default function AutomationsPage() {
   const [workspaceId, setWorkspaceId] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState<"n8n" | "make" | null>(null);
-  const autoSelectedRef = useRef(false); // only auto-select once on initial load
 
   // n8n state
   const [connStatus,      setConnStatus]      = useState<any>(null);
@@ -270,13 +269,6 @@ export default function AutomationsPage() {
       loadMakeScenarios(workspaceId);
     }
   }, [workspaceId, loadConnStatus, loadWorkflowMeta, loadMakeConn, loadMakeScenarios]);
-
-  // Auto-select platform on initial load only — never re-trigger after user clicks "← All platforms"
-  useEffect(() => {
-    if (autoSelectedRef.current) return;
-    if (connStatus?.connected) { autoSelectedRef.current = true; setSelectedPlatform("n8n"); return; }
-    if (makeConn?.connected)   { autoSelectedRef.current = true; setSelectedPlatform("make"); return; }
-  }, [connStatus, makeConn]);
 
   // ── n8n handlers ────────────────────────────────────────────────────────────
 
