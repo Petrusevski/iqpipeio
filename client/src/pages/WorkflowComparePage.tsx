@@ -157,6 +157,46 @@ function PillarBar({ value }: { value: number }) {
   );
 }
 
+// ─── App domain / logo helpers ───────────────────────────────────────────────
+
+const APP_DOMAIN: Record<string, string> = {
+  apollo:              "apollo.io",
+  clay:                "clay.com",
+  heyreach:            "heyreach.io",
+  instantly:           "instantly.ai",
+  hubspot:             "hubspot.com",
+  stripe:              "stripe.com",
+  zoominfo:            "zoominfo.com",
+  "people data labs":  "peopledatalabs.com",
+  smartlead:           "smartlead.ai",
+  lemlist:             "lemlist.com",
+  chargebee:           "chargebee.com",
+  slack:               "slack.com",
+  outreach:            "outreach.io",
+  clearbit:            "clearbit.com",
+  calendly:            "calendly.com",
+  salesforce:          "salesforce.com",
+  pipedrive:           "pipedrive.com",
+  lusha:               "lusha.com",
+  attio:               "attio.com",
+  phantombuster:       "phantombuster.com",
+  hunter:              "hunter.io",
+  linkedin:            "linkedin.com",
+  gmail:               "gmail.com",
+  notion:              "notion.so",
+  airtable:            "airtable.com",
+  intercom:            "intercom.com",
+  activecampaign:      "activecampaign.com",
+  mailchimp:           "mailchimp.com",
+  typeform:            "typeform.com",
+  make:                "make.com",
+  n8n:                 "n8n.io",
+};
+
+function appDomain(name: string): string {
+  return APP_DOMAIN[name.toLowerCase()] ?? name.toLowerCase().replace(/\s+/g, "") + ".com";
+}
+
 // ─── SVG export helper ────────────────────────────────────────────────────────
 
 function escapeXml(s: string): string {
@@ -886,6 +926,54 @@ export default function WorkflowComparePage() {
                         </thead>
 
                         <tbody className="divide-y divide-slate-800/40">
+
+                          {/* ── Apps in Flow ── */}
+                          <tr className="bg-slate-900/20">
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <Network size={13} className="text-slate-500 shrink-0" />
+                                <div>
+                                  <p className="text-xs font-medium text-slate-300">Apps in Flow</p>
+                                  <p className="text-[10px] text-slate-600">Nodes used</p>
+                                </div>
+                              </div>
+                            </td>
+                            {scoredItems.map(wf => (
+                              <td key={wf.id} className={`px-5 py-3.5 ${wf.id === winnerPlatformId ? "bg-indigo-500/3" : ""}`}>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {wf.appsUsed.slice(0, 8).map(app => (
+                                    <div
+                                      key={app}
+                                      title={app}
+                                      className="w-6 h-6 rounded-md bg-slate-800 border border-slate-700/80 flex items-center justify-center overflow-hidden shrink-0"
+                                    >
+                                      <img
+                                        src={`${API_BASE_URL}/api/proxy/favicon?domain=${appDomain(app)}`}
+                                        width={14}
+                                        height={14}
+                                        alt={app}
+                                        className="object-contain"
+                                        onError={e => {
+                                          const img = e.target as HTMLImageElement;
+                                          img.style.display = "none";
+                                          const parent = img.parentElement;
+                                          if (parent) {
+                                            parent.textContent = app.charAt(0).toUpperCase();
+                                            parent.className += " text-[9px] font-bold text-slate-500";
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  ))}
+                                  {wf.appsUsed.length > 8 && (
+                                    <div className="w-6 h-6 rounded-md bg-slate-800 border border-slate-700/80 flex items-center justify-center text-[9px] text-slate-500 font-medium shrink-0">
+                                      +{wf.appsUsed.length - 8}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
 
                           {/* ── Pillar rows ── */}
                           {PILLAR_META.map((pillar, rowIdx) => (
