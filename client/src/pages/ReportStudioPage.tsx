@@ -6,8 +6,7 @@
  * and a public share link.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import html2canvas from "html2canvas";
+import { useState, useEffect, useCallback } from "react";
 import {
   Sparkles, Download, Share2, RefreshCw, Check,
   LayoutDashboard, TrendingUp, Calendar, Zap,
@@ -266,7 +265,7 @@ function SnapshotCard({ data, insight, format, activeFlows }: { data: ReportData
 
       {/* Selected flows */}
       {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} />
+        <FlowStrip flows={activeFlows} cardFormat={format} />
       )}
 
       {/* AI insight */}
@@ -330,7 +329,7 @@ function FunnelCard({ data, insight, format, activeFlows }: { data: ReportData; 
       </div>
 
       {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} />
+        <FlowStrip flows={activeFlows} cardFormat={format} />
       )}
 
       {insight && (
@@ -410,7 +409,7 @@ function DigestCard({ data, insight, format, activeFlows }: { data: ReportData; 
       )}
 
       {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} />
+        <FlowStrip flows={activeFlows} cardFormat={format} />
       )}
 
       <div className="relative flex items-center justify-between">
@@ -492,7 +491,7 @@ function RevenueCard({ data, insight, format, activeFlows }: { data: ReportData;
       </div>
 
       {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} />
+        <FlowStrip flows={activeFlows} cardFormat={format} />
       )}
 
       {insight && (
@@ -632,41 +631,54 @@ function FlowSelector({
 
 // ── Selected flows strip (shared across card types) ───────────────────────────
 
-function FlowStrip({ flows }: { flows: PerFlowStat[] }) {
+const MAX_FLOW_ROWS: Record<CardFormat, number> = {
+  linkedin: 2,
+  square:   4,
+  story:    6,
+};
+
+function FlowStrip({ flows, cardFormat }: { flows: PerFlowStat[]; cardFormat: CardFormat }) {
   if (!flows.length) return null;
+  const max     = MAX_FLOW_ROWS[cardFormat] ?? 2;
+  const visible = flows.slice(0, max);
+  const extra   = flows.length - max;
+
   return (
     <div className="relative flex flex-col gap-1.5">
       <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Included flows</div>
       <div className="flex flex-col gap-1">
-        {flows.map(f => (
-          <div key={f.id} className="flex items-center gap-2 bg-slate-800/40 rounded-lg px-2 py-1.5">
-            <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
+        {visible.map(f => (
+          <div key={f.id} className="flex items-center gap-2 bg-slate-800/40 rounded-lg px-2 py-1.5 min-w-0">
+            <span className={`text-[8px] font-bold px-1 py-0.5 rounded shrink-0 ${
               f.platform === "n8n"
                 ? "bg-orange-500/20 text-orange-400"
                 : "bg-violet-500/20 text-violet-400"
             }`}>
               {f.platform === "n8n" ? "n8n" : "Make"}
             </span>
-            <span className="flex-1 text-[10px] text-slate-300 truncate font-medium">{f.name}</span>
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="flex-1 text-[10px] text-slate-300 truncate font-medium min-w-0">{f.name}</span>
+            <div className="flex items-center gap-1 shrink-0">
               {f.appKeys.slice(0, 5).map((key, i) => (
-                <div key={i} className="w-4 h-4 rounded bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                <div key={i}
+                  className="rounded bg-white/10 overflow-hidden shrink-0 flex items-center justify-center"
+                  style={{ width: 16, height: 16 }}
+                >
                   <img
                     src={`${API_BASE_URL}/api/proxy/favicon?domain=${APP_DOMAINS[key] ?? key + ".com"}`}
                     alt={key}
-                    style={{ width: 12, height: 12, objectFit: "contain", display: "block" }}
+                    style={{ width: 12, height: 12, objectFit: "contain", display: "block", flexShrink: 0 }}
                     onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
               ))}
             </div>
             {f.eventCount > 0 && (
-              <span className="text-[9px] text-slate-500 font-mono tabular-nums">
+              <span className="text-[9px] text-slate-500 font-mono tabular-nums shrink-0">
                 {f.eventCount.toLocaleString()}
               </span>
             )}
             {f.eventCount > 0 && (
-              <span className={`text-[9px] font-semibold ${
+              <span className={`text-[9px] font-semibold shrink-0 ${
                 f.successRate >= 80 ? "text-emerald-400" : f.successRate >= 50 ? "text-amber-400" : "text-red-400"
               }`}>
                 {f.successRate}%
@@ -674,6 +686,11 @@ function FlowStrip({ flows }: { flows: PerFlowStat[] }) {
             )}
           </div>
         ))}
+        {extra > 0 && (
+          <div className="text-[10px] text-slate-600 px-2 py-1">
+            +{extra} more flow{extra > 1 ? "s" : ""} selected
+          </div>
+        )}
       </div>
     </div>
   );
@@ -713,8 +730,7 @@ export default function ReportStudioPage() {
   const [shareLoading, setShareLoading] = useState(false);
   const [copied,      setCopied]        = useState(false);
 
-  const cardRef  = useRef<HTMLDivElement>(null);
-  const token    = () => localStorage.getItem("iqpipe_token") ?? "";
+  const token = () => localStorage.getItem("iqpipe_token") ?? "";
 
   // Load workspace ID
   useEffect(() => {
@@ -773,21 +789,29 @@ export default function ReportStudioPage() {
     } catch {} finally { setAiLoading(false); }
   };
 
-  // Export PNG
-  const exportPNG = async () => {
-    if (!cardRef.current) return;
+  // Export — server-side SVG (native vector, no screenshot)
+  const exportSVG = async () => {
+    if (!data) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(cardRef.current, {
-        scale:           2,
-        useCORS:         true,
-        backgroundColor: null,
-        logging:         false,
+      const activeFlows = selectedIds.length === 0
+        ? (data.perFlow ?? [])
+        : (data.perFlow ?? []).filter(f => selectedIds.includes(f.id));
+
+      const r = await fetch(`${API_BASE_URL}/api/report-studio/export`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+        body:    JSON.stringify({ data, reportType, cardFormat, insight, flows: activeFlows }),
       });
-      const link      = document.createElement("a");
-      link.download   = `iqpipe-${reportType}-${period}.png`;
-      link.href       = canvas.toDataURL("image/png");
+      if (!r.ok) throw new Error("Export failed");
+
+      const blob     = await r.blob();
+      const url      = URL.createObjectURL(blob);
+      const link     = document.createElement("a");
+      link.href      = url;
+      link.download  = `iqpipe-${reportType}-${period}.svg`;
       link.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export failed", err);
     } finally { setExporting(false); }
@@ -968,12 +992,12 @@ export default function ReportStudioPage() {
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col gap-2">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Export & share</div>
             <button
-              onClick={exportPNG}
+              onClick={exportSVG}
               disabled={exporting || !data}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold transition-all disabled:opacity-40"
             >
               <Download size={13} className={exporting ? "animate-bounce" : ""} />
-              {exporting ? "Exporting…" : "Export PNG"}
+              {exporting ? "Exporting…" : "Export SVG"}
             </button>
 
             {!shareToken ? (
@@ -1042,7 +1066,6 @@ export default function ReportStudioPage() {
           ) : (
             <div
               className={`w-full ${aspectClass} rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl shadow-indigo-500/5`}
-              ref={cardRef}
             >
               <ReportCard
                 reportType={reportType}

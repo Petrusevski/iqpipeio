@@ -355,6 +355,280 @@ router.get("/public/:token", async (req: Request, res: Response) => {
   });
 });
 
+// ── POST /api/report-studio/export ───────────────────────────────────────────
+// Returns a native SVG file — no screenshot, pure vector output.
+
+router.post("/export", (req: Request, res: Response) => {
+  const { data, reportType, cardFormat, insight, flows } =
+    req.body as {
+      data: ReportData; reportType: string; cardFormat: string;
+      insight?: string; flows?: PerFlowStat[];
+    };
+
+  if (!data) {
+    return res.status(400).json({ error: "data required" }) as any;
+  }
+
+  const svg      = generateSVG(data, reportType, cardFormat ?? "linkedin", insight ?? "", flows ?? []);
+  const filename = `iqpipe-${reportType}-${data.period}.svg`;
+
+  res.setHeader("Content-Type",        "image/svg+xml");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  return res.send(svg);
+});
+
+// ── SVG generator ─────────────────────────────────────────────────────────────
+
+type CardFormat = "linkedin" | "square" | "story";
+
+const CARD_SIZES: Record<CardFormat, { w: number; h: number }> = {
+  linkedin: { w: 1200, h: 627  },
+  square:   { w: 1080, h: 1080 },
+  story:    { w: 1080, h: 1920 },
+};
+
+const PERIOD_LABEL: Record<string, string> = {
+  "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days", "all": "All time",
+};
+
+const APP_DOMAIN_MAP: Record<string, string> = {
+  hubspot: "hubspot.com", salesforce: "salesforce.com", pipedrive: "pipedrive.com",
+  attio: "attio.com", instantly: "instantly.ai", lemlist: "lemlist.com",
+  smartlead: "smartlead.ai", heyreach: "heyreach.io", apollo: "apollo.io",
+  clay: "clay.com", stripe: "stripe.com", calendly: "calendly.com", slack: "slack.com",
+};
+
+// Pastel accent colours for app chips when no favicon is shown
+const APP_COLORS = [
+  "#6366f1","#8b5cf6","#06b6d4","#10b981","#f59e0b",
+  "#ef4444","#ec4899","#84cc16","#f97316","#14b8a6",
+];
+
+function xmlEscape(s: string): string {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1) + "…";
+}
+
+// Rounded rectangle helper
+function rrect(x: number, y: number, w: number, h: number, r: number, fill: string, opacity = 1): string {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="${fill}" opacity="${opacity}"/>`;
+}
+
+function svgText(
+  text: string, x: number, y: number,
+  opts: { size?: number; weight?: string; fill?: string; anchor?: string; opacity?: number } = {},
+): string {
+  const { size = 14, weight = "400", fill = "#ffffff", anchor = "start", opacity = 1 } = opts;
+  return `<text x="${x}" y="${y}" font-family="system-ui,-apple-system,BlinkMacSystemFont,sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}" opacity="${opacity}">${xmlEscape(text)}</text>`;
+}
+
+function generateBarChart(byDay: { date: string; count: number }[], x: number, y: number, w: number, h: number): string {
+  const bars  = byDay.slice(-14);
+  const max   = Math.max(...bars.map(b => b.count), 1);
+  const bw    = Math.floor(w / bars.length);
+  const gap   = Math.max(2, Math.floor(bw * 0.15));
+  const barW  = bw - gap;
+  let out = "";
+  bars.forEach((b, i) => {
+    const bh = Math.max(2, Math.round((b.count / max) * h));
+    const bx = x + i * bw + gap / 2;
+    const by = y + h - bh;
+    const op = 0.5 + (b.count / max) * 0.5;
+    out += `<rect x="${bx}" y="${by}" width="${barW}" height="${bh}" rx="3" fill="#6366f1" opacity="${op.toFixed(2)}"/>`;
+  });
+  return out;
+}
+
+function generateKPITile(label: string, value: string, x: number, y: number, w: number, h: number): string {
+  return [
+    rrect(x, y, w, h, 12, "#1e293b"),
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="#334155" opacity="0.3"/>`,
+    svgText(value, x + 20, y + h * 0.52 + 8, { size: Math.min(36, Math.floor(w * 0.22)), weight: "900" }),
+    svgText(label, x + 20, y + h * 0.52 + 28, { size: 13, fill: "#64748b" }),
+  ].join("\n");
+}
+
+function generateFlowRows(flows: PerFlowStat[], x: number, y: number, W: number, maxRows: number): string {
+  const visible  = flows.slice(0, maxRows);
+  const rowH     = 36;
+  const labelMap: Record<string, string> = { n8n: "n8n", make: "Make" };
+  const colorMap: Record<string, string> = { n8n: "#f97316", make: "#8b5cf6" };
+  let out = svgText("INCLUDED FLOWS", x, y - 8, { size: 10, fill: "#475569", weight: "700" });
+
+  visible.forEach((f, i) => {
+    const ry = y + i * (rowH + 4);
+    // Row background
+    out += rrect(x, ry, W - x * 2, rowH, 8, "#1e293b");
+
+    // Platform badge
+    const badgeColor = colorMap[f.platform] ?? "#6366f1";
+    out += rrect(x + 8, ry + 9, 32, 18, 4, badgeColor, 0.2);
+    out += svgText(labelMap[f.platform] ?? f.platform, x + 24, ry + 22, { size: 9, weight: "700", fill: badgeColor, anchor: "middle" });
+
+    // Name
+    out += svgText(truncate(f.name, 40), x + 50, ry + 22, { size: 11, weight: "600", fill: "#cbd5e1" });
+
+    // App dots (coloured circles with initial, no external img fetch needed)
+    const dotStart = W - x * 2 - 120;
+    f.appKeys.slice(0, 6).forEach((key, ki) => {
+      const dx = x + dotStart + ki * 18;
+      const dy = ry + rowH / 2;
+      const col = APP_COLORS[ki % APP_COLORS.length];
+      out += `<circle cx="${dx}" cy="${dy}" r="7" fill="${col}" opacity="0.7"/>`;
+      out += svgText((key[0] ?? "?").toUpperCase(), dx, dy + 4, { size: 7, weight: "700", fill: "#fff", anchor: "middle" });
+    });
+
+    // Event count + rate
+    const rateColor = f.successRate >= 80 ? "#34d399" : f.successRate >= 50 ? "#fbbf24" : "#f87171";
+    out += svgText(f.eventCount.toLocaleString(), W - x - 64, ry + 22, { size: 11, fill: "#94a3b8", anchor: "end" });
+    out += svgText(`${f.successRate}%`, W - x - 8, ry + 22, { size: 11, weight: "700", fill: rateColor, anchor: "end" });
+  });
+
+  const extra = flows.length - maxRows;
+  if (extra > 0) {
+    const ry = y + visible.length * (rowH + 4);
+    out += svgText(`+${extra} more flow${extra > 1 ? "s" : ""}`, x + 8, ry + 14, { size: 11, fill: "#475569" });
+  }
+
+  return out;
+}
+
+function generateSVG(
+  data: ReportData, reportType: string, cardFormat: string,
+  insight: string, flows: PerFlowStat[],
+): string {
+  const fmt = (["linkedin","square","story"].includes(cardFormat) ? cardFormat : "linkedin") as CardFormat;
+  const { w: W, h: H } = CARD_SIZES[fmt];
+  const PAD = 48;
+
+  // ── Background ──────────────────────────────────────────────────────────────
+  let body = `
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#020617"/>
+      <stop offset="60%"  stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0.7"/>
+    </linearGradient>
+    <radialGradient id="glow1" cx="90%" cy="5%" r="35%">
+      <stop offset="0%"   stop-color="#6366f1" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="5%" cy="95%" r="30%">
+      <stop offset="0%"   stop-color="#7c3aed" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="${W}" height="${H}" fill="url(#bg)"/>
+  <rect width="${W}" height="${H}" fill="url(#glow1)"/>
+  <rect width="${W}" height="${H}" fill="url(#glow2)"/>`;
+
+  // ── iqpipe logo (top right) ─────────────────────────────────────────────────
+  body += rrect(W - PAD - 88, 28, 36, 36, 8, "#6366f1", 0.2);
+  body += `<rect x="${W - PAD - 88}" y="28" width="36" height="36" rx="8" fill="#818cf8" opacity="0.1"/>`;
+  body += svgText("iq", W - PAD - 70, 52, { size: 14, weight: "800", fill: "#818cf8", anchor: "middle" });
+  body += svgText("iqpipe", W - PAD - 44, 52, { size: 16, weight: "800", fill: "#ffffff" });
+
+  // ── Header ──────────────────────────────────────────────────────────────────
+  const typeLabels: Record<string, string> = {
+    snapshot: "GTM PERFORMANCE REPORT", funnel: "OUTBOUND CAMPAIGN FUNNEL",
+    digest:   "WEEKLY GTM DIGEST",       revenue: "REVENUE SIGNAL",
+  };
+  const accentColors: Record<string, string> = {
+    snapshot: "#818cf8", funnel: "#a78bfa", digest: "#38bdf8", revenue: "#34d399",
+  };
+  const accent = accentColors[reportType] ?? "#818cf8";
+  body += svgText(typeLabels[reportType] ?? "GTM REPORT", PAD, 52, { size: 11, weight: "700", fill: accent });
+  body += svgText(truncate(data.workspace.name, 38), PAD, 96, { size: fmt === "story" ? 48 : 38, weight: "900" });
+  body += svgText(PERIOD_LABEL[data.period] ?? data.period, PAD, 124, { size: 15, fill: "#64748b" });
+
+  // ── KPI tiles ───────────────────────────────────────────────────────────────
+  const tileY   = 148;
+  const tileH   = 88;
+  const cols    = fmt === "story" ? 2 : 4;
+  const tileW   = Math.floor((W - PAD * 2 - (cols - 1) * 12) / cols);
+  const kpis    = [
+    { label: "Workflows",    value: String(data.workflows.total)          },
+    { label: "Events",       value: data.events.total.toLocaleString()    },
+    { label: "Success Rate", value: `${data.events.successRate}%`         },
+    { label: "Verified",     value: String(data.correlations.verified)    },
+  ];
+  if (fmt === "story") {
+    // 2×2 grid for story
+    kpis.forEach((k, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      body += generateKPITile(k.label, k.value, PAD + col * (tileW + 12), tileY + row * (tileH + 12), tileW, tileH);
+    });
+  } else {
+    kpis.forEach((k, i) => {
+      body += generateKPITile(k.label, k.value, PAD + i * (tileW + 12), tileY, tileW, tileH);
+    });
+  }
+
+  // ── Bar chart ───────────────────────────────────────────────────────────────
+  const chartTopY = fmt === "story" ? tileY + tileH * 2 + 36 : tileY + tileH + 24;
+  const chartH    = fmt === "story" ? 160 : 72;
+  body += rrect(PAD, chartTopY, W - PAD * 2, chartH + 32, 12, "#1e293b");
+  body += `<rect x="${PAD}" y="${chartTopY}" width="${W - PAD * 2}" height="${chartH + 32}" rx="12" fill="#334155" opacity="0.2"/>`;
+  body += svgText("Events · last 14 days", PAD + 16, chartTopY + 20, { size: 11, fill: "#475569" });
+  body += generateBarChart(data.events.byDay, PAD + 16, chartTopY + 28, W - PAD * 2 - 32, chartH);
+
+  // ── App chips ───────────────────────────────────────────────────────────────
+  const appsY = chartTopY + chartH + 56;
+  body += svgText("Active integrations", PAD, appsY - 8, { size: 10, fill: "#475569", weight: "700" });
+  data.topApps.slice(0, 8).forEach((a, i) => {
+    const chipW = 80, chipH = 26, chipX = PAD + i * (chipW + 8), chipY = appsY;
+    if (chipX + chipW > W - PAD) return;
+    const col = APP_COLORS[i % APP_COLORS.length];
+    body += rrect(chipX, chipY, chipW, chipH, 6, col, 0.12);
+    body += `<rect x="${chipX}" y="${chipY}" width="${chipW}" height="${chipH}" rx="6" fill="${col}" opacity="0.08"/>`;
+    body += `<circle cx="${chipX + 14}" cy="${chipY + 13}" r="6" fill="${col}" opacity="0.6"/>`;
+    body += svgText((a.appKey[0] ?? "?").toUpperCase(), chipX + 14, chipY + 17, { size: 7, weight: "700", anchor: "middle", fill: "#fff" });
+    body += svgText(truncate(a.appKey, 8), chipX + 25, chipY + 17, { size: 10, fill: "#cbd5e1" });
+    body += svgText(String(a.count), chipX + chipW - 8, chipY + 17, { size: 9, fill: "#64748b", anchor: "end" });
+  });
+
+  // ── Flow strip ──────────────────────────────────────────────────────────────
+  const flowsY = appsY + 42;
+  const maxRows = fmt === "story" ? 6 : fmt === "square" ? 4 : 2;
+  if (flows.length > 0) {
+    body += generateFlowRows(flows, PAD, flowsY, W, maxRows);
+  }
+
+  // ── AI insight ──────────────────────────────────────────────────────────────
+  if (insight) {
+    const insightY = flows.length > 0
+      ? flowsY + Math.min(flows.length, maxRows) * 40 + 20
+      : flowsY;
+    const insH = 48;
+    body += rrect(PAD, insightY, W - PAD * 2, insH, 10, accent, 0.08);
+    // Word-wrap rough split at ~100 chars
+    const words  = insight.split(" ");
+    let   line   = "";
+    const lines: string[] = [];
+    words.forEach(w => {
+      if ((line + " " + w).length > 100) { lines.push(line); line = w; }
+      else line = line ? line + " " + w : w;
+    });
+    if (line) lines.push(line);
+    lines.slice(0, 2).forEach((l, li) => {
+      body += svgText(l, PAD + 16, insightY + 18 + li * 18, { size: 12, fill: "#cbd5e1" });
+    });
+  }
+
+  // ── Footer ──────────────────────────────────────────────────────────────────
+  const footerParts = [];
+  if (data.kpis.contactsEngaged)  footerParts.push(`${data.kpis.contactsEngaged.toLocaleString()} contacts`);
+  if (data.kpis.meetingsBooked)   footerParts.push(`${data.kpis.meetingsBooked} meetings`);
+  if (data.kpis.dealsTracked)     footerParts.push(`${data.kpis.dealsTracked} deals`);
+  body += svgText(footerParts.join(" · "), PAD, H - 22, { size: 12, fill: "#334155" });
+  body += svgText("Verified by iqpipe.com", W - PAD, H - 22, { size: 11, fill: "#1e293b", anchor: "end" });
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}</svg>`;
+}
+
 // ── AI prompt builders ────────────────────────────────────────────────────────
 
 function buildAIPrompt(d: ReportData, type: string): string {
