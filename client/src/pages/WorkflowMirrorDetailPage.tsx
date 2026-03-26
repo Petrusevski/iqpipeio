@@ -531,98 +531,127 @@ function AppRow({
   const entry  = appKey ? catalog[appKey] : null;
   const domain = entry?.domain ?? guessDomain(appName);
 
+  const hasN8nEvents   = (n8nEvents?.count ?? 0) > 0;
+  const hasDirectConn  = conn?.status === "connected";
+
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        {/* ── Left: favicon + name + type/event chips ── */}
+        <div className="flex items-center gap-3 min-w-0">
           {!imgFailed
             ? <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
-                className="h-6 w-6 object-contain rounded" alt={appName}
+                className="h-6 w-6 object-contain rounded shrink-0" alt={appName}
                 onError={() => setImgFailed(true)} />
-            : <div className="h-6 w-6 rounded bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-400">
+            : <div className="h-6 w-6 rounded bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">
                 {appName[0]}
               </div>
           }
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-white">{appName}</p>
-            {entry ? (
-              <div className="flex items-center gap-1.5 mt-0.5">
+            {/* Connection type for catalog apps */}
+            {entry && (
+              <span className="flex items-center gap-1 text-[9px] mt-0.5">
                 {entry.connectionType === "webhook"
-                  ? <span className="flex items-center gap-1 text-[9px] text-sky-400"><Webhook size={9} />Webhook</span>
+                  ? <span className="flex items-center gap-1 text-sky-400"><Webhook size={9} />Webhook</span>
                   : entry.connectionType === "polling"
-                  ? <span className="flex items-center gap-1 text-[9px] text-amber-400"><RefreshCw size={9} />Polling</span>
-                  : <span className="flex items-center gap-1 text-[9px] text-violet-400"><Link2 size={9} />Webhook + API</span>
+                  ? <span className="flex items-center gap-1 text-amber-400"><RefreshCw size={9} />Polling</span>
+                  : <span className="flex items-center gap-1 text-violet-400"><Link2 size={9} />Webhook + API</span>
                 }
-              </div>
-            ) : n8nEvents && n8nEvents.count > 0 ? (
+              </span>
+            )}
+            {/* Event type chips (non-catalog apps with n8n events) */}
+            {!entry && hasN8nEvents && (
               <div className="flex flex-wrap gap-1 mt-1">
-                {n8nEvents.eventTypes.slice(0, 4).map(t => (
+                {n8nEvents!.eventTypes.slice(0, 4).map(t => (
                   <span key={t} className="text-[9px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-mono">{t}</span>
                 ))}
               </div>
-            ) : null}
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {conn?.status === "connected" && (
-            <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-              <CheckCircle2 size={11} />Connected
+        {/* ── Right: status badges + action buttons ── */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          {/* n8n event count — shown for ALL apps that have n8n data */}
+          {hasN8nEvents && (
+            <span className="flex items-center gap-1 text-[10px] text-emerald-400/80 bg-emerald-500/8 border border-emerald-500/15 rounded-lg px-2 py-1">
+              <Activity size={10} />{n8nEvents!.count} via n8n
             </span>
           )}
-          {/* Non-catalog app: show n8n event count OR "no events" */}
-          {!appKey && n8nEvents && n8nEvents.count > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/8 border border-emerald-500/15 rounded-lg px-2 py-1">
-              <Activity size={10} />{n8nEvents.count} via n8n
+          {/* Direct connection status */}
+          {hasDirectConn && (
+            <span className="flex items-center gap-1 text-[10px] text-indigo-400 bg-indigo-500/8 border border-indigo-500/20 rounded-lg px-2 py-1">
+              <CheckCircle2 size={10} />Direct
             </span>
           )}
-          {!appKey && (!n8nEvents || n8nEvents.count === 0) && (
+          {/* No data at all (non-catalog only) */}
+          {!appKey && !hasN8nEvents && !hasDirectConn && (
             <span className="flex items-center gap-1 text-[10px] text-slate-600">
               <Circle size={10} />No events yet
             </span>
           )}
-          {/* Connect button for catalog apps */}
-          {appKey && !conn && (
+
+          {/* Catalog app — connect / add more events */}
+          {appKey && !hasDirectConn && (
             <button onClick={() => setShowModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-medium transition-colors">
-              <Plug size={11} />Connect
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                hasN8nEvents
+                  ? "border border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/60"
+                  : "bg-indigo-600 hover:bg-indigo-500 text-white"
+              }`}>
+              <Plug size={11} />{hasN8nEvents ? "Add direct events" : "Connect"}
             </button>
           )}
-          {/* Manual connect for non-catalog apps */}
+          {/* Catalog app already connected — show disconnect */}
+          {appKey && hasDirectConn && (
+            <button onClick={() => onDisconnect(conn!.id)}
+              className="p-1.5 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
+              <Trash2 size={13} />
+            </button>
+          )}
+
+          {/* Non-catalog app — manual webhook connect */}
           {!appKey && (
             <button onClick={() => setShowGenericModal(true)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-700 text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
-              <Webhook size={9} />Manual connect
-            </button>
-          )}
-          {conn && (
-            <button onClick={() => onDisconnect(conn.id)}
-              className="p-1.5 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
-              <Trash2 size={13} />
+              <Webhook size={9} />{hasN8nEvents ? "Add inbound" : "Manual connect"}
             </button>
           )}
         </div>
       </div>
 
-      {/* Event selector — shown only when connected and catalog entry exists */}
-      {conn?.status === "connected" && entry && (
+      {/* ── Coverage gap notice for catalog apps with n8n events but no direct conn ── */}
+      {appKey && hasN8nEvents && !hasDirectConn && (
+        <div className="mt-3 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800/80 flex items-start gap-2">
+          <AlertTriangle size={11} className="text-amber-500/60 mt-0.5 shrink-0" />
+          <p className="text-[10px] text-slate-500 leading-relaxed">
+            iqpipe captures outbound events from <span className="text-slate-400">{appName}</span> via n8n.
+            To also receive inbound signals (replies, deals closed, meetings booked)
+            that aren't in your n8n flow, click <span className="text-indigo-400">Add direct events</span>.
+          </p>
+        </div>
+      )}
+
+      {/* ── Direct connection event selector ── */}
+      {hasDirectConn && entry && (
         <div className="mt-3 pt-3 border-t border-slate-800/60">
           <EventSelector
-            conn={conn} catalogEntry={entry}
+            conn={conn!} catalogEntry={entry}
             mirrorId={mirrorId} token={token} onUpdated={onEventsUpdated}
           />
-          {conn.lastEventAt && (
+          {conn!.lastEventAt && (
             <p className="text-[10px] text-slate-700 mt-2 flex items-center gap-1">
-              <Clock size={9} />Last event {fmtDate(conn.lastEventAt)}
+              <Clock size={9} />Last direct event {fmtDate(conn!.lastEventAt)}
             </p>
           )}
         </div>
       )}
 
-      {/* Last n8n event time for non-catalog apps */}
-      {!appKey && n8nEvents?.lastAt && (
+      {/* Last n8n event time */}
+      {hasN8nEvents && n8nEvents!.lastAt && !hasDirectConn && (
         <p className="text-[10px] text-slate-700 mt-2 flex items-center gap-1">
-          <Clock size={9} />Last n8n event {fmtDate(n8nEvents.lastAt)}
+          <Clock size={9} />Last n8n event {fmtDate(n8nEvents!.lastAt)}
         </p>
       )}
 
