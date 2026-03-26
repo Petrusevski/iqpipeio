@@ -13,7 +13,7 @@ import {
   Trophy, TrendingUp, RefreshCw, ChevronDown,
   Bot, Layers, AlertTriangle, CheckCircle2,
   BarChart3, DollarSign, Zap, ShieldCheck,
-  Network, Star, ArrowUpRight, Info,
+  Network, Star, ArrowUpRight, Info, Download,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -157,6 +157,12 @@ function PillarBar({ value }: { value: number }) {
   );
 }
 
+// ─── SVG export helper ────────────────────────────────────────────────────────
+
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkflowComparePage() {
@@ -267,11 +273,13 @@ export default function WorkflowComparePage() {
     scoreAbortRef.current = new AbortController();
 
     setLoadingScore(true);
+    // Use platform=all so the backend resolves n8n and make IDs from their
+    // respective tables — works for single-platform and mixed selections
     const params = new URLSearchParams({
       workspaceId: wsId,
       period,
       acv:         String(acv),
-      platform:    activePlatform,
+      platform:    "all",
     });
     selPlatformIds.forEach(id => params.append("ids[]", id));
 
@@ -297,7 +305,8 @@ export default function WorkflowComparePage() {
   }
 
   function selectAll() {
-    setSelected(new Set(platformItems.slice(0, 4).map(w => w.internalId)));
+    // Compare across both platforms — backend accepts platform=all with mixed IDs
+    setSelected(new Set(allSelectables.slice(0, 4).map(w => w.internalId)));
   }
 
   // ── Score data helpers ───────────────────────────────────────────────────────
@@ -328,6 +337,250 @@ export default function WorkflowComparePage() {
   const showMatrix      = selected.size >= 2;
 
   const currency = scoreData?.scoring_model?.leakage_config?.currency ?? "USD";
+
+  // ─── SVG Export ──────────────────────────────────────────────────────────────
+
+  function exportSVG() {
+    if (!scoreData || scoredItems.length < 2) return;
+
+    const n   = scoredItems.length;
+    const LW  = 178;   // label column width
+    const CW  = 208;   // data column width per workflow
+    const PX  = 22;    // outer horizontal padding
+    const PY  = 22;    // outer vertical padding
+    const IP  = 14;    // inner cell padding
+    const W   = PX * 2 + LW + CW * n;
+
+    // Color palette (dark theme)
+    const C = {
+      bg:      "#0f172a", card:    "#111827",
+      border:  "#1e293b", border2: "#334155",
+      white:   "#f8fafc", slate3:  "#94a3b8",
+      slate5:  "#64748b", slate7:  "#334155",
+      emerald: "#34d399", indigo:  "#818cf8",
+      amber:   "#fbbf24", orange:  "#fb923c",
+      rose:    "#fb7185",
+    };
+
+    const GRADE_CLR: Record<string, string> = {
+      A: C.emerald, B: C.indigo, C: C.amber, D: C.orange, F: C.rose,
+    };
+
+    const barColor = (v: number) =>
+      v >= 80 ? "#10b981" : v >= 60 ? "#6366f1" : v >= 40 ? "#f59e0b" : "#f43f5e";
+
+    // SVG primitive helpers
+    const Rect = (x: number, y: number, w: number, h: number, fill: string, rx = 0) =>
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" rx="${rx}"/>`;
+
+    const Tx = (x: number, y: number, txt: string, size: number, fill: string,
+      weight = "400", anchor = "start") =>
+      `<text x="${x}" y="${y}" font-size="${size}" fill="${fill}" font-weight="${weight}" text-anchor="${anchor}">${escapeXml(txt)}</text>`;
+
+    const HLine = (x1: number, y1: number, x2: number, y2: number, stroke = C.border, sw = 1) =>
+      `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}"/>`;
+
+    const VLine = (x: number, y1: number, y2: number) =>
+      HLine(x, y1, x, y2, C.border, 0.5);
+
+    const Bar = (x: number, y: number, val: number, bw = 94, bh = 5) => `
+      ${Rect(x, y, bw, bh, C.border, 2)}
+      ${Rect(x, y, Math.round(bw * val / 100), bh, barColor(val), 2)}`;
+
+    const GradeBadge = (cx: number, cy: number, grade: string) => {
+      const col = GRADE_CLR[grade] ?? C.rose;
+      return `<circle cx="${cx}" cy="${cy}" r="13" fill="${col}20" stroke="${col}60" stroke-width="1"/>
+      <text x="${cx}" y="${cy + 5}" font-size="12" fill="${col}" font-weight="700" text-anchor="middle">${grade}</text>`;
+    };
+
+    const colX = (i: number) => PX + LW + i * CW;
+
+    const elems: string[] = [];
+    let y = PY;
+
+    // ── Title bar
+    const TH = 48;
+    elems.push(Rect(PX, y, W - 2 * PX, TH, C.card, 12));
+    elems.push(Tx(PX + IP, y + 18, "iqpipe", 13, C.indigo, "700"));
+    elems.push(Tx(PX + IP, y + 35, "GTM Alpha Score — Workflow Comparison", 10, C.slate5));
+    const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    elems.push(Tx(W - PX - IP, y + 30, dateStr, 10, C.slate7, "400", "end"));
+    y += TH;
+
+    // ── Header row (per-workflow columns)
+    const HH = 92;
+    elems.push(Rect(PX, y, LW, HH, "#0d1526"));
+    elems.push(Tx(PX + IP, y + HH / 2 + 4, "GTM METRIC", 9, C.slate5, "600"));
+
+    for (let i = 0; i < n; i++) {
+      const wf  = scoredItems[i];
+      const isW = wf.id === winnerPlatformId;
+      const x0  = colX(i);
+      const gc  = GRADE_CLR[wf.grade] ?? C.rose;
+
+      if (isW) elems.push(Rect(x0, y, CW, HH, "#1e1b4b28"));
+      elems.push(Rect(x0 + 6, y + 6, CW - 12, HH - 12, isW ? "#1e1b4b40" : "#0f172050", 8));
+      elems.push(GradeBadge(x0 + IP + 13, y + 30, wf.grade));
+      elems.push(`<text x="${x0 + IP + 32}" y="${y + 42}" font-size="24" fill="${gc}" font-weight="900">${wf.alphaScore}<tspan font-size="9" fill="${C.slate7}" dy="-8"> / 100</tspan></text>`);
+
+      const maxLen  = Math.floor((CW - IP * 2) / 6.5);
+      const safeName = wf.name.length > maxLen ? wf.name.slice(0, maxLen - 1) + "\u2026" : wf.name;
+      elems.push(Tx(x0 + IP, y + 60, safeName, 10, C.white, "500"));
+      elems.push(Tx(x0 + IP, y + 74, wf.platform === "n8n" ? "n8n" : "Make.com", 8,
+        wf.platform === "n8n" ? C.orange : "#c084fc"));
+
+      if (isW) {
+        elems.push(Rect(x0 + CW - 62, y + 6, 56, 16, "#92400e28", 8));
+        elems.push(Tx(x0 + CW - 34, y + 18, "Best Stack", 8, C.amber, "600", "middle"));
+      }
+    }
+    elems.push(HLine(PX, y + HH, W - PX, y + HH));
+    y += HH;
+
+    // ── Pillar rows
+    const pillars = [
+      { key: "reliability",  label: "Reliability",         sub: "30% weight" },
+      { key: "throughput",   label: "Throughput",           sub: "25% weight" },
+      { key: "connectivity", label: "Connectivity Depth",   sub: "20% weight" },
+      { key: "criticality",  label: "Business Criticality", sub: "25% weight" },
+    ] as const;
+
+    const PH = 54;
+    for (let pi = 0; pi < pillars.length; pi++) {
+      const pillar = pillars[pi];
+      if (pi % 2 === 0) elems.push(Rect(PX, y, W - 2 * PX, PH, "#ffffff06"));
+      elems.push(Tx(PX + IP, y + 20, pillar.label, 11, C.slate3, "500"));
+      elems.push(Tx(PX + IP, y + 35, pillar.sub, 9, C.slate7));
+
+      const bestId = scoreData?.comparison?.[`best_${pillar.key}`] ?? null;
+      for (let i = 0; i < n; i++) {
+        const wf    = scoredItems[i];
+        const val   = wf.pillars[pillar.key as keyof PillarScores];
+        const isBest = wf.id === bestId;
+        const x0    = colX(i);
+        if (wf.id === winnerPlatformId) elems.push(Rect(x0, y, CW, PH, "#1e1b4b18"));
+        elems.push(Bar(x0 + IP, y + 16, val));
+        elems.push(Tx(x0 + IP + 98, y + 23, String(val), 11,
+          isBest ? C.emerald : C.slate3, isBest ? "600" : "400"));
+        if (isBest) elems.push(Tx(x0 + IP, y + 42, "\u25b2 Best", 9, C.emerald));
+      }
+      elems.push(HLine(PX, y + PH, W - PX, y + PH, C.border, 0.5));
+      y += PH;
+    }
+
+    // ── Detail rows
+    const DH = 34;
+    const detailRows: { label: string; fn: (wf: ScoredWorkflow) => string }[] = [
+      {
+        label: "Success / Failed / Total",
+        fn: (wf) => {
+          const m = wf.metrics.reliability;
+          return m.total > 0 ? `${m.done} / ${m.failed} / ${m.total}` : "\u2014";
+        },
+      },
+      {
+        label: "Outcome / Process events",
+        fn: (wf) => {
+          const m = wf.metrics.throughput;
+          return (m.outcomeEvents + m.processEvents) > 0
+            ? `${m.outcomeEvents} / ${m.processEvents}` : "\u2014";
+        },
+      },
+      {
+        label: "Last Active",
+        fn: (wf) => relativeTime(wf.lastEventAt),
+      },
+    ];
+
+    for (let ri = 0; ri < detailRows.length; ri++) {
+      const row = detailRows[ri];
+      if (ri % 2 === 0) elems.push(Rect(PX, y, W - 2 * PX, DH, "#ffffff04"));
+      elems.push(Tx(PX + IP + 8, y + DH / 2 + 4, row.label, 9, C.slate5));
+      for (let i = 0; i < n; i++) {
+        const wf = scoredItems[i];
+        const x0 = colX(i);
+        if (wf.id === winnerPlatformId) elems.push(Rect(x0, y, CW, DH, "#1e1b4b18"));
+        elems.push(Tx(x0 + IP, y + DH / 2 + 4, row.fn(wf), 10, C.slate3));
+      }
+      elems.push(HLine(PX, y + DH, W - PX, y + DH, C.border, 0.4));
+      y += DH;
+    }
+
+    // ── Leakage row
+    const LH = 64;
+    elems.push(Tx(PX + IP, y + 24, "Leakage Value", 11, C.white, "500"));
+    elems.push(Tx(PX + IP, y + 40, "Est. revenue lost from failures", 9, C.slate7));
+    for (let i = 0; i < n; i++) {
+      const wf      = scoredItems[i];
+      const loss    = wf.leakage.totalLoss;
+      const hasLoss = loss > 0;
+      const isLeast = scoredItems.every(wfx => wfx.leakage.totalLoss >= loss);
+      const x0      = colX(i);
+      if (wf.id === winnerPlatformId) elems.push(Rect(x0, y, CW, LH, "#1e1b4b18"));
+      if (hasLoss) {
+        elems.push(Tx(x0 + IP, y + 32, fmtCurrency(loss, currency), 15,
+          isLeast ? C.emerald : C.rose, "700"));
+        if (isLeast) elems.push(Tx(x0 + IP, y + 50, "\u25b2 Least leakage", 9, C.emerald));
+      } else {
+        elems.push(Tx(x0 + IP, y + 32, "\u2014", 14, C.slate7));
+        elems.push(Tx(x0 + IP, y + 50, "No failed events", 9, C.slate7));
+      }
+    }
+    elems.push(HLine(PX, y + LH, W - PX, y + LH));
+    y += LH;
+
+    // ── Winner row
+    const WH = 58;
+    elems.push(Rect(PX, y, W - 2 * PX, WH, "#1e1b4b14"));
+    elems.push(Tx(PX + IP, y + WH / 2, "GTM Alpha Winner", 11, C.white, "700"));
+    for (let i = 0; i < n; i++) {
+      const wf  = scoredItems[i];
+      const isW = wf.id === winnerPlatformId;
+      const x0  = colX(i);
+      if (isW) elems.push(Rect(x0, y, CW, WH, "#1e1b4b28"));
+      if (isW) {
+        elems.push(Tx(x0 + IP, y + WH / 2 - 6, "Best GTM Stack", 12, C.white, "700"));
+        elems.push(Tx(x0 + IP, y + WH / 2 + 11, `Alpha Score ${wf.alphaScore} / 100`, 9, C.indigo));
+      } else {
+        elems.push(Tx(x0 + IP, y + WH / 2 + 5, "\u2014", 12, C.slate7));
+      }
+    }
+    y += WH;
+
+    // ── Footer
+    const FH = 30;
+    elems.push(HLine(PX, y, W - PX, y, C.border, 0.5));
+    elems.push(Tx(PX + IP, y + 20,
+      `Leakage = failed events \u00d7 ACV ($${acv.toLocaleString()}) \u00d7 conversion probability per event type  \u00b7  Pillar scores normalized within selected set`,
+      8, C.slate7));
+    y += FH;
+
+    const totalH = y + PY;
+
+    // Vertical column dividers (run from below title bar to footer)
+    const vLines = Array.from({ length: n }, (_, i) =>
+      VLine(colX(i), PY + TH, totalH - PY));
+
+    const svgStr = [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${totalH}" viewBox="0 0 ${W} ${totalH}">`,
+      `<defs><style>text{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}</style></defs>`,
+      Rect(0, 0, W, totalH, C.bg),
+      `<rect x="${PX}" y="${PY}" width="${W - 2 * PX}" height="${totalH - 2 * PY}" fill="${C.card}" rx="16" stroke="${C.border}" stroke-width="1"/>`,
+      ...vLines,
+      ...elems,
+      `</svg>`,
+    ].join("\n");
+
+    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `gtm-compare-${new Date().toISOString().slice(0, 10)}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -451,10 +704,11 @@ export default function WorkflowComparePage() {
                   <span className={selected.size > 0 ? "text-indigo-400" : ""}>
                     {selected.size} / 4 selected
                   </span>
-                  {platformItems.length >= 2 && (
+                  {allSelectables.length >= 2 && (
                     <button
                       onClick={selectAll}
                       className="px-2.5 py-1 rounded-lg border border-slate-700 hover:border-slate-600 hover:text-slate-300 transition-colors"
+                      title="Compare top 4 across n8n and Make.com"
                     >
                       Compare All
                     </button>
@@ -563,13 +817,28 @@ export default function WorkflowComparePage() {
             {showMatrix && (
               <div className="space-y-4">
 
-                {/* Loading overlay */}
-                {loadingScore && (
-                  <div className="flex items-center gap-2 text-slate-500 text-sm">
-                    <RefreshCw size={13} className="animate-spin text-indigo-400" />
-                    Calculating GTM Alpha Scores…
-                  </div>
-                )}
+                {/* Matrix toolbar — export + loading state */}
+                <div className="flex items-center justify-between">
+                  {loadingScore ? (
+                    <div className="flex items-center gap-2 text-slate-500 text-sm">
+                      <RefreshCw size={13} className="animate-spin text-indigo-400" />
+                      Calculating GTM Alpha Scores…
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-600">
+                      {scoredItems.length} workflows · GTM Alpha Score
+                    </span>
+                  )}
+                  {!loadingScore && scoredItems.length >= 2 && (
+                    <button
+                      onClick={exportSVG}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-indigo-500/50 hover:bg-indigo-500/10 text-slate-400 hover:text-indigo-300 text-xs font-medium transition-all"
+                    >
+                      <Download size={12} />
+                      Export SVG
+                    </button>
+                  )}
+                </div>
 
                 {!loadingScore && scoredItems.length >= 2 && (
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
@@ -824,11 +1093,20 @@ export default function WorkflowComparePage() {
                       </table>
                     </div>
 
-                    {/* Footer — model info */}
-                    <div className="px-5 py-3 border-t border-slate-800 flex items-center gap-2 text-[10px] text-slate-700">
-                      <Info size={10} />
-                      Leakage = failed events × ACV (${acv.toLocaleString()}) × conversion probability per event type.
-                      All pillar scores are normalized within the selected set.
+                    {/* Footer — model info + export */}
+                    <div className="px-5 py-3 border-t border-slate-800 flex items-center justify-between gap-4 text-[10px] text-slate-700">
+                      <div className="flex items-center gap-2">
+                        <Info size={10} />
+                        Leakage = failed events × ACV (${acv.toLocaleString()}) × conversion probability per event type.
+                        All pillar scores are normalized within the selected set.
+                      </div>
+                      <button
+                        onClick={exportSVG}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-500/15 border border-slate-700 hover:border-indigo-500/40 text-slate-500 hover:text-indigo-300 text-[10px] font-medium transition-all shrink-0"
+                      >
+                        <Download size={10} />
+                        Export SVG
+                      </button>
                     </div>
                   </div>
                 )}

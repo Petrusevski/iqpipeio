@@ -195,11 +195,11 @@ export function parseWorkflowApps(nodes: any[]): { apps: string[]; nodeTypes: st
 
 // ── n8n REST API client ───────────────────────────────────────────────────────
 
-async function n8nGet(baseUrl: string, apiKey: string, path: string): Promise<any> {
+async function n8nGet(baseUrl: string, apiKey: string, path: string, timeoutMs = 15_000): Promise<any> {
   const url = `${baseUrl.replace(/\/$/, "")}/api/v1${path}`;
   const resp = await axios.get(url, {
     headers: { "X-N8N-API-KEY": apiKey, Accept: "application/json" },
-    timeout: 15_000,
+    timeout: timeoutMs,
   });
   return resp.data;
 }
@@ -471,6 +471,11 @@ function findAppForNode(nodeName: string, appsUsed: string[]): string | undefine
   return undefined;
 }
 
+// Per-execution item cap — prevents runaway memory/DB writes from giant payloads
+const MAX_ITEMS_PER_EXECUTION = 5_000;
+// Chunk size for createMany bulk inserts
+const INSERT_CHUNK_SIZE = 500;
+
 async function fetchExecutions(
   baseUrl: string,
   apiKey: string,
@@ -479,7 +484,8 @@ async function fetchExecutions(
 ): Promise<any[]> {
   try {
     const path = `/executions?workflowId=${encodeURIComponent(workflowId)}&status=success&limit=${limit}&includeData=true`;
-    const resp = await n8nGet(baseUrl, apiKey, path);
+    // Use a longer timeout for execution data fetches — payloads can be large
+    const resp = await n8nGet(baseUrl, apiKey, path, 60_000);
     return resp?.data ?? [];
   } catch (err: any) {
     console.warn(`[n8nExec] fetchExecutions error for workflow ${workflowId}:`, err.message);
@@ -539,6 +545,14 @@ async function processWorkflowExecutions(
   const appsUsed: string[] = JSON.parse(wfMeta.appsUsed || "[]");
   let queued = 0;
 
+  // Collect all rows to insert; bulk-write at the end instead of one-by-one
+  const toInsert: {
+    workspaceId: string; workflowId: string; stepId: string;
+    sourceApp: string; externalId: string; eventType: string;
+    contact: string; idempotencyKey: string;
+    sourceType: string; sourcePriority: number;
+  }[] = [];
+
   for (const exec of newExecs) {
     const execId = String(exec.id ?? "");
     const runData: Record<string, any[]> = exec?.data?.resultData?.runData ?? {};
@@ -557,6 +571,15 @@ async function processWorkflowExecutions(
       let itemIdx = 0;
       for (const item of items) {
         itemIdx++;
+
+        // Hard cap: skip items beyond the per-execution limit to prevent OOM
+        if (toInsert.length >= MAX_ITEMS_PER_EXECUTION) {
+          console.warn(
+            `[n8nExec] Workflow ${wfMeta.n8nId} exec ${execId}: hit ${MAX_ITEMS_PER_EXECUTION}-item cap, truncating`
+          );
+          break;
+        }
+
         const json = item?.json ?? item;
         if (!json || typeof json !== "object") continue;
 
@@ -574,37 +597,47 @@ async function processWorkflowExecutions(
           .digest("hex")
           .slice(0, 48);
 
-        const exists = await prisma.n8nQueuedEvent.findUnique({
-          where: { workspaceId_idempotencyKey: { workspaceId, idempotencyKey: iKey } },
-          select: { id: true },
+        toInsert.push({
+          workspaceId,
+          workflowId:     wfMeta.n8nId,
+          stepId:         nodeName,
+          sourceApp:      appName || "n8n",
+          externalId:     contact.email ?? contact.linkedin ?? iKey,
+          eventType,
+          contact: JSON.stringify({
+            email:        contact.email        ?? null,
+            linkedin_url: contact.linkedin     ?? null,
+            phone:        contact.phone        ?? null,
+            first_name:   contact.firstName    ?? null,
+            last_name:    contact.lastName     ?? null,
+            company:      contact.company      ?? null,
+            title:        contact.title        ?? null,
+          }),
+          idempotencyKey: iKey,
+          sourceType:     "n8n_workflow",
+          sourcePriority: 3,
         });
-        if (exists) continue;
-
-        await prisma.n8nQueuedEvent.create({
-          data: {
-            workspaceId,
-            workflowId:     wfMeta.n8nId,
-            stepId:         nodeName,
-            sourceApp:      appName || "n8n",
-            externalId:     contact.email ?? contact.linkedin ?? iKey,
-            eventType,
-            contact: JSON.stringify({
-              email:        contact.email        ?? null,
-              linkedin_url: contact.linkedin     ?? null,
-              phone:        contact.phone        ?? null,
-              first_name:   contact.firstName    ?? null,
-              last_name:    contact.lastName     ?? null,
-              company:      contact.company      ?? null,
-              title:        contact.title        ?? null,
-            }),
-            idempotencyKey: iKey,
-            sourceType:     "n8n_workflow",
-            sourcePriority: 3,
-          },
-        });
-        queued++;
       }
+
+      // Break outer node loop too if we've hit the cap
+      if (toInsert.length >= MAX_ITEMS_PER_EXECUTION) break;
     }
+  }
+
+  // Bulk insert in chunks of INSERT_CHUNK_SIZE — skipDuplicates handles idempotency
+  for (let i = 0; i < toInsert.length; i += INSERT_CHUNK_SIZE) {
+    const chunk = toInsert.slice(i, i + INSERT_CHUNK_SIZE);
+    const result = await prisma.n8nQueuedEvent.createMany({
+      data:           chunk,
+      skipDuplicates: true,
+    });
+    queued += result.count;
+  }
+
+  if (toInsert.length > 0) {
+    console.log(
+      `[n8nExec] Workflow ${wfMeta.n8nId}: prepared ${toInsert.length} candidates, inserted ${queued} new events`
+    );
   }
 
   // Advance cursor to the newest execution we just processed

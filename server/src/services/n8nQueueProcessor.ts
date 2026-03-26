@@ -18,7 +18,8 @@
 import { prisma } from "../db";
 import { resolveIqLead, recordTouchpoint } from "../utils/identity";
 
-const BATCH_SIZE     = 10;
+const BATCH_SIZE     = 50;    // events claimed per tick
+const CONCURRENCY    = 5;     // events processed in parallel within a batch
 const POLL_MS        = 15_000; // check queue every 15 seconds
 const MAX_ATTEMPTS   = 5;
 
@@ -143,13 +144,66 @@ async function processQueuedEvent(event: any): Promise<void> {
 }
 
 /**
+ * Process a single queued event with full retry/dead-letter handling.
+ */
+async function processOne(event: any): Promise<void> {
+  try {
+    await processQueuedEvent(event);
+
+    await prisma.n8nQueuedEvent.update({
+      where: { id: event.id },
+      data:  { status: "done", processedAt: new Date(), lastError: null },
+    });
+  } catch (err: any) {
+    const attempts = event.attempts + 1;
+    const failed   = attempts >= MAX_ATTEMPTS;
+
+    console.error(
+      `[n8nQueue] Failed event ${event.id} (attempt ${attempts}/${MAX_ATTEMPTS}):`,
+      err.message,
+    );
+
+    await prisma.n8nQueuedEvent.update({
+      where: { id: event.id },
+      data: {
+        status:      failed ? "failed" : "pending",
+        attempts,
+        lastError:   err.message?.slice(0, 500),
+        nextRetryAt: failed ? null : nextRetryAt(attempts),
+      },
+    });
+
+    if (failed) {
+      // Mirror to dead-letter table for visibility in Settings panel
+      await prisma.webhookError.create({
+        data: {
+          workspaceId: event.workspaceId,
+          source:      `n8n:${event.workflowId}`,
+          payload:     JSON.stringify({
+            workflowId: event.workflowId,
+            stepId:     event.stepId,
+            sourceApp:  event.sourceApp,
+            externalId: event.externalId,
+            eventType:  event.eventType,
+            contact:    event.contact,
+            meta:       event.meta,
+          }).slice(0, 10_000),
+          errorCode:   "QUEUE_MAX_RETRIES",
+          errorDetail: err.message?.slice(0, 1_000),
+          retryCount:  attempts,
+        },
+      }).catch(() => {});
+    }
+  }
+}
+
+/**
  * Process one batch of pending events from the queue.
+ * Events within the batch are processed with limited concurrency.
  */
 async function processBatch(): Promise<void> {
   const now = new Date();
 
-  // Claim a batch atomically: mark as "processing" before reading
-  // (SQLite doesn't support SELECT FOR UPDATE, so we use a two-step approach)
   const pending = await prisma.n8nQueuedEvent.findMany({
     where: {
       status: "pending",
@@ -164,62 +218,23 @@ async function processBatch(): Promise<void> {
 
   if (pending.length === 0) return;
 
-  // Mark batch as "processing"
+  // Mark batch as "processing" before starting work
   await prisma.n8nQueuedEvent.updateMany({
     where: { id: { in: pending.map(e => e.id) } },
     data:  { status: "processing" },
   });
 
-  for (const event of pending) {
-    try {
-      await processQueuedEvent(event);
-
-      await prisma.n8nQueuedEvent.update({
-        where: { id: event.id },
-        data:  { status: "done", processedAt: new Date(), lastError: null },
-      });
-    } catch (err: any) {
-      const attempts = event.attempts + 1;
-      const failed   = attempts >= MAX_ATTEMPTS;
-
-      console.error(
-        `[n8nQueue] Failed event ${event.id} (attempt ${attempts}/${MAX_ATTEMPTS}):`,
-        err.message,
-      );
-
-      await prisma.n8nQueuedEvent.update({
-        where: { id: event.id },
-        data: {
-          status:      failed ? "failed" : "pending",
-          attempts,
-          lastError:   err.message?.slice(0, 500),
-          nextRetryAt: failed ? null : nextRetryAt(attempts),
-        },
-      });
-
-      if (failed) {
-        // Mirror to dead-letter table for visibility in Settings panel
-        await prisma.webhookError.create({
-          data: {
-            workspaceId: event.workspaceId,
-            source:      `n8n:${event.workflowId}`,
-            payload:     JSON.stringify({
-              workflowId: event.workflowId,
-              stepId:     event.stepId,
-              sourceApp:  event.sourceApp,
-              externalId: event.externalId,
-              eventType:  event.eventType,
-              contact:    event.contact,
-              meta:       event.meta,
-            }).slice(0, 10_000),
-            errorCode:   "QUEUE_MAX_RETRIES",
-            errorDetail: err.message?.slice(0, 1_000),
-            retryCount:  attempts,
-          },
-        }).catch(() => {});
+  // Process with bounded concurrency: CONCURRENCY workers drain the queue
+  const queue = [...pending];
+  await Promise.allSettled(
+    Array.from({ length: Math.min(CONCURRENCY, pending.length) }, async () => {
+      while (queue.length > 0) {
+        const event = queue.shift();
+        if (!event) break;
+        await processOne(event);
       }
-    }
-  }
+    })
+  );
 }
 
 export function startN8nQueueProcessor(): void {
