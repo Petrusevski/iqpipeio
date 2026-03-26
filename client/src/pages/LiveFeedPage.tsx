@@ -665,16 +665,37 @@ function SnapshotModal({
 
   useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl]);
 
-  const downloadSVG = () => {
-    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = `gtm-stack-${new Date().toISOString().slice(0, 10)}.svg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+  const downloadPNG = async () => {
+    // Parse SVG dimensions from the string
+    const wMatch = svgStr.match(/\bwidth="(\d+)"/);
+    const hMatch = svgStr.match(/\bheight="(\d+)"/);
+    const svgW   = wMatch ? parseInt(wMatch[1], 10) : 1200;
+    const svgH   = hMatch ? parseInt(hMatch[1], 10) : 600;
+
+    const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl  = URL.createObjectURL(svgBlob);
+    const img     = new Image();
+    img.onload = () => {
+      const canvas  = document.createElement("canvas");
+      canvas.width  = svgW * 2;
+      canvas.height = svgH * 2;
+      const ctx = canvas.getContext("2d")!;
+      ctx.scale(2, 2);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(svgUrl);
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement("a");
+        a.href     = url;
+        a.download = `gtm-stack-${new Date().toISOString().slice(0, 10)}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      }, "image/png");
+    };
+    img.src = svgUrl;
   };
 
   const copyCaption = async () => {
@@ -719,11 +740,11 @@ function SnapshotModal({
           {/* Download button */}
           <div className="px-5 pt-4">
             <button
-              onClick={downloadSVG}
+              onClick={downloadPNG}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download SVG
+              Download PNG
             </button>
           </div>
 

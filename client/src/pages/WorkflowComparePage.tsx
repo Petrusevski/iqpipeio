@@ -214,6 +214,28 @@ async function fetchAsBase64(url: string): Promise<string | null> {
   }
 }
 
+// ─── SVG → PNG helper ─────────────────────────────────────────────────────────
+
+function svgToPng(svgStr: string, w: number, h: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const svgBlob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+    const url     = URL.createObjectURL(svgBlob);
+    const img     = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width  = w * 2;   // 2× for retina
+      canvas.height = h * 2;
+      const ctx = canvas.getContext("2d")!;
+      ctx.scale(2, 2);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("toBlob failed")), "image/png");
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("SVG load failed")); };
+    img.src = url;
+  });
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkflowComparePage() {
@@ -723,11 +745,12 @@ export default function WorkflowComparePage() {
       `</svg>`,
     ].join("\n");
 
-    const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
+    // Render SVG to PNG via canvas
+    const pngBlob = await svgToPng(svgStr, W, totalH);
+    const url = URL.createObjectURL(pngBlob);
+    const a   = document.createElement("a");
     a.href     = url;
-    a.download = `gtm-compare-${new Date().toISOString().slice(0, 10)}.svg`;
+    a.download = `gtm-compare-${new Date().toISOString().slice(0, 10)}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1313,7 +1336,7 @@ export default function WorkflowComparePage() {
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-500/15 border border-slate-700 hover:border-indigo-500/40 text-slate-500 hover:text-indigo-300 text-[10px] font-medium transition-all shrink-0"
                       >
                         <Download size={10} />
-                        Export SVG
+                        Export PNG
                       </button>
                     </div>
                   </div>
