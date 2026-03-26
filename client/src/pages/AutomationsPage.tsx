@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   Bot, RefreshCw, AlertTriangle, XCircle, Layers,
   ChevronRight, Workflow, X, Play, Settings2, CheckCircle2,
+  Zap, GitBranch,
 } from "lucide-react";
 import MakeSetupGuide from "../components/MakeSetupGuide";
 import { API_BASE_URL } from "../../config";
@@ -60,6 +62,306 @@ function triggerLabel(type: string) {
     webhook: "Webhook", schedule: "Schedule", email: "Email", event: "Event", manual: "Manual",
   };
   return labels[type] ?? type;
+}
+
+// ─── Demo clone animation ─────────────────────────────────────────────────────
+
+const DEMO_N8N = [
+  { name: "Full-Funnel Cold Outbound",        apps: ["Apollo", "Clay", "HeyReach", "Instantly", "HubSpot", "Stripe"],           trigger: "schedule" },
+  { name: "Email Enrichment Pipeline",         apps: ["ZoomInfo", "People Data Labs", "Clay", "Smartlead", "Lemlist"],           trigger: "schedule" },
+  { name: "Deal Closed → Revenue Activation", apps: ["HubSpot", "Stripe", "Chargebee", "Slack", "Outreach"],                   trigger: "webhook"  },
+  { name: "Inbound Lead Score & Route",        apps: ["HubSpot", "Clearbit", "Calendly", "Salesforce", "Pipedrive", "Slack"],   trigger: "webhook"  },
+];
+
+const DEMO_MAKE = [
+  { name: "Account-Based Outreach Pipeline", apps: ["Apollo", "Lusha", "Attio", "Outreach", "HubSpot"],             trigger: "schedule" },
+  { name: "Payment Failure Recovery",         apps: ["Stripe", "HubSpot", "Lemlist", "Slack", "Chargebee"],          trigger: "webhook"  },
+];
+
+const APP_DOMAIN: Record<string, string> = {
+  apollo: "apollo.io", clay: "clay.com", heyreach: "heyreach.io",
+  instantly: "instantly.ai", hubspot: "hubspot.com", stripe: "stripe.com",
+  zoominfo: "zoominfo.com", "people data labs": "peopledatalabs.com",
+  smartlead: "smartlead.ai", lemlist: "lemlist.com", chargebee: "chargebee.com",
+  slack: "slack.com", outreach: "outreach.io", clearbit: "clearbit.com",
+  calendly: "calendly.com", salesforce: "salesforce.com", pipedrive: "pipedrive.com",
+  lusha: "lusha.com", attio: "attio.com",
+};
+
+function appDomain(name: string): string {
+  return APP_DOMAIN[name.toLowerCase()] ?? name.toLowerCase().replace(/\s+/g, "") + ".com";
+}
+
+function DemoAppNode({ name, visible }: { name: string; visible: boolean }) {
+  return (
+    <div
+      style={{
+        transition: "opacity 0.35s ease, transform 0.35s ease",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0) scale(1)" : "translateY(6px) scale(0.92)",
+      }}
+      className="flex flex-col items-center gap-1"
+    >
+      <div className="h-10 w-10 rounded-xl bg-slate-800 border border-slate-600/50 flex items-center justify-center shadow-md shadow-black/30">
+        <img
+          src={`${API_BASE_URL}/api/proxy/favicon?domain=${appDomain(name)}`}
+          style={{ width: 18, height: 18, objectFit: "contain" }}
+          alt={name}
+          onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
+      </div>
+      <span className="text-[8px] text-slate-500 max-w-[40px] text-center truncate leading-tight">{name}</span>
+    </div>
+  );
+}
+
+function DemoFlowCard({
+  name, apps, trigger, platform, visibleApps, revealed,
+}: {
+  name: string; apps: string[]; trigger: string;
+  platform: "n8n" | "make"; visibleApps: number; revealed: boolean;
+}) {
+  const platformColor = platform === "n8n" ? "text-fuchsia-400 bg-fuchsia-500/10 border-fuchsia-500/20" : "text-orange-400 bg-orange-500/10 border-orange-500/20";
+  const triggerIcons: Record<string, string> = { webhook: "⚡", schedule: "⏱", manual: "▶" };
+
+  return (
+    <div
+      style={{
+        transition: "opacity 0.5s ease, transform 0.5s ease",
+        opacity: revealed ? 1 : 0,
+        transform: revealed ? "translateY(0)" : "translateY(12px)",
+      }}
+      className="bg-slate-900 border border-slate-700/60 rounded-2xl p-4 shadow-xl shadow-black/30"
+    >
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+            <GitBranch size={14} className="text-slate-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-white truncate leading-tight">{name}</p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${platformColor}`}>
+                {platform === "n8n" ? "n8n" : "Make.com"}
+              </span>
+              <span className="text-[9px] text-slate-600">{triggerIcons[trigger] ?? "▶"} {trigger}</span>
+            </div>
+          </div>
+        </div>
+        <span className="flex items-center gap-1 text-[9px] text-emerald-400 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Active
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {apps.map((app, i) => (
+          <DemoAppNode key={app} name={app} visible={visibleApps > i} />
+        ))}
+        {/* scanning indicator on last visible */}
+        {visibleApps < apps.length && visibleApps > 0 && (
+          <div className="flex flex-col items-center gap-1">
+            <div className="h-10 w-10 rounded-xl bg-slate-800/50 border border-indigo-500/30 flex items-center justify-center">
+              <div className="w-3 h-3 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DemoCloneAnimation({ onDone }: { onDone: () => void }) {
+  // Each phase: reveal the card then drip in apps
+  // phases: init → n8n_conn → n8n_wf_{0..3} → make_conn → make_sc_{0,1} → done
+  type Phase = "init" | "n8n_conn" | "n8n_wfs" | "make_conn" | "make_scs" | "done";
+  const [phase,         setPhase]         = useState<Phase>("init");
+  const [connLine,      setConnLine]      = useState("");
+  const [n8nChecked,    setN8nChecked]    = useState(false);
+  const [makeChecked,   setMakeChecked]   = useState(false);
+  const [revealedN8n,   setRevealedN8n]   = useState(0);   // how many n8n cards shown
+  const [n8nAppCounts,  setN8nAppCounts]  = useState<number[]>([0, 0, 0, 0]);
+  const [revealedMake,  setRevealedMake]  = useState(0);
+  const [makeAppCounts, setMakeAppCounts] = useState<number[]>([0, 0]);
+  const [exiting,       setExiting]       = useState(false);
+  const timers = useRef<number[]>([]);
+
+  function after(ms: number, fn: () => void) {
+    const t = window.setTimeout(fn, ms);
+    timers.current.push(t);
+  }
+
+  useEffect(() => {
+    // Phase: init
+    after(400, () => {
+      setPhase("n8n_conn");
+      setConnLine("Connecting to n8n instance…");
+    });
+    after(1400, () => {
+      setN8nChecked(true);
+      setConnLine("n8n connected — 4 workflows found");
+    });
+    after(2000, () => {
+      setPhase("n8n_wfs");
+      // Reveal cards + drip apps for each n8n workflow
+      let t = 2000;
+      DEMO_N8N.forEach((wf, wi) => {
+        after(t - 2000 + 300, () => setRevealedN8n(wi + 1));
+        wf.apps.forEach((_, ai) => {
+          after(t - 2000 + 300 + (ai + 1) * 180, () => {
+            setN8nAppCounts(prev => {
+              const next = [...prev];
+              next[wi] = ai + 1;
+              return next;
+            });
+          });
+        });
+        t += 300 + wf.apps.length * 180 + 200;
+      });
+
+      // Make.com phase
+      after(t - 2000 + 200, () => {
+        setPhase("make_conn");
+        setConnLine("Connecting to Make.com…");
+      });
+      after(t - 2000 + 1200, () => {
+        setMakeChecked(true);
+        setConnLine("Make.com connected — 2 scenarios found");
+      });
+      after(t - 2000 + 1700, () => {
+        setPhase("make_scs");
+        let mt = t - 2000 + 1700;
+        DEMO_MAKE.forEach((sc, si) => {
+          after(mt - (t - 2000 + 1700) + 250, () => setRevealedMake(si + 1));
+          sc.apps.forEach((_, ai) => {
+            after(mt - (t - 2000 + 1700) + 250 + (ai + 1) * 180, () => {
+              setMakeAppCounts(prev => {
+                const next = [...prev];
+                next[si] = ai + 1;
+                return next;
+              });
+            });
+          });
+          mt += 250 + sc.apps.length * 180 + 200;
+        });
+
+        // Done
+        after(mt - (t - 2000 + 1700) + 800, () => {
+          setPhase("done");
+          setExiting(true);
+          after(700, onDone);
+        });
+      });
+    });
+
+    return () => timers.current.forEach(window.clearTimeout);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-950 overflow-y-auto"
+      style={{
+        transition: "opacity 0.6s ease",
+        opacity: exiting ? 0 : 1,
+      }}
+    >
+      <div className="max-w-3xl mx-auto px-6 py-12 space-y-8">
+
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-2 text-indigo-400 mb-3">
+            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+            <span className="text-xs font-mono tracking-widest uppercase">iqpipe · flow mirror</span>
+          </div>
+          <h1 className="text-2xl font-black text-white">Rebuilding your automation stack</h1>
+          <p className="text-sm text-slate-500">iqpipe is scanning your connected workflows and cloning their app graph.</p>
+        </div>
+
+        {/* Connection status line */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl px-5 py-3 flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-indigo-500 shrink-0 animate-pulse" />
+          <span className="text-xs font-mono text-slate-400 flex-1">{connLine || "Initialising…"}</span>
+          {(n8nChecked || makeChecked) && (
+            <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+          )}
+        </div>
+
+        {/* n8n section */}
+        {(phase === "n8n_conn" || phase === "n8n_wfs" || phase === "make_conn" || phase === "make_scs" || phase === "done") && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <img
+                src={`${API_BASE_URL}/api/proxy/favicon?domain=n8n.io`}
+                style={{ width: 16, height: 16, objectFit: "contain" }}
+                alt="n8n"
+              />
+              <span className="text-xs font-bold text-white">n8n</span>
+              {n8nChecked && (
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400 ml-1">
+                  <CheckCircle2 size={10} />Connected · {DEMO_N8N.length} workflows
+                </span>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DEMO_N8N.map((wf, i) => (
+                <DemoFlowCard
+                  key={wf.name}
+                  name={wf.name}
+                  apps={wf.apps}
+                  trigger={wf.trigger}
+                  platform="n8n"
+                  revealed={revealedN8n > i}
+                  visibleApps={n8nAppCounts[i] ?? 0}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Make.com section */}
+        {(phase === "make_conn" || phase === "make_scs" || phase === "done") && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <img
+                src={`${API_BASE_URL}/api/proxy/favicon?domain=make.com`}
+                style={{ width: 16, height: 16, objectFit: "contain" }}
+                alt="Make.com"
+              />
+              <span className="text-xs font-bold text-white">Make.com</span>
+              {makeChecked && (
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400 ml-1">
+                  <CheckCircle2 size={10} />Connected · {DEMO_MAKE.length} scenarios
+                </span>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {DEMO_MAKE.map((sc, i) => (
+                <DemoFlowCard
+                  key={sc.name}
+                  name={sc.name}
+                  apps={sc.apps}
+                  trigger={sc.trigger}
+                  platform="make"
+                  revealed={revealedMake > i}
+                  visibleApps={makeAppCounts[i] ?? 0}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Skip button */}
+        <div className="flex justify-center pt-4">
+          <button
+            onClick={() => { setExiting(true); window.setTimeout(onDone, 600); }}
+            className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
+          >
+            Skip animation →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Configure Events Modal (n8n) ─────────────────────────────────────────────
@@ -179,6 +481,10 @@ function ConfigureEventsModal({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AutomationsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [showDemoAnim, setShowDemoAnim] = useState(searchParams.get("demo") === "1");
+
   const [workspaceId, setWorkspaceId] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState<"n8n" | "make" | null>(null);
 
@@ -389,6 +695,15 @@ export default function AutomationsPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-6 py-6 space-y-6 max-w-4xl">
+
+      {/* Demo clone animation */}
+      {showDemoAnim && (
+        <DemoCloneAnimation onDone={() => {
+          setShowDemoAnim(false);
+          searchParams.delete("demo");
+          setSearchParams(searchParams, { replace: true });
+        }} />
+      )}
 
       {/* Configure Events modal */}
       {configWf && (

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -889,6 +890,7 @@ function PushNotificationsPanel() {
 // ─── Demo Data Panel ──────────────────────────────────────────────────────────
 
 function DemoDataPanel() {
+  const navigate = useNavigate();
   const [status, setStatus]   = useState<"checking" | "empty" | "seeded" | "loading" | "removing" | "error">("checking");
   const [info,   setInfo]     = useState<{ iqLeads: number; integrations: number } | null>(null);
   const [msg,    setMsg]      = useState("");
@@ -921,7 +923,7 @@ function DemoDataPanel() {
       if (d.seeded || d.skipped) {
         setInfo({ iqLeads: d.iqLeads ?? info?.iqLeads ?? 0, integrations: d.integrations?.total ?? info?.integrations ?? 0 });
         setStatus("seeded");
-        setMsg("Demo data loaded. Refresh any page to see it.");
+        navigate("/automations?demo=1");
       } else {
         setStatus("error");
         setMsg(d.error ?? "Failed to load demo data.");
