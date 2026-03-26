@@ -44,6 +44,10 @@ export interface ReportData {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function safeParseJson<T>(val: string, fallback: T): T {
+  try { return JSON.parse(val) as T; } catch { return fallback; }
+}
+
 function periodToDate(period: string): Date | null {
   const map: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
   const days = map[period];
@@ -89,13 +93,10 @@ router.get("/data", async (req: Request, res: Response) => {
     prisma.makeScenarioMeta.findMany({ where: { workspaceId } }),
   ]);
 
-  const scores = [
-    ...n8nWorkflows.map(w => w.healthScore ?? 0),
-    ...makeScenarios.map(s => s.healthScore ?? 0),
-  ];
-  const avgHealthScore = scores.length
-    ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-    : 0;
+  // Neither model has a healthScore column — derive a simple proxy from active status
+  const activeCount = n8nWorkflows.filter(w => w.active).length + makeScenarios.filter(s => s.active).length;
+  const totalWf     = n8nWorkflows.length + makeScenarios.length;
+  const avgHealthScore = totalWf > 0 ? Math.round((activeCount / totalWf) * 100) : 0;
 
   // ── Events (n8n queue) ────────────────────────────────────────────────────
   const eventsRaw = await prisma.n8nQueuedEvent.findMany({
@@ -175,13 +176,13 @@ router.get("/data", async (req: Request, res: Response) => {
       list: [
         ...n8nWorkflows.map(w => ({
           name: w.name, platform: "n8n",
-          appsUsed: (w.appsUsed as string[]) ?? [],
-          healthScore: w.healthScore ?? 0,
+          appsUsed: safeParseJson<string[]>(w.appsUsed, []),
+          healthScore: w.active ? 100 : 0,
         })),
         ...makeScenarios.map(s => ({
           name: s.name, platform: "make",
-          appsUsed: [],
-          healthScore: s.healthScore ?? 0,
+          appsUsed: safeParseJson<string[]>(s.appsUsed, []),
+          healthScore: s.active ? 100 : 0,
         })),
       ],
     },
