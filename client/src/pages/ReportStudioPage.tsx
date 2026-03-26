@@ -70,10 +70,10 @@ const REPORT_TYPES: { key: ReportType; label: string; icon: typeof LayoutDashboa
   { key: "revenue",  icon: Zap,             label: "Revenue Signal",  desc: "Cross-verified deal & meeting attribution" },
 ];
 
-const FORMAT_LABELS: Record<CardFormat, { label: string; aspect: string; size: string }> = {
-  linkedin: { label: "LinkedIn",  aspect: "aspect-[1.91/1]", size: "1200 × 627" },
-  square:   { label: "Square",    aspect: "aspect-square",   size: "1080 × 1080" },
-  story:    { label: "Story",     aspect: "aspect-[9/16]",   size: "1080 × 1920" },
+const FORMAT_LABELS: Record<CardFormat, { label: string; size: string }> = {
+  linkedin: { label: "LinkedIn", size: "1200 × 627"  },
+  square:   { label: "Square",   size: "1080 × 1080" },
+  story:    { label: "Story",    size: "1080 × 1920" },
 };
 
 const PERIOD_LABELS: Record<Period, string> = {
@@ -264,8 +264,8 @@ function SnapshotCard({ data, insight, format, activeFlows }: { data: ReportData
       )}
 
       {/* Selected flows */}
-      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} cardFormat={format} />
+      {activeFlows.length > 0 && (
+        <FlowStrip flows={activeFlows} />
       )}
 
       {/* AI insight */}
@@ -328,8 +328,8 @@ function FunnelCard({ data, insight, format, activeFlows }: { data: ReportData; 
         <FunnelSVG steps={data.funnelSteps} />
       </div>
 
-      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} cardFormat={format} />
+      {activeFlows.length > 0 && (
+        <FlowStrip flows={activeFlows} />
       )}
 
       {insight && (
@@ -408,8 +408,8 @@ function DigestCard({ data, insight, format, activeFlows }: { data: ReportData; 
         </div>
       )}
 
-      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} cardFormat={format} />
+      {activeFlows.length > 0 && (
+        <FlowStrip flows={activeFlows} />
       )}
 
       <div className="relative flex items-center justify-between">
@@ -490,8 +490,8 @@ function RevenueCard({ data, insight, format, activeFlows }: { data: ReportData;
         </div>
       </div>
 
-      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
-        <FlowStrip flows={activeFlows} cardFormat={format} />
+      {activeFlows.length > 0 && (
+        <FlowStrip flows={activeFlows} />
       )}
 
       {insight && (
@@ -631,23 +631,14 @@ function FlowSelector({
 
 // ── Selected flows strip (shared across card types) ───────────────────────────
 
-const MAX_FLOW_ROWS: Record<CardFormat, number> = {
-  linkedin: 2,
-  square:   4,
-  story:    6,
-};
-
-function FlowStrip({ flows, cardFormat }: { flows: PerFlowStat[]; cardFormat: CardFormat }) {
+function FlowStrip({ flows }: { flows: PerFlowStat[] }) {
   if (!flows.length) return null;
-  const max     = MAX_FLOW_ROWS[cardFormat] ?? 2;
-  const visible = flows.slice(0, max);
-  const extra   = flows.length - max;
 
   return (
     <div className="relative flex flex-col gap-1.5">
       <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Included flows</div>
       <div className="flex flex-col gap-1">
-        {visible.map(f => (
+        {flows.map(f => (
           <div key={f.id} className="flex items-center gap-2 bg-slate-800/40 rounded-lg px-2 py-1.5 min-w-0">
             <span className={`text-[8px] font-bold px-1 py-0.5 rounded shrink-0 ${
               f.platform === "n8n"
@@ -686,11 +677,6 @@ function FlowStrip({ flows, cardFormat }: { flows: PerFlowStat[]; cardFormat: Ca
             )}
           </div>
         ))}
-        {extra > 0 && (
-          <div className="text-[10px] text-slate-600 px-2 py-1">
-            +{extra} more flow{extra > 1 ? "s" : ""} selected
-          </div>
-        )}
       </div>
     </div>
   );
@@ -841,9 +827,6 @@ export default function ReportStudioPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  // Card preview aspect class
-  const aspectClass = FORMAT_LABELS[cardFormat].aspect;
 
   return (
     <div className="flex flex-col gap-6">
@@ -1050,14 +1033,14 @@ export default function ReportStudioPage() {
           </div>
 
           {loading ? (
-            <div className={`w-full ${aspectClass} bg-slate-900/50 border border-slate-800 rounded-2xl flex items-center justify-center`}>
+            <div className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl flex items-center justify-center py-20">
               <div className="flex flex-col items-center gap-3">
                 <RefreshCw size={20} className="text-indigo-400 animate-spin" />
                 <span className="text-xs text-slate-500">Loading report data…</span>
               </div>
             </div>
           ) : !data ? (
-            <div className={`w-full ${aspectClass} bg-slate-900/50 border border-dashed border-slate-700 rounded-2xl flex items-center justify-center`}>
+            <div className="w-full bg-slate-900/50 border border-dashed border-slate-700 rounded-2xl flex items-center justify-center py-20">
               <div className="text-center">
                 <Sparkles size={24} className="text-slate-700 mx-auto mb-2" />
                 <p className="text-xs text-slate-600">Connect automations to generate your first report</p>
@@ -1065,7 +1048,7 @@ export default function ReportStudioPage() {
             </div>
           ) : (
             <div
-              className={`w-full ${aspectClass} rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl shadow-indigo-500/5`}
+              className="w-full rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl shadow-indigo-500/5"
             >
               <ReportCard
                 reportType={reportType}

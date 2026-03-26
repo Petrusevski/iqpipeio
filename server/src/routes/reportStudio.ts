@@ -451,14 +451,13 @@ function generateKPITile(label: string, value: string, x: number, y: number, w: 
   ].join("\n");
 }
 
-function generateFlowRows(flows: PerFlowStat[], x: number, y: number, W: number, maxRows: number): string {
-  const visible  = flows.slice(0, maxRows);
+function generateFlowRows(flows: PerFlowStat[], x: number, y: number, W: number): string {
   const rowH     = 36;
   const labelMap: Record<string, string> = { n8n: "n8n", make: "Make" };
   const colorMap: Record<string, string> = { n8n: "#f97316", make: "#8b5cf6" };
   let out = svgText("INCLUDED FLOWS", x, y - 8, { size: 10, fill: "#475569", weight: "700" });
 
-  visible.forEach((f, i) => {
+  flows.forEach((f, i) => {
     const ry = y + i * (rowH + 4);
     // Row background
     out += rrect(x, ry, W - x * 2, rowH, 8, "#1e293b");
@@ -487,12 +486,6 @@ function generateFlowRows(flows: PerFlowStat[], x: number, y: number, W: number,
     out += svgText(`${f.successRate}%`, W - x - 8, ry + 22, { size: 11, weight: "700", fill: rateColor, anchor: "end" });
   });
 
-  const extra = flows.length - maxRows;
-  if (extra > 0) {
-    const ry = y + visible.length * (rowH + 4);
-    out += svgText(`+${extra} more flow${extra > 1 ? "s" : ""}`, x + 8, ry + 14, { size: 11, fill: "#475569" });
-  }
-
   return out;
 }
 
@@ -501,7 +494,7 @@ function generateSVG(
   insight: string, flows: PerFlowStat[],
 ): string {
   const fmt = (["linkedin","square","story"].includes(cardFormat) ? cardFormat : "linkedin") as CardFormat;
-  const { w: W, h: H } = CARD_SIZES[fmt];
+  const { w: W } = CARD_SIZES[fmt];
   const PAD = 48;
 
   // ── Background ──────────────────────────────────────────────────────────────
@@ -521,9 +514,9 @@ function generateSVG(
       <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <rect width="${W}" height="${H}" fill="url(#bg)"/>
-  <rect width="${W}" height="${H}" fill="url(#glow1)"/>
-  <rect width="${W}" height="${H}" fill="url(#glow2)"/>`;
+  <rect width="${W}" height="__SVG_H__" fill="url(#bg)"/>
+  <rect width="${W}" height="__SVG_H__" fill="url(#glow1)"/>
+  <rect width="${W}" height="__SVG_H__" fill="url(#glow2)"/>`;
 
   // ── iqpipe logo (top right) ─────────────────────────────────────────────────
   body += rrect(W - PAD - 88, 28, 36, 36, 8, "#6366f1", 0.2);
@@ -592,17 +585,17 @@ function generateSVG(
 
   // ── Flow strip ──────────────────────────────────────────────────────────────
   const flowsY = appsY + 42;
-  const maxRows = fmt === "story" ? 6 : fmt === "square" ? 4 : 2;
+  const ROW_H  = 36 + 4; // rowH + gap
+  const flowSectionH = flows.length > 0 ? 20 + flows.length * ROW_H : 0;
+
   if (flows.length > 0) {
-    body += generateFlowRows(flows, PAD, flowsY, W, maxRows);
+    body += generateFlowRows(flows, PAD, flowsY, W);
   }
 
   // ── AI insight ──────────────────────────────────────────────────────────────
+  const insightY = flowsY + flowSectionH + (flows.length > 0 ? 8 : 0);
+  const insH = 48;
   if (insight) {
-    const insightY = flows.length > 0
-      ? flowsY + Math.min(flows.length, maxRows) * 40 + 20
-      : flowsY;
-    const insH = 48;
     body += rrect(PAD, insightY, W - PAD * 2, insH, 10, accent, 0.08);
     // Word-wrap rough split at ~100 chars
     const words  = insight.split(" ");
@@ -617,6 +610,14 @@ function generateSVG(
       body += svgText(l, PAD + 16, insightY + 18 + li * 18, { size: 12, fill: "#cbd5e1" });
     });
   }
+
+  // ── Dynamic height ───────────────────────────────────────────────────────────
+  const insightSectionH = insight ? insH + 16 : 0;
+  const FOOTER_H = 50;
+  const H = insightY + insightSectionH + FOOTER_H;
+
+  // Patch background rects now that H is known
+  body = body.replaceAll("__SVG_H__", String(H));
 
   // ── Footer ──────────────────────────────────────────────────────────────────
   const footerParts = [];
