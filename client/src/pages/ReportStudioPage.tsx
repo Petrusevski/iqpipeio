@@ -59,7 +59,7 @@ interface ReportData {
   };
   funnelSteps: FunnelStep[];
   avgHealthScore: number;
-  perFlow: PerFlowStat[];
+  perFlow?: PerFlowStat[];
 }
 
 // ── Static config ─────────────────────────────────────────────────────────────
@@ -591,11 +591,11 @@ function FlowSelector({
               {flow.appKeys.length > 0 && (
                 <div className="flex items-center gap-1 ml-5 flex-wrap">
                   {flow.appKeys.slice(0, 8).map((key, i) => (
-                    <div key={i} className="w-4 h-4 rounded bg-white/5 overflow-hidden flex items-center justify-center">
+                    <div key={i} className="w-4 h-4 rounded bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
                       <img
                         src={`${API_BASE_URL}/api/proxy/favicon?domain=${APP_DOMAINS[key] ?? key + ".com"}`}
                         alt={key}
-                        className="w-3 h-3 object-contain"
+                        style={{ width: 12, height: 12, objectFit: "contain", display: "block" }}
                         onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                       />
                     </div>
@@ -648,12 +648,13 @@ function FlowStrip({ flows }: { flows: PerFlowStat[] }) {
               {f.platform === "n8n" ? "n8n" : "Make"}
             </span>
             <span className="flex-1 text-[10px] text-slate-300 truncate font-medium">{f.name}</span>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1 flex-shrink-0">
               {f.appKeys.slice(0, 5).map((key, i) => (
-                <div key={i} className="w-3.5 h-3.5 rounded bg-white/5 overflow-hidden flex items-center justify-center">
+                <div key={i} className="w-4 h-4 rounded bg-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
                   <img
                     src={`${API_BASE_URL}/api/proxy/favicon?domain=${APP_DOMAINS[key] ?? key + ".com"}`}
-                    alt={key} className="w-2.5 h-2.5 object-contain"
+                    alt={key}
+                    style={{ width: 12, height: 12, objectFit: "contain", display: "block" }}
                     onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
@@ -732,7 +733,7 @@ export default function ReportStudioPage() {
       const has = prev.includes(id);
       const next = has ? prev.filter(x => x !== id) : [...prev, id];
       // If all flows are now selected, collapse back to "all" (empty)
-      return data && next.length === data.perFlow.length ? [] : next;
+      return data && next.length === (data.perFlow?.length ?? 0) ? [] : next;
     });
   };
 
@@ -922,7 +923,7 @@ export default function ReportStudioPage() {
           </div>
 
           {/* Flow selector */}
-          {data && data.perFlow.length > 0 && (
+          {data && (data.perFlow?.length ?? 0) > 0 && (
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
@@ -930,12 +931,12 @@ export default function ReportStudioPage() {
                 </div>
                 {selectedIds.length > 0 && (
                   <span className="text-[10px] text-indigo-400 font-semibold">
-                    {selectedIds.length} of {data.perFlow.length} selected
+                    {selectedIds.length} of {data.perFlow?.length ?? 0} selected
                   </span>
                 )}
               </div>
               <FlowSelector
-                flows={data.perFlow}
+                flows={data.perFlow ?? []}
                 selectedIds={selectedIds}
                 onToggle={handleToggleFlow}
                 onSelectAll={handleSelectAll}
