@@ -203,6 +203,22 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+async function fetchAsBase64(url: string): Promise<string | null> {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return new Promise<string | null>(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror  = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function WorkflowComparePage() {
@@ -380,8 +396,19 @@ export default function WorkflowComparePage() {
 
   // ─── SVG Export ──────────────────────────────────────────────────────────────
 
-  function exportSVG() {
+  async function exportSVG() {
     if (!scoreData || scoredItems.length < 2) return;
+
+    // Prefetch all favicons as base64 data URLs so they embed in the SVG
+    const allApps = [...new Set(scoredItems.flatMap(wf => wf.appsUsed))];
+    const faviconMap: Record<string, string | null> = {};
+    await Promise.all(
+      allApps.map(async app => {
+        faviconMap[app] = await fetchAsBase64(
+          `${API_BASE_URL}/api/proxy/favicon?domain=${appDomain(app)}`,
+        );
+      }),
+    );
 
     const n   = scoredItems.length;
     const LW  = 178;   // label column width
@@ -477,52 +504,48 @@ export default function WorkflowComparePage() {
     elems.push(HLine(PX, y + HH, W - PX, y + HH));
     y += HH;
 
-    // ── Apps in Flow row
-    const appsPerRow  = 5;   // max pills per line before wrapping
-    const pillW       = 52;  // pill width
-    const pillH       = 14;  // pill height
-    const pillGapX    = 5;
-    const pillGapY    = 4;
-    const maxApps     = 10;  // cap to avoid overflowing column
+    // ── Apps in Flow row  (favicon icons, single row, fits within column)
+    const IC   = 20;   // icon container size (square)
+    const IGAP = 4;    // gap between icons
+    // How many icons fit in one column: floor((CW - 2*IP + IGAP) / (IC + IGAP))
+    const iconsPerRow = Math.floor((CW - 2 * IP + IGAP) / (IC + IGAP));
+    const maxApps     = iconsPerRow;  // single row only
 
-    // Compute the row height based on the workflow with the most apps
-    const maxAppsAny  = Math.min(
-      Math.max(...scoredItems.map(wf => Math.min(wf.appsUsed.length, maxApps))),
-      maxApps,
-    );
-    const appsRows    = Math.ceil(maxAppsAny / appsPerRow);
-    const AFH         = 14 + appsRows * (pillH + pillGapY) + 6;  // dynamic row height
+    const AFH = 52;   // fixed row height: 12 label area + 20 icon + 10 top/bottom padding + 10 label
 
     elems.push(Rect(PX, y, W - 2 * PX, AFH, "#ffffff06"));
-    elems.push(Tx(PX + IP, y + 20, "Apps in Flow", 11, C.slate3, "500"));
-    elems.push(Tx(PX + IP, y + 33, "Nodes used", 9, C.slate7));
+    elems.push(Tx(PX + IP, y + 16, "Apps in Flow", 11, C.slate3, "500"));
+    elems.push(Tx(PX + IP, y + 27, "Nodes used", 9, C.slate7));
 
     for (let i = 0; i < n; i++) {
-      const wf = scoredItems[i];
-      const x0 = colX(i);
+      const wf      = scoredItems[i];
+      const x0      = colX(i);
+      const iconY   = y + AFH - IC - 8;   // align to bottom of row
       if (wf.id === winnerPlatformId) elems.push(Rect(x0, y, CW, AFH, "#1e1b4b18"));
 
-      const apps = wf.appsUsed.slice(0, maxApps);
+      const apps     = wf.appsUsed.slice(0, maxApps);
       const overflow = wf.appsUsed.length - maxApps;
 
       apps.forEach((app, ai) => {
-        const col  = ai % appsPerRow;
-        const row  = Math.floor(ai / appsPerRow);
-        const px   = x0 + IP + col * (pillW + pillGapX);
-        const py   = y + 10 + row * (pillH + pillGapY);
-        const label = app.length > 7 ? app.slice(0, 6) + "\u2026" : app;
-        elems.push(Rect(px, py, pillW, pillH, "#1e293b", 3));
-        elems.push(`<rect x="${px}" y="${py}" width="${pillW}" height="${pillH}" rx="3" fill="none" stroke="#334155" stroke-width="0.6"/>`);
-        elems.push(Tx(px + pillW / 2, py + pillH - 3, label, 7.5, C.slate3, "400", "middle"));
+        const ix  = x0 + IP + ai * (IC + IGAP);
+        const b64 = faviconMap[app];
+        // icon background square
+        elems.push(Rect(ix, iconY, IC, IC, "#1e293b", 4));
+        elems.push(`<rect x="${ix}" y="${iconY}" width="${IC}" height="${IC}" rx="4" fill="none" stroke="#334155" stroke-width="0.5"/>`);
+        if (b64) {
+          // embed favicon as base64 image, centred inside the container
+          const pad = 3;
+          elems.push(`<image href="${b64}" x="${ix + pad}" y="${iconY + pad}" width="${IC - pad * 2}" height="${IC - pad * 2}" preserveAspectRatio="xMidYMid meet"/>`);
+        } else {
+          // fallback: first letter of app name
+          elems.push(Tx(ix + IC / 2, iconY + IC / 2 + 4, app.charAt(0).toUpperCase(), 9, C.slate3, "600", "middle"));
+        }
       });
 
       if (overflow > 0) {
-        const col  = apps.length % appsPerRow;
-        const row  = Math.floor(apps.length / appsPerRow);
-        const px   = x0 + IP + col * (pillW + pillGapX);
-        const py   = y + 10 + row * (pillH + pillGapY);
-        elems.push(Rect(px, py, pillW, pillH, "#1e293b", 3));
-        elems.push(Tx(px + pillW / 2, py + pillH - 3, `+${overflow} more`, 7.5, C.slate5, "400", "middle"));
+        const ix = x0 + IP + apps.length * (IC + IGAP);
+        elems.push(Rect(ix, iconY, IC, IC, "#1e293b", 4));
+        elems.push(Tx(ix + IC / 2, iconY + IC / 2 + 4, `+${overflow}`, 7, C.slate5, "500", "middle"));
       }
     }
     elems.push(HLine(PX, y + AFH, W - PX, y + AFH, C.border, 0.5));
