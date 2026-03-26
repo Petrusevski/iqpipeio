@@ -19,9 +19,6 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
 
 // App pages
 import LiveFeedPage         from "./pages/LiveFeedPage";
-import GTMReportPage        from "./pages/GTMReportPage";
-import ReportingPage        from "./pages/ReportingPage";
-import LinkedInCardsPage    from "./pages/LinkedInCardsPage";
 import ContactInspectorPage from "./pages/ContactInspectorPage";
 import WorkflowHealthPage     from "./pages/WorkflowHealthPage";
 import MyWorkflowPage             from "./pages/MyWorkflowPage";
@@ -48,8 +45,6 @@ import CareersPage             from "./pages/CareersPage";
 import PublicIntegrationsPage  from "./pages/PublicIntegrationsPage";
 import CheckoutSuccessPage     from "./pages/CheckoutSuccessPage";
 import CheckoutCancelPage      from "./pages/CheckoutCancelPage";
-import ReportStudioPage        from "./pages/ReportStudioPage";
-import PublicReportPage        from "./pages/PublicReportPage";
 
 function App() {
   const token = localStorage.getItem("iqpipe_token");
@@ -73,8 +68,6 @@ function App() {
         <Route path="/integrations"     element={<PublicIntegrationsPage />} />
         <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
         <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
-        <Route path="/report/:token"    element={<PublicReportPage />} />
-
         {/* Admin — always accessible regardless of user auth */}
         <Route path="/admin36486/login" element={<AdminLoginPage />} />
         <Route path="/admin36486" element={<AdminGuard><AdminLayout /></AdminGuard>}>
@@ -97,9 +90,6 @@ function App() {
         <Routes>
           <Route path="/"              element={<Navigate to="/feed" replace />} />
           <Route path="/feed"          element={<LiveFeedPage />} />
-          <Route path="/gtm-report"    element={<GTMReportPage />} />
-          <Route path="/reports"       element={<ReportingPage />} />
-          <Route path="/linkedin"      element={<LinkedInCardsPage />} />
           <Route path="/inspect"       element={<ContactInspectorPage />} />
           <Route path="/workflow-health"  element={<WorkflowHealthPage />} />
           <Route path="/my-workflow"        element={<MyWorkflowPage />} />
@@ -111,8 +101,6 @@ function App() {
           <Route path="/settings"      element={<SettingsPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
-          <Route path="/report-studio"    element={<ReportStudioPage />} />
-          <Route path="/report/:token"    element={<PublicReportPage />} />
           <Route path="/login"         element={<Navigate to="/feed" replace />} />
           <Route path="/signup"        element={<Navigate to="/feed" replace />} />
           <Route path="/admin36486/login"   element={<AdminLoginPage />} />

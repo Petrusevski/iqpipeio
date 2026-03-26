@@ -4,13 +4,11 @@ import {
   Zap,
   Search,
   Settings,
-  FileText,
   HeartPulse,
   GitBranch,
   Fingerprint,
   Workflow,
   BarChart3,
-  Sparkles,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -33,13 +31,6 @@ const navGroups = [
     items: [
       { label: "Workflow Health",   path: "/workflow-health",  icon: HeartPulse },
       { label: "My Workflow",       path: "/my-workflow",      icon: GitBranch  },
-    ],
-  },
-  {
-    title: "Report",
-    items: [
-      { label: "Report Studio",     path: "/report-studio",    icon: Sparkles },
-      { label: "GTM Report",        path: "/gtm-report",       icon: FileText },
     ],
   },
   {
