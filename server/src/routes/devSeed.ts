@@ -12,11 +12,13 @@
  * What is seeded:
  *  - 15 IntegrationConnections (6 Live · 5 Slow · 4 Silent)
  *  - 43 IqLeads with full cross-tool touchpoint history
- *  - Extra touchpoints for 8 additional tools (beyond original 7)
- *  - N8nConnection + 3 N8nWorkflowMeta records
- *  - N8nQueuedEvents for 3 workflows (varied success rates: 94.2 / 87.6 / 70.2 %)
+ *  - N8nConnection + 4 N8nWorkflowMeta (91.8 / 87.3 / 70.3 / 93.2 % success)
+ *  - MakeConnection + 2 MakeScenarioMeta (89.6 / 97.4 % success)
+ *  - N8nQueuedEvents for all 4 n8n workflows
  *  - WebhookErrors for the worst-performing workflow
  *  - Outcome records for deal_won events
+ *  - WorkflowMirror for all 6 automations with app connections + observed events
+ *  - Sample AppEvents + CorrelationResults (verified / mismatch / matched)
  */
 
 import { Router, Request, Response } from "express";
@@ -165,73 +167,134 @@ const TOOL_META: Record<string, { channel: string; events: string[] }> = {
 
 // ── N8n workflow definitions ──────────────────────────────────────────────────
 //
-// Three automations with deliberately varied success rates so the page can
-// call out the best and worst performer.
+// Four n8n automations covering the full GTM funnel with varied success rates.
 //
-//  #1 LinkedIn → CRM Sync      94.2%  ← best performer
-//  #2 Email Enrichment Pipeline 87.6%
-//  #3 Deal Closed → Billing     70.2%  ← worst (Chargebee rate-limiting errors)
+//  #1 Full-Funnel Cold Outbound          91.8%  ← best n8n performer
+//  #2 Email Enrichment Pipeline          87.6%
+//  #3 Deal Closed → Revenue Activation   70.2%  ← worst (billing rate-limits)
+//  #4 Inbound Lead Score & Route         93.5%
+//
+// appsUsed values must match NODE_APP_MAP friendly-name values (e.g. "HubSpot")
+// because WorkflowMirrorDetailPage fuzzy-maps them against APP_CATALOG labels.
 
 const N8N_WORKFLOWS = [
   {
-    n8nId:       "wf_001_linkedin_crm",
-    name:        "LinkedIn → CRM Sync",
-    description: "Syncs LinkedIn connection events from HeyReach into HubSpot and Pipedrive in real-time. Creates contacts, updates deal stages, and triggers follow-up sequences automatically.",
+    n8nId:       "wf_001_cold_outbound",
+    name:        "Full-Funnel Cold Outbound",
+    description: "End-to-end outbound motion: sources ICP leads from Apollo, enriches firmographics and contact data via Clay, runs LinkedIn connection sequence on HeyReach, follows up with Instantly email, and creates a HubSpot deal when a reply is received. Stripe monitors subscription activation on close.",
     active:      true,
-    tags:        ["outreach", "crm", "linkedin"],
-    appsUsed:    ["heyreach", "hubspot", "pipedrive", "clay"],
-    nodeCount:   8,
-    triggerType: "webhook",
-    totalEvents: 120,
-    doneEvents:  113,
-    failedEvents: 4,
-    pendingEvents: 3,
-    // successRate: 94.2%
+    tags:        ["outbound", "prospecting", "enrichment", "linkedin", "email", "crm", "billing"],
+    appsUsed:    ["Apollo", "Clay", "HeyReach", "Instantly", "HubSpot", "Stripe"],
+    nodeCount:   14,
+    triggerType: "schedule",
+    totalEvents: 246,
+    doneEvents:  226,
+    failedEvents: 12,
+    pendingEvents: 8,
+    // successRate: 91.8%
     errors: [
-      { code: "CONTACT_MISSING", detail: "HubSpot contact not found for linkedin_url https://linkedin.com/in/deleted-profile. Skipping CRM update." },
-      { code: "RATE_LIMIT",      detail: "HubSpot API rate limit hit (100 req/10s). Event queued for retry." },
-      { code: "SCHEMA_INVALID",  detail: "Missing required field 'company' in HeyReach payload. Contact enrichment skipped." },
+      { code: "RATE_LIMIT",      detail: "Clay enrichment API 429 — batch of 9 contacts re-queued. Consider upgrading plan or spreading enrichment window." },
+      { code: "CONTACT_MISSING", detail: "HeyReach: LinkedIn profile removed or private for 3 contacts. Connection request skipped." },
+      { code: "SCHEMA_INVALID",  detail: "Instantly sequence payload missing 'from_email' for 2 contacts. Check domain configuration." },
     ],
   },
   {
     n8nId:       "wf_002_email_enrich",
     name:        "Email Enrichment Pipeline",
-    description: "Runs daily at 06:00 UTC. Pulls new leads from Apollo, enriches with Clay, segments by ICP score, then distributes to Instantly and Smartlead sequences based on company size.",
+    description: "Runs daily at 06:00 UTC. Pulls new leads from ZoomInfo, cross-enriches with People Data Labs for email + mobile, scores by ICP fit, then distributes to Smartlead (mid-market) or Lemlist (enterprise) sequences based on company size and tech stack.",
     active:      true,
-    tags:        ["enrichment", "email", "outreach", "icp"],
-    appsUsed:    ["instantly", "clay", "apollo", "smartlead"],
-    nodeCount:   12,
+    tags:        ["enrichment", "email", "icp", "segmentation"],
+    appsUsed:    ["ZoomInfo", "People Data Labs", "Clay", "Smartlead", "Lemlist"],
+    nodeCount:   11,
     triggerType: "schedule",
-    totalEvents: 89,
-    doneEvents:  78,
-    failedEvents: 10,
-    pendingEvents: 1,
-    // successRate: 87.6%
+    totalEvents: 189,
+    doneEvents:  165,
+    failedEvents: 20,
+    pendingEvents: 4,
+    // successRate: 87.3%
     errors: [
-      { code: "SCHEMA_INVALID",  detail: "Apollo returned null email for 3 contacts. Enrichment skipped — no valid address to sequence." },
-      { code: "RATE_LIMIT",      detail: "Clay enrichment API: 429 Too Many Requests. Batch of 7 contacts re-queued for next run." },
-      { code: "CONTACT_MISSING", detail: "Smartlead campaign 'Q2-ICP-Mid' not found. Check campaign ID in workflow config." },
+      { code: "SCHEMA_INVALID",  detail: "ZoomInfo returned null email for 8 contacts. PDL fallback also empty — contacts skipped from sequencing." },
+      { code: "RATE_LIMIT",      detail: "People Data Labs: 429 Too Many Requests. Batch of 12 enrichments re-queued for next daily run." },
+      { code: "CONTACT_MISSING", detail: "Lemlist campaign 'Enterprise-Q2' paused by user. 3 contacts not enrolled. Resume campaign to continue." },
     ],
   },
   {
     n8nId:       "wf_003_deal_billing",
-    name:        "Deal Closed → Billing Activation",
-    description: "Triggered when a deal moves to 'Closed Won' in HubSpot or Pipedrive. Activates subscription in Stripe, creates customer record in Chargebee, and sends onboarding email via Intercom.",
+    name:        "Deal Closed → Revenue Activation",
+    description: "Triggered on 'Closed Won' stage in HubSpot. Activates subscription in Stripe, creates billing record in Chargebee with correct plan tier based on deal amount, fires Slack notification to #revenue channel, and sends onboarding sequence via Outreach.",
     active:      true,
-    tags:        ["billing", "crm", "revenue", "onboarding"],
-    appsUsed:    ["hubspot", "stripe", "chargebee", "pipedrive"],
-    nodeCount:   6,
+    tags:        ["billing", "crm", "revenue", "onboarding", "slack"],
+    appsUsed:    ["HubSpot", "Stripe", "Chargebee", "Slack", "Outreach"],
+    nodeCount:   9,
     triggerType: "webhook",
-    totalEvents: 47,
-    doneEvents:  33,
-    failedEvents: 12,
-    pendingEvents: 2,
-    // successRate: 70.2%
+    totalEvents: 74,
+    doneEvents:  52,
+    failedEvents: 18,
+    pendingEvents: 4,
+    // successRate: 70.3%
     errors: [
-      { code: "RATE_LIMIT",     detail: "Chargebee API 429: subscription creation rate limit exceeded (5 req/s). 6 events failed after 3 retries." },
-      { code: "AUTH_FAILED",    detail: "Chargebee API key expired or rotated. 4 subscription activations failed. Rotate key in Integration Settings." },
-      { code: "INTERNAL_ERROR", detail: "Stripe webhook timeout (>30s) for deal ch_demo_009. Manual verification required." },
+      { code: "RATE_LIMIT",     detail: "Chargebee API 429: subscription creation rate-limited (5 req/s). 8 events failed after 3 retries — upgrade to Business plan." },
+      { code: "AUTH_FAILED",    detail: "Chargebee API key expired. 6 subscription activations failed. Rotate key in Integrations → Chargebee." },
+      { code: "INTERNAL_ERROR", detail: "Stripe subscription creation timeout (>30s) for deals ch_demo_009, ch_demo_011. Manual verification required." },
     ],
+  },
+  {
+    n8nId:       "wf_004_inbound_route",
+    name:        "Inbound Lead Score & Route",
+    description: "Triggered when a form is submitted or a contact enters HubSpot. Enriches with Clearbit, calculates ICP score, books Calendly slot if score ≥ 75, routes to Salesforce opportunity if enterprise, or creates Pipedrive deal for SMB. Sends Slack summary to rep channel.",
+    active:      true,
+    tags:        ["inbound", "routing", "crm", "scoring", "calendly"],
+    appsUsed:    ["HubSpot", "Clearbit", "Calendly", "Salesforce", "Pipedrive", "Slack"],
+    nodeCount:   10,
+    triggerType: "webhook",
+    totalEvents: 133,
+    doneEvents:  124,
+    failedEvents: 6,
+    pendingEvents: 3,
+    // successRate: 93.2%
+    errors: [
+      { code: "SCHEMA_INVALID",  detail: "Clearbit returned partial data (no domain) for 4 contacts. ICP scoring skipped — contact routed to manual review queue." },
+      { code: "CONTACT_MISSING", detail: "Salesforce opportunity owner not found for territory 'EMEA-South'. Defaulting to round-robin assignment." },
+      { code: "RATE_LIMIT",      detail: "Calendly scheduling API 429 — peak booking hours. 2 meeting requests queued for retry." },
+    ],
+  },
+];
+
+// ── Make.com scenario definitions ─────────────────────────────────────────────
+//
+// Two Make scenarios covering ABM and payment recovery.
+//
+//  #5 Account-Based Outreach Pipeline  89.4%
+//  #6 Payment Failure Recovery         97.1%
+
+const MAKE_SCENARIOS = [
+  {
+    makeId:      "sc_005_abm_outreach",
+    name:        "Account-Based Outreach Pipeline",
+    description: "Pulls target account list from Apollo, enriches firmographics via Lusha, syncs contact and company data to Attio CRM, enrols contacts in Outreach sequences, and logs all activity back to HubSpot.",
+    active:      true,
+    appsUsed:    ["Apollo", "Lusha", "Attio", "Outreach", "HubSpot"],
+    moduleCount: 12,
+    triggerType: "schedule",
+    totalEvents: 211,
+    doneEvents:  189,
+    failedEvents: 18,
+    pendingEvents: 4,
+    // successRate: 89.6%
+  },
+  {
+    makeId:      "sc_006_payment_recovery",
+    name:        "Payment Failure Recovery",
+    description: "Triggered by Stripe failed payment webhook. Looks up the contact in HubSpot, waits 2 hours, sends personalised recovery email via Lemlist, posts alert to Slack #billing-ops, then flags dunning status in Chargebee for follow-up.",
+    active:      true,
+    appsUsed:    ["Stripe", "HubSpot", "Lemlist", "Slack", "Chargebee"],
+    moduleCount: 8,
+    triggerType: "webhook",
+    totalEvents: 38,
+    doneEvents:  37,
+    failedEvents: 1,
+    pendingEvents: 0,
+    // successRate: 97.4%
   },
 ];
 
@@ -276,6 +339,14 @@ router.delete("/seed", requireAuth, async (req: Request, res: Response) => {
 
   const workspaceId = membership.workspace.id;
 
+  // New Workflow Mirror models (cascade deletes WorkflowAppConnection, ObservedEvent)
+  await prisma.correlationResult.deleteMany({ where: { workspaceId } });
+  await prisma.appEvent.deleteMany({ where: { workspaceId } });
+  await prisma.workflowMirror.deleteMany({ where: { workspaceId } });
+  // Make.com
+  await prisma.makeScenarioMeta.deleteMany({ where: { workspaceId } });
+  await prisma.makeConnection.deleteMany({ where: { workspaceId } });
+  // n8n + core
   await prisma.touchpoint.deleteMany({ where: { workspaceId } });
   await prisma.outcome.deleteMany({ where: { workspaceId } });
   await prisma.iqLead.deleteMany({ where: { workspaceId } });
@@ -317,6 +388,11 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
       });
     }
     // Force re-seed: wipe existing demo data
+    await prisma.correlationResult.deleteMany({ where: { workspaceId } });
+    await prisma.appEvent.deleteMany({ where: { workspaceId } });
+    await prisma.workflowMirror.deleteMany({ where: { workspaceId } });
+    await prisma.makeScenarioMeta.deleteMany({ where: { workspaceId } });
+    await prisma.makeConnection.deleteMany({ where: { workspaceId } });
     await prisma.touchpoint.deleteMany({ where: { workspaceId } });
     await prisma.outcome.deleteMany({ where: { workspaceId } });
     await prisma.iqLead.deleteMany({ where: { workspaceId } });
@@ -558,40 +634,44 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
     await prisma.n8nConnection.create({
       data: {
         workspaceId,
-        baseUrl:      "https://n8n.demo.iqpipe.io",
-        apiKeyEnc:    encrypt("demo-n8n-api-key"),
-        authType:     "apikey",
-        status:       "connected",
+        baseUrl:       "https://n8n.demo.iqpipe.io",
+        apiKeyEnc:     encrypt("demo-n8n-api-key"),
+        authType:      "apikey",
+        status:        "connected",
         workflowCount: N8N_WORKFLOWS.length,
-        lastSyncAt:   daysAgo(0, 2),
+        lastSyncAt:    daysAgo(0, 2),
       },
     });
   }
 
-  // ── 6. N8nWorkflowMeta ───────────────────────────────────────────────────
+  // ── 6. N8nWorkflowMeta (4 workflows) ─────────────────────────────────────
+
+  const n8nMetaIds: Record<string, string> = {}; // n8nId → DB id
 
   for (const wf of N8N_WORKFLOWS) {
-    const exists = await prisma.n8nWorkflowMeta.findUnique({
+    let row = await prisma.n8nWorkflowMeta.findUnique({
       where: { workspaceId_n8nId: { workspaceId, n8nId: wf.n8nId } },
     });
-    if (!exists) {
-      await prisma.n8nWorkflowMeta.create({
+    if (!row) {
+      row = await prisma.n8nWorkflowMeta.create({
         data: {
           workspaceId,
-          n8nId:        wf.n8nId,
-          name:         wf.name,
-          active:       wf.active,
-          tags:         JSON.stringify(wf.tags),
-          appsUsed:     JSON.stringify(wf.appsUsed),
-          nodeTypes:    JSON.stringify(wf.appsUsed.map(a => `n8n-nodes-base.${a}Action`)),
-          nodeCount:    wf.nodeCount,
-          triggerType:  wf.triggerType,
-          description:  wf.description,
+          n8nId:         wf.n8nId,
+          name:          wf.name,
+          active:        wf.active,
+          tags:          JSON.stringify(wf.tags),
+          appsUsed:      JSON.stringify(wf.appsUsed),
+          nodeTypes:     JSON.stringify(wf.appsUsed.map(a => `n8n-nodes-base.${a.toLowerCase().replace(/\s/g,"")}Action`)),
+          nodeCount:     wf.nodeCount,
+          triggerType:   wf.triggerType,
+          description:   wf.description,
           lastUpdatedAt: daysAgo(1),
-          syncedAt:     new Date(),
+          syncedAt:      new Date(),
+          execSyncEnabled: true,
         },
       });
     }
+    n8nMetaIds[wf.n8nId] = row.id;
   }
 
   // ── 7. N8nQueuedEvents (done + failed + pending) ─────────────────────────
@@ -712,7 +792,333 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
     },
   });
 
-  // ── 9. My Workflow — GTM stack map ────────────────────────────────────────
+  // ── 9. Make.com Connection + 2 Scenarios ─────────────────────────────────
+
+  const existingMake = await prisma.makeConnection.findUnique({ where: { workspaceId } });
+  if (!existingMake) {
+    await prisma.makeConnection.create({
+      data: {
+        workspaceId,
+        apiKeyEnc:     encrypt("demo-make-api-key"),
+        region:        "eu1",
+        teamId:        "team_demo_001",
+        organizationId:"org_demo_001",
+        status:        "connected",
+        scenarioCount: MAKE_SCENARIOS.length,
+        lastSyncAt:    daysAgo(0, 3),
+      },
+    });
+  }
+
+  const makeMetaIds: Record<string, string> = {}; // makeId → DB id
+
+  for (const sc of MAKE_SCENARIOS) {
+    let row = await prisma.makeScenarioMeta.findUnique({
+      where: { workspaceId_makeId: { workspaceId, makeId: sc.makeId } },
+    });
+    if (!row) {
+      row = await prisma.makeScenarioMeta.create({
+        data: {
+          workspaceId,
+          makeId:          sc.makeId,
+          name:            sc.name,
+          active:          sc.active,
+          appsUsed:        JSON.stringify(sc.appsUsed),
+          moduleCount:     sc.moduleCount,
+          triggerType:     sc.triggerType,
+          lastUpdatedAt:   daysAgo(2),
+          syncedAt:        new Date(),
+          execSyncEnabled: true,
+        },
+      });
+    }
+    makeMetaIds[sc.makeId] = row.id;
+  }
+
+  // ── 10. N8nQueuedEvents for Make scenarios (reuse event batch loop) ───────
+  //
+  // Make scenarios don't have N8nQueuedEvents (they use a different ingestion
+  // path), but we seed AppEvents for them directly in step 11.
+
+  // ── 11. Workflow Mirrors + App Connections + Observed Events ──────────────
+  //
+  // Mirror config for all 6 automations showing different states:
+  //   WF1  Full-Funnel Cold Outbound  — fully mirrored (Apollo + HubSpot + Stripe)
+  //   WF2  Email Enrichment Pipeline  — partially mirrored (Smartlead connected, no key)
+  //   WF3  Deal Closed → Revenue      — fully mirrored (HubSpot + Stripe + Chargebee)
+  //   WF4  Inbound Lead Score         — partially mirrored (HubSpot + Salesforce, key set)
+  //   SC5  ABM Outreach               — fully mirrored (Attio + HubSpot)
+  //   SC6  Payment Recovery           — fully mirrored (Stripe + Lemlist)
+
+  // Helper: map app friendly-name to catalog key
+  const APP_NAME_TO_KEY: Record<string, string> = {
+    "HubSpot": "hubspot", "Pipedrive": "pipedrive", "Salesforce": "salesforce",
+    "Attio": "attio", "Apollo": "apollo", "Clay": "clay",
+    "ZoomInfo": "zoominfo", "People Data Labs": "pdl",
+    "Stripe": "stripe", "Chargebee": "chargebee",
+    "Instantly": "instantly", "Smartlead": "smartlead", "Lemlist": "lemlist",
+    "HeyReach": "heyreach", "Outreach": "outreach", "Lusha": "lusha",
+    "Clearbit": "clearbit", "Calendly": "calendly", "Slack": "slack",
+  };
+
+  // WF1 — Full-Funnel Cold Outbound — 3 apps mirrored, email key
+  const wf1Id = n8nMetaIds["wf_001_cold_outbound"];
+  if (wf1Id) {
+    const mirror1 = await prisma.workflowMirror.upsert({
+      where:  { workspaceId_workflowId: { workspaceId, workflowId: wf1Id } },
+      create: { workspaceId, workflowId: wf1Id, platform: "n8n", correlationKey: "email", unknownMappings: "{}" },
+      update: {},
+    });
+    const m1Apps: Array<{ appKey: string; events: Array<{ key: string; label: string }> }> = [
+      { appKey: "apollo",  events: [{ key: "contact_created", label: "Contact added" }] },
+      { appKey: "hubspot", events: [{ key: "deal.creation", label: "Deal created" }, { key: "deal.propertyChange", label: "Deal moved stage" }] },
+      { appKey: "stripe",  events: [{ key: "customer.subscription.created", label: "Subscription created" }, { key: "invoice.paid", label: "Invoice paid" }] },
+    ];
+    for (const a of m1Apps) {
+      const conn = await prisma.workflowAppConnection.upsert({
+        where:  { mirrorId_appKey: { mirrorId: mirror1.id, appKey: a.appKey } },
+        create: { workspaceId, mirrorId: mirror1.id, appKey: a.appKey, connectionType: a.appKey === "apollo" ? "polling" : "webhook", status: "connected", lastEventAt: hoursAgo(Math.random() * 6 + 1) },
+        update: {},
+      });
+      for (const ev of a.events) {
+        await prisma.observedEvent.upsert({
+          where:  { connectionId_eventKey: { connectionId: conn.id, eventKey: ev.key } },
+          create: { connectionId: conn.id, appKey: a.appKey, eventKey: ev.key, label: ev.label },
+          update: {},
+        });
+      }
+    }
+
+    // Sample AppEvents + CorrelationResults for WF1
+    const sampleContacts = [
+      { email: "sarah.mitchell@notion.so", value: "sarah.mitchell@notion.so" },
+      { email: "james.chen@linear.app",    value: "james.chen@linear.app"    },
+      { email: "priya@vercel.com",          value: "priya@vercel.com"          },
+    ];
+    for (let ci = 0; ci < sampleContacts.length; ci++) {
+      const ct = sampleContacts[ci];
+      const appEvt = await prisma.appEvent.create({
+        data: {
+          workspaceId,
+          appKey:           "hubspot",
+          mirrorId:         mirror1.id,
+          eventKey:         "deal.creation",
+          correlationValue: ct.email,
+          payload:          JSON.stringify({ email: ct.email, properties: { dealname: `Demo deal ${ci + 1}`, amount: (ci + 1) * 4200 } }),
+          receivedAt:       hoursAgo(ci * 4 + 1),
+          correlatedAt:     hoursAgo(ci * 4),
+        },
+      });
+      // Find matching n8n queued event (best-effort — use any done event from wf_001)
+      const n8nEvt = await prisma.n8nQueuedEvent.findFirst({
+        where: { workspaceId, workflowId: "wf_001_cold_outbound", status: "done" },
+        select: { id: true },
+      });
+      await prisma.correlationResult.create({
+        data: {
+          workspaceId,
+          mirrorId:         mirror1.id,
+          n8nEventId:       n8nEvt?.id ?? null,
+          appEventId:       appEvt.id,
+          appKey:           "hubspot",
+          correlationKey:   "email",
+          correlationValue: ct.email,
+          verified:         ci < 2,
+          discrepancy:      ci === 2 ? JSON.stringify({ n8nStatus: "done", appStatus: "pending" }) : null,
+          matchedAt:        hoursAgo(ci * 4),
+        },
+      });
+    }
+  }
+
+  // WF2 — Email Enrichment — 1 app connected, no correlation key
+  const wf2Id = n8nMetaIds["wf_002_email_enrich"];
+  if (wf2Id) {
+    const mirror2 = await prisma.workflowMirror.upsert({
+      where:  { workspaceId_workflowId: { workspaceId, workflowId: wf2Id } },
+      create: { workspaceId, workflowId: wf2Id, platform: "n8n", correlationKey: null, unknownMappings: "{}" },
+      update: {},
+    });
+    await prisma.workflowAppConnection.upsert({
+      where:  { mirrorId_appKey: { mirrorId: mirror2.id, appKey: "smartlead" } },
+      create: { workspaceId, mirrorId: mirror2.id, appKey: "smartlead", connectionType: "webhook", status: "connected", lastEventAt: hoursAgo(3) },
+      update: {},
+    });
+  }
+
+  // WF3 — Deal Closed → Revenue — 3 apps mirrored, email key
+  const wf3Id = n8nMetaIds["wf_003_deal_billing"];
+  if (wf3Id) {
+    const mirror3 = await prisma.workflowMirror.upsert({
+      where:  { workspaceId_workflowId: { workspaceId, workflowId: wf3Id } },
+      create: { workspaceId, workflowId: wf3Id, platform: "n8n", correlationKey: "email", unknownMappings: "{}" },
+      update: {},
+    });
+    const m3Apps: Array<{ appKey: string; type: string; events: Array<{ key: string; label: string }> }> = [
+      { appKey: "hubspot",   type: "webhook", events: [{ key: "deal.propertyChange", label: "Deal moved stage" }, { key: "deal.creation", label: "Deal created" }] },
+      { appKey: "stripe",    type: "webhook", events: [{ key: "customer.subscription.created", label: "Subscription created" }, { key: "invoice.paid", label: "Invoice paid" }] },
+      { appKey: "chargebee", type: "webhook", events: [{ key: "customer.subscription.created", label: "Subscription created" }] },
+    ];
+    for (const a of m3Apps) {
+      const conn = await prisma.workflowAppConnection.upsert({
+        where:  { mirrorId_appKey: { mirrorId: mirror3.id, appKey: a.appKey } },
+        create: { workspaceId, mirrorId: mirror3.id, appKey: a.appKey, connectionType: a.type, status: "connected", lastEventAt: hoursAgo(Math.random() * 24 + 2) },
+        update: {},
+      });
+      for (const ev of a.events) {
+        await prisma.observedEvent.upsert({
+          where:  { connectionId_eventKey: { connectionId: conn.id, eventKey: ev.key } },
+          create: { connectionId: conn.id, appKey: a.appKey, eventKey: ev.key, label: ev.label },
+          update: {},
+        });
+      }
+    }
+
+    // Sample AppEvents showing a mismatch for the worst-performer
+    const appEvt3 = await prisma.appEvent.create({
+      data: {
+        workspaceId, appKey: "stripe", mirrorId: mirror3.id,
+        eventKey: "invoice.paid",
+        correlationValue: "tom.erikson@stripe.com",
+        payload: JSON.stringify({ email: "tom.erikson@stripe.com", type: "invoice.paid", amount: 12400 }),
+        receivedAt: hoursAgo(8), correlatedAt: hoursAgo(7),
+      },
+    });
+    const n8nEvt3 = await prisma.n8nQueuedEvent.findFirst({
+      where: { workspaceId, workflowId: "wf_003_deal_billing", status: "failed" },
+      select: { id: true },
+    });
+    await prisma.correlationResult.create({
+      data: {
+        workspaceId, mirrorId: mirror3.id,
+        n8nEventId: n8nEvt3?.id ?? null, appEventId: appEvt3.id,
+        appKey: "stripe", correlationKey: "email", correlationValue: "tom.erikson@stripe.com",
+        verified: false, discrepancy: JSON.stringify({ n8nStatus: "failed", reason: "Chargebee rate limit" }),
+        matchedAt: hoursAgo(7),
+      },
+    });
+  }
+
+  // WF4 — Inbound Lead Score — 2 apps, email key set, partially connected
+  const wf4Id = n8nMetaIds["wf_004_inbound_route"];
+  if (wf4Id) {
+    const mirror4 = await prisma.workflowMirror.upsert({
+      where:  { workspaceId_workflowId: { workspaceId, workflowId: wf4Id } },
+      create: { workspaceId, workflowId: wf4Id, platform: "n8n", correlationKey: "email", unknownMappings: "{}" },
+      update: {},
+    });
+    const m4Apps = [
+      { appKey: "hubspot",    type: "webhook", events: [{ key: "contact.creation", label: "Contact created" }, { key: "deal.creation", label: "Deal created" }] },
+      { appKey: "salesforce", type: "webhook", events: [{ key: "opportunity.created", label: "Opportunity created" }] },
+    ];
+    for (const a of m4Apps) {
+      const conn = await prisma.workflowAppConnection.upsert({
+        where:  { mirrorId_appKey: { mirrorId: mirror4.id, appKey: a.appKey } },
+        create: { workspaceId, mirrorId: mirror4.id, appKey: a.appKey, connectionType: a.type, status: "connected", lastEventAt: hoursAgo(Math.random() * 12 + 1) },
+        update: {},
+      });
+      for (const ev of a.events) {
+        await prisma.observedEvent.upsert({
+          where:  { connectionId_eventKey: { connectionId: conn.id, eventKey: ev.key } },
+          create: { connectionId: conn.id, appKey: a.appKey, eventKey: ev.key, label: ev.label },
+          update: {},
+        });
+      }
+    }
+  }
+
+  // SC5 — ABM Outreach (Make) — Attio + HubSpot connected, email key
+  const sc5Id = makeMetaIds["sc_005_abm_outreach"];
+  if (sc5Id) {
+    const mirror5 = await prisma.workflowMirror.upsert({
+      where:  { workspaceId_workflowId: { workspaceId, workflowId: sc5Id } },
+      create: { workspaceId, workflowId: sc5Id, platform: "make", correlationKey: "email", unknownMappings: "{}" },
+      update: {},
+    });
+    const m5Apps = [
+      { appKey: "attio",   events: [{ key: "record.created", label: "Record created" }, { key: "record.updated", label: "Record updated" }] },
+      { appKey: "hubspot", events: [{ key: "contact.creation", label: "Contact created" }, { key: "deal.creation", label: "Deal created" }] },
+    ];
+    for (const a of m5Apps) {
+      const conn = await prisma.workflowAppConnection.upsert({
+        where:  { mirrorId_appKey: { mirrorId: mirror5.id, appKey: a.appKey } },
+        create: { workspaceId, mirrorId: mirror5.id, appKey: a.appKey, connectionType: "webhook", status: "connected", lastEventAt: hoursAgo(Math.random() * 10 + 1) },
+        update: {},
+      });
+      for (const ev of a.events) {
+        await prisma.observedEvent.upsert({
+          where:  { connectionId_eventKey: { connectionId: conn.id, eventKey: ev.key } },
+          create: { connectionId: conn.id, appKey: a.appKey, eventKey: ev.key, label: ev.label },
+          update: {},
+        });
+      }
+    }
+    // Verified correlation — ABM is clean
+    const appEvt5 = await prisma.appEvent.create({
+      data: {
+        workspaceId, appKey: "attio", mirrorId: mirror5.id,
+        eventKey: "record.created", correlationValue: "carter.scott@attio.com",
+        payload: JSON.stringify({ email: "carter.scott@attio.com", eventType: "record.created" }),
+        receivedAt: hoursAgo(5), correlatedAt: hoursAgo(4),
+      },
+    });
+    await prisma.correlationResult.create({
+      data: {
+        workspaceId, mirrorId: mirror5.id, appEventId: appEvt5.id,
+        appKey: "attio", correlationKey: "email", correlationValue: "carter.scott@attio.com",
+        verified: true, matchedAt: hoursAgo(4),
+      },
+    });
+  }
+
+  // SC6 — Payment Recovery (Make) — Stripe + Lemlist connected, email key
+  const sc6Id = makeMetaIds["sc_006_payment_recovery"];
+  if (sc6Id) {
+    const mirror6 = await prisma.workflowMirror.upsert({
+      where:  { workspaceId_workflowId: { workspaceId, workflowId: sc6Id } },
+      create: { workspaceId, workflowId: sc6Id, platform: "make", correlationKey: "email", unknownMappings: "{}" },
+      update: {},
+    });
+    const m6Apps = [
+      { appKey: "stripe", events: [{ key: "charge.failed", label: "Charge failed" }, { key: "customer.subscription.deleted", label: "Subscription cancelled" }] },
+      { appKey: "lemlist", events: [{ key: "emailSent", label: "Email sent" }, { key: "replyReceived", label: "Reply received" }] },
+    ];
+    for (const a of m6Apps) {
+      const conn = await prisma.workflowAppConnection.upsert({
+        where:  { mirrorId_appKey: { mirrorId: mirror6.id, appKey: a.appKey } },
+        create: { workspaceId, mirrorId: mirror6.id, appKey: a.appKey, connectionType: "webhook", status: "connected", lastEventAt: hoursAgo(Math.random() * 48 + 2) },
+        update: {},
+      });
+      for (const ev of a.events) {
+        await prisma.observedEvent.upsert({
+          where:  { connectionId_eventKey: { connectionId: conn.id, eventKey: ev.key } },
+          create: { connectionId: conn.id, appKey: a.appKey, eventKey: ev.key, label: ev.label },
+          update: {},
+        });
+      }
+    }
+    // Two verified correlations — payment recovery flow works well
+    const recoveryEmails = ["jackson.adams@chargebee.com", "emily.nelson@paddle.com"];
+    for (let ri = 0; ri < recoveryEmails.length; ri++) {
+      const appEvt6 = await prisma.appEvent.create({
+        data: {
+          workspaceId, appKey: "stripe", mirrorId: mirror6.id,
+          eventKey: "charge.failed", correlationValue: recoveryEmails[ri],
+          payload: JSON.stringify({ email: recoveryEmails[ri], type: "charge.failed", amount: 2400 }),
+          receivedAt: hoursAgo(ri * 12 + 6), correlatedAt: hoursAgo(ri * 12 + 5),
+        },
+      });
+      await prisma.correlationResult.create({
+        data: {
+          workspaceId, mirrorId: mirror6.id, appEventId: appEvt6.id,
+          appKey: "stripe", correlationKey: "email", correlationValue: recoveryEmails[ri],
+          verified: true, matchedAt: hoursAgo(ri * 12 + 5),
+        },
+      });
+    }
+  }
+
+  // ── 12. My Workflow — GTM stack map ────────────────────────────────────────
   //
   // Stored as a single Workflow row with name "__gtm_flow_map__".
   // triggerConfig holds { version: 2, stacks: WorkflowStack[] }.
@@ -783,6 +1189,13 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
 
   const best = successRates.reduce((a, b) => a.successRate > b.successRate ? a : b);
 
+  const makeRates = MAKE_SCENARIOS.map(sc => ({
+    name:        sc.name,
+    successRate: Math.round((sc.doneEvents / sc.totalEvents) * 1000) / 10,
+    total:       sc.totalEvents,
+    platform:    "make",
+  }));
+
   res.json({
     seeded: true,
     workspace:   membership.workspace.name,
@@ -796,9 +1209,11 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
       tools:  INTEGRATIONS.map(i => `${i.provider} (${i.signalStatus})`),
     },
     automations: {
-      workflows: successRates,
+      n8nWorkflows:  successRates,
+      makeScenarios: makeRates,
       bestPerformer: `${best.name} — ${best.successRate}% success rate`,
-      queuedEvents: queuedBatch.length,
+      queuedEvents:  queuedBatch.length,
+      mirrorsSeeded: 6,
     },
     message: "Refresh any page to see the demo data.",
   });
