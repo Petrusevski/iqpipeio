@@ -16,6 +16,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { encrypt } from "../utils/encryption";
+import { CANONICAL_EVENTS, normalizeEventType } from "../utils/eventTaxonomy";
 
 const router = Router();
 
@@ -153,6 +154,25 @@ export const APP_CATALOG: Record<string, {
 
 router.get("/app-catalog", (_req: Request, res: Response) => {
   return res.json(APP_CATALOG);
+});
+
+// ── GET /api/workflow-mirror/event-taxonomy ───────────────────────────────────
+// Returns the full canonical event schema (key → label, category, funnelPos).
+// Frontend uses this to display human-readable labels and to order funnel stages.
+
+router.get("/event-taxonomy", (_req: Request, res: Response) => {
+  return res.json(CANONICAL_EVENTS);
+});
+
+// ── GET /api/workflow-mirror/normalize-event ──────────────────────────────────
+// Utility: resolve a raw event string to its canonical key.
+// ?raw=received_reply → { canonical: "reply_received", label: "Reply Received", ... }
+
+router.get("/normalize-event", (req: Request, res: Response) => {
+  const raw = (req.query.raw as string) || "";
+  const canonical = normalizeEventType(raw);
+  const meta = CANONICAL_EVENTS[canonical as keyof typeof CANONICAL_EVENTS];
+  return res.json({ canonical, ...(meta ?? {}) });
 });
 
 // ── GET /api/workflow-mirror ──────────────────────────────────────────────────

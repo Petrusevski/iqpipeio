@@ -41,6 +41,7 @@ import axios from "axios";
 import { createHash } from "crypto";
 import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
+import { normalizeEventType } from "../utils/eventTaxonomy";
 import { resolveIqLead, recordTouchpoint } from "../utils/identity";
 import { assertNotBillingKey } from "../utils/stripeKeyGuard";
 
@@ -2331,7 +2332,8 @@ router.post("/generic", async (req: Request, res: Response) => {
 
   if (!workspaceId) return res.status(400).json({ error: "workspaceId required" }) as any;
 
-  const appSlug = rawApp.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_");
+  const appSlug      = rawApp.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_");
+  const canonicalEvt = normalizeEventType(eventType, rawApp);
 
   const body    = req.body ?? {};
   const email    = (body.email ?? body.emailAddress ?? body.customer?.email ?? null) as string | null;
@@ -2346,7 +2348,7 @@ router.post("/generic", async (req: Request, res: Response) => {
   const externalId = (email ?? linkedin ?? phone ?? `${Date.now()}`).slice(0, 200);
   const timeBucket = Math.floor(Date.now() / 300_000);
   const iKey = createHash("sha256")
-    .update(`${appSlug}:${externalId}:${eventType}:${timeBucket}`)
+    .update(`${appSlug}:${externalId}:${canonicalEvt}:${timeBucket}`)
     .digest("hex");
 
   await prisma.n8nQueuedEvent.upsert({
@@ -2356,7 +2358,7 @@ router.post("/generic", async (req: Request, res: Response) => {
       workflowId:     "generic_webhook",
       sourceApp:      appSlug,
       externalId,
-      eventType,
+      eventType:      canonicalEvt,
       contact: JSON.stringify({
         email:        email,
         linkedin_url: linkedin,

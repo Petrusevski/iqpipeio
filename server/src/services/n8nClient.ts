@@ -12,6 +12,7 @@ import axios from "axios";
 import { createHash } from "crypto";
 import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
+import { normalizeEventType } from "../utils/eventTaxonomy";
 
 // ── Node → App mapping ────────────────────────────────────────────────────────
 // Maps n8n node type slugs to human-readable app names.
@@ -422,27 +423,38 @@ function extractContactFromJson(json: Record<string, any>): ContactFields | null
   };
 }
 
-const LINKEDIN_APPS = new Set(["HeyReach", "Expandi", "Dripify", "Waalaxy"]);
-const EMAIL_APPS    = new Set(["Instantly", "Lemlist", "Smartlead", "Mailshake", "QuickMail", "Woodpecker", "Reply.io", "Klenty", "Mixmax", "Outreach", "Salesloft"]);
-const ENRICH_APPS   = new Set(["Clay", "Clearbit", "ZoomInfo", "Hunter.io", "Lusha", "Cognism", "PhantomBuster", "People Data Labs", "Snov.io", "RocketReach"]);
-const CRM_APPS      = new Set(["HubSpot", "Pipedrive", "Salesforce", "Attio", "Close CRM", "Freshsales", "Zoho CRM"]);
-const BILLING_APPS  = new Set(["Stripe", "Chargebee", "Paddle"]);
+// App-class hints: when we can't infer from the node name alone, use the app
+// category as an additional context string fed into normalizeEventType.
+const APP_CLASS_HINT: Record<string, string> = {
+  HeyReach: "linkedin sent", Expandi: "linkedin sent", Dripify: "linkedin sent", Waalaxy: "linkedin sent",
+  Instantly: "email sent", Lemlist: "email sent", Smartlead: "email sent", Mailshake: "email sent",
+  QuickMail: "email sent", Woodpecker: "email sent", "Reply.io": "email sent", Klenty: "email sent",
+  Mixmax: "email sent", Outreach: "email sent", Salesloft: "email sent",
+  Clay: "contact enriched", Clearbit: "contact enriched", ZoomInfo: "contact enriched",
+  "Hunter.io": "contact enriched", Lusha: "contact enriched", Cognism: "contact enriched",
+  PhantomBuster: "contact sourced", "People Data Labs": "contact enriched",
+  "Snov.io": "contact enriched", RocketReach: "contact enriched",
+  HubSpot: "contact updated", Pipedrive: "contact updated", Salesforce: "contact updated",
+  Attio: "contact updated", "Close CRM": "contact updated", Freshsales: "contact updated",
+  "Zoho CRM": "contact updated",
+  Stripe: "payment received", Chargebee: "subscription created", Paddle: "payment received",
+};
 
-/** Heuristically infer the iqpipe event type from a node name and its app. */
+/**
+ * Infer a canonical iqpipe event type from the n8n node name + app name.
+ * Delegates entirely to the event taxonomy normalizer.
+ */
 function inferEventType(nodeName: string, appName: string): string {
-  const lc = nodeName.toLowerCase();
-  if (lc.includes("reply") || lc.includes("replied"))                         return "reply_received";
-  if (lc.includes("meeting") || lc.includes("book") || lc.includes("booked")) return "meeting_booked";
-  if (lc.includes("deal won") || lc.includes("closed won"))                   return "deal_won";
-  if (lc.includes("deal lost") || lc.includes("closed lost"))                 return "deal_lost";
-  if (lc.includes("enrich"))                                                   return "enriched";
-  if (lc.includes("deal") && (lc.includes("creat") || lc.includes("new")))    return "deal_created";
-  if (LINKEDIN_APPS.has(appName))                                              return "linkedin_message_sent";
-  if (EMAIL_APPS.has(appName))                                                 return "email_sent";
-  if (ENRICH_APPS.has(appName))                                                return "enriched";
-  if (CRM_APPS.has(appName))                                                   return "crm_updated";
-  if (BILLING_APPS.has(appName))                                               return "deal_created";
-  return "contacted";
+  // Try node name first — it's the most specific signal
+  const fromNode = normalizeEventType(nodeName, appName);
+  // If the normalizer returned a canonical key, we're done
+  if (fromNode !== "event" && fromNode !== "contacted") return fromNode;
+
+  // Fall back to app-class hint
+  const hint = APP_CLASS_HINT[appName];
+  if (hint) return normalizeEventType(hint);
+
+  return "email_sent"; // safest default for unknown GTM nodes
 }
 
 /** Fuzzy-match a node name against known apps in the workflow's appsUsed list. */

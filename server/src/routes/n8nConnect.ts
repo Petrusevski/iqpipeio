@@ -16,6 +16,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { encrypt } from "../utils/encryption";
 import { testN8nConnection, syncN8nConnection, pollN8nExecutions } from "../services/n8nClient";
+import { CANONICAL_EVENTS, getCanonicalMeta } from "../utils/eventTaxonomy";
 
 const router = Router();
 
@@ -233,6 +234,52 @@ router.get("/app-event-counts", async (req: Request, res: Response) => {
   }
 
   return res.json(result);
+});
+
+// ── GET /api/n8n-connect/funnel ───────────────────────────────────────────────
+// Returns canonical event counts ordered by funnel position, with conversion
+// rates between adjacent stages.
+// Optional: ?workflowId= to scope to a single workflow.
+
+router.get("/funnel", async (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceId(req);
+  const workflowId  = req.query.workflowId as string | undefined;
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId required" }) as any;
+
+  const where: any = { workspaceId, status: { not: "failed" } };
+  if (workflowId) where.workflowId = workflowId;
+
+  // Count distinct contacts (by externalId) per canonical event type
+  const rows = await prisma.n8nQueuedEvent.groupBy({
+    by:    ["eventType"],
+    where,
+    _count: { id: true },
+  });
+
+  // Map each event type to canonical metadata + count
+  const stages = rows
+    .map(r => {
+      const meta  = getCanonicalMeta(r.eventType);
+      return {
+        eventType:  r.eventType,
+        label:      meta.label,
+        category:   meta.category,
+        funnelPos:  meta.funnelPos,
+        count:      r._count.id,
+      };
+    })
+    .sort((a, b) => a.funnelPos - b.funnelPos);
+
+  // Compute conversion rates between adjacent stages
+  const withRates = stages.map((stage, i) => {
+    const prev = stages[i - 1];
+    const rate = prev && prev.count > 0
+      ? Math.round((stage.count / prev.count) * 1000) / 10  // 1 decimal %
+      : null;
+    return { ...stage, conversionFromPrev: rate };
+  });
+
+  return res.json(withRates);
 });
 
 // ── POST /api/n8n-connect/poll-now ────────────────────────────────────────────
