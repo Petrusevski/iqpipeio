@@ -477,6 +477,57 @@ export default function WorkflowComparePage() {
     elems.push(HLine(PX, y + HH, W - PX, y + HH));
     y += HH;
 
+    // ── Apps in Flow row
+    const appsPerRow  = 5;   // max pills per line before wrapping
+    const pillW       = 52;  // pill width
+    const pillH       = 14;  // pill height
+    const pillGapX    = 5;
+    const pillGapY    = 4;
+    const maxApps     = 10;  // cap to avoid overflowing column
+
+    // Compute the row height based on the workflow with the most apps
+    const maxAppsAny  = Math.min(
+      Math.max(...scoredItems.map(wf => Math.min(wf.appsUsed.length, maxApps))),
+      maxApps,
+    );
+    const appsRows    = Math.ceil(maxAppsAny / appsPerRow);
+    const AFH         = 14 + appsRows * (pillH + pillGapY) + 6;  // dynamic row height
+
+    elems.push(Rect(PX, y, W - 2 * PX, AFH, "#ffffff06"));
+    elems.push(Tx(PX + IP, y + 20, "Apps in Flow", 11, C.slate3, "500"));
+    elems.push(Tx(PX + IP, y + 33, "Nodes used", 9, C.slate7));
+
+    for (let i = 0; i < n; i++) {
+      const wf = scoredItems[i];
+      const x0 = colX(i);
+      if (wf.id === winnerPlatformId) elems.push(Rect(x0, y, CW, AFH, "#1e1b4b18"));
+
+      const apps = wf.appsUsed.slice(0, maxApps);
+      const overflow = wf.appsUsed.length - maxApps;
+
+      apps.forEach((app, ai) => {
+        const col  = ai % appsPerRow;
+        const row  = Math.floor(ai / appsPerRow);
+        const px   = x0 + IP + col * (pillW + pillGapX);
+        const py   = y + 10 + row * (pillH + pillGapY);
+        const label = app.length > 7 ? app.slice(0, 6) + "\u2026" : app;
+        elems.push(Rect(px, py, pillW, pillH, "#1e293b", 3));
+        elems.push(`<rect x="${px}" y="${py}" width="${pillW}" height="${pillH}" rx="3" fill="none" stroke="#334155" stroke-width="0.6"/>`);
+        elems.push(Tx(px + pillW / 2, py + pillH - 3, label, 7.5, C.slate3, "400", "middle"));
+      });
+
+      if (overflow > 0) {
+        const col  = apps.length % appsPerRow;
+        const row  = Math.floor(apps.length / appsPerRow);
+        const px   = x0 + IP + col * (pillW + pillGapX);
+        const py   = y + 10 + row * (pillH + pillGapY);
+        elems.push(Rect(px, py, pillW, pillH, "#1e293b", 3));
+        elems.push(Tx(px + pillW / 2, py + pillH - 3, `+${overflow} more`, 7.5, C.slate5, "400", "middle"));
+      }
+    }
+    elems.push(HLine(PX, y + AFH, W - PX, y + AFH, C.border, 0.5));
+    y += AFH;
+
     // ── Pillar rows
     const pillars = [
       { key: "reliability",  label: "Reliability",         sub: "30% weight" },
