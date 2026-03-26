@@ -45,6 +45,7 @@ import pushRouter  from "./routes/push";
 import adminRouter from "./routes/admin";
 import workflowMirrorRouter from "./routes/workflowMirror";
 import appWebhooksRouter    from "./routes/appWebhooks";
+import reportStudioRouter   from "./routes/reportStudio";
 
 const app = express();
 
@@ -179,5 +180,6 @@ app.use("/api/push",           pushRouter);
 app.use("/api/admin",          adminRouter);
 app.use("/api/workflow-mirror", workflowMirrorRouter);
 app.use("/api/app-webhooks",    appWebhooksRouter);
+app.use("/api/report-studio",   reportStudioRouter);
 
 export default app;

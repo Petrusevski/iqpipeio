@@ -48,6 +48,8 @@ import CareersPage             from "./pages/CareersPage";
 import PublicIntegrationsPage  from "./pages/PublicIntegrationsPage";
 import CheckoutSuccessPage     from "./pages/CheckoutSuccessPage";
 import CheckoutCancelPage      from "./pages/CheckoutCancelPage";
+import ReportStudioPage        from "./pages/ReportStudioPage";
+import PublicReportPage        from "./pages/PublicReportPage";
 
 function App() {
   const token = localStorage.getItem("iqpipe_token");
@@ -71,6 +73,7 @@ function App() {
         <Route path="/integrations"     element={<PublicIntegrationsPage />} />
         <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
         <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
+        <Route path="/report/:token"    element={<PublicReportPage />} />
 
         {/* Admin — always accessible regardless of user auth */}
         <Route path="/admin36486/login" element={<AdminLoginPage />} />
@@ -108,6 +111,8 @@ function App() {
           <Route path="/settings"      element={<SettingsPage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
+          <Route path="/report-studio"    element={<ReportStudioPage />} />
+          <Route path="/report/:token"    element={<PublicReportPage />} />
           <Route path="/login"         element={<Navigate to="/feed" replace />} />
           <Route path="/signup"        element={<Navigate to="/feed" replace />} />
           <Route path="/admin36486/login"   element={<AdminLoginPage />} />

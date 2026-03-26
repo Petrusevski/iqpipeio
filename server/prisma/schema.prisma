@@ -709,3 +709,22 @@ model CorrelationResult {
   @@index([correlationValue])
   @@index([matchedAt])
 }
+
+// ── Report Studio ─────────────────────────────────────────────────────────────
+// Stores published report snapshots with a public share token.
+
+model PublicReport {
+  id          String    @id @default(cuid())
+  token       String    @unique @default(cuid())
+  workspaceId String
+  reportType  String    // "snapshot" | "funnel" | "digest" | "revenue"
+  cardFormat  String    @default("linkedin")
+  period      String    @default("30d")
+  insight     String?   // AI-generated text
+  data        String    // JSON blob (serialised ReportData)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+
+  @@index([workspaceId])
+  @@index([token])
+}

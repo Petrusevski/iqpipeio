@@ -10,6 +10,7 @@ import {
   Fingerprint,
   Workflow,
   BarChart3,
+  Sparkles,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -37,6 +38,7 @@ const navGroups = [
   {
     title: "Report",
     items: [
+      { label: "Report Studio",     path: "/report-studio",    icon: Sparkles },
       { label: "GTM Report",        path: "/gtm-report",       icon: FileText },
     ],
   },
