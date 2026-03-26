@@ -221,7 +221,6 @@ export default function WorkflowComparePage() {
 
   const [period,         setPeriod]         = useState<Period>("30d");
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
-  const [activePlatform, setActivePlatform] = useState<"n8n" | "make">("n8n");
   const [wsId,         setWsId]         = useState<string | null>(null);
   const [loadingWs,    setLoadingWs]    = useState(true);
   const [loadingN8n,   setLoadingN8n]   = useState(false);
@@ -303,7 +302,6 @@ export default function WorkflowComparePage() {
     })),
   ];
 
-  const platformItems = allSelectables.filter(w => w.platform === activePlatform);
 
   // Map internalId → platformId for backend calls
   const selInternal  = allSelectables.filter(w => selected.has(w.internalId));
@@ -340,7 +338,7 @@ export default function WorkflowComparePage() {
       .catch(e => { if (e.name !== "AbortError") console.error("[workflow-score]", e); })
       .finally(() => setLoadingScore(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsId, selected, period, activePlatform]);
+  }, [wsId, selected, period]);
 
   // ── Selection handlers ───────────────────────────────────────────────────────
   function toggleSelect(internalId: string) {
@@ -770,27 +768,23 @@ export default function WorkflowComparePage() {
 
         {!noConnection && (
           <>
-            {/* ── Platform tabs + workflow selector ── */}
+            {/* ── Workflow selector ── */}
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-900 border border-slate-800">
-                  {(["n8n", "make"] as const).map(p => (
-                    <button
-                      key={p}
-                      onClick={() => { setActivePlatform(p); setSelected(new Set()); }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                        activePlatform === p
-                          ? "bg-indigo-500/20 text-white border border-indigo-500/30"
-                          : "text-slate-500 hover:text-slate-300"
-                      }`}
-                    >
-                      {p === "n8n" ? <Bot size={13} /> : <Layers size={13} />}
-                      {p === "n8n" ? "n8n" : "Make.com"}
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-500">
-                        {p === "n8n" ? n8nWorkflows.length : makeScenarios.length}
-                      </span>
-                    </button>
-                  ))}
+                {/* Platform counts */}
+                <div className="flex items-center gap-3 text-xs text-slate-500">
+                  {n8nWorkflows.length > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Bot size={12} className="text-orange-400" /> n8n
+                      <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-500">{n8nWorkflows.length}</span>
+                    </span>
+                  )}
+                  {makeScenarios.length > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <Layers size={12} className="text-purple-400" /> Make.com
+                      <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-500">{makeScenarios.length}</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -822,16 +816,16 @@ export default function WorkflowComparePage() {
                 <div className="flex items-center gap-2 text-slate-600 text-sm py-6">
                   <RefreshCw size={13} className="animate-spin" /> Loading workflows…
                 </div>
-              ) : platformItems.length === 0 ? (
+              ) : allSelectables.length === 0 ? (
                 <div className="py-8 text-center text-slate-600 text-sm">
-                  No {activePlatform === "n8n" ? "n8n workflows" : "Make.com scenarios"} connected.{" "}
+                  No workflows connected.{" "}
                   <button onClick={() => navigate("/automations")} className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">
                     Connect now →
                   </button>
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {platformItems.map(wf => {
+                  {allSelectables.map(wf => {
                     const isSelected = selected.has(wf.internalId);
                     const scored     = scoredMap[wf.platformId];
                     return (
@@ -852,6 +846,14 @@ export default function WorkflowComparePage() {
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wf.active ? "bg-emerald-500" : "bg-slate-600"}`} />
                             <span className="text-sm font-medium text-white truncate">{wf.name}</span>
                           </div>
+                          <span className={`shrink-0 flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${
+                            wf.platform === "n8n"
+                              ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
+                              : "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                          }`}>
+                            {wf.platform === "n8n" ? <Bot size={8} /> : <Layers size={8} />}
+                            {wf.platform === "n8n" ? "n8n" : "Make"}
+                          </span>
                           {isSelected && scored && (
                             <GradeBadge grade={scored.grade} />
                           )}
@@ -898,7 +900,7 @@ export default function WorkflowComparePage() {
             </div>
 
             {/* ── Placeholder when < 2 selected ── */}
-            {showEmptySelect && !isLoadingLists && platformItems.length >= 2 && (
+            {showEmptySelect && !isLoadingLists && allSelectables.length >= 2 && (
               <div className="flex flex-col items-center justify-center py-14 rounded-2xl border border-dashed border-slate-800 text-center">
                 <BarChart3 size={32} className="text-slate-700 mb-3" />
                 <p className="text-slate-500 font-medium">Select 2 or more workflows to compare</p>
