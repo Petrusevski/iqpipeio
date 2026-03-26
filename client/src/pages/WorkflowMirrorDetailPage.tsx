@@ -44,6 +44,11 @@ function normKey(label: string): string {
   return label.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+// Guess a plausible domain for an app not in the catalog
+function guessDomain(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "") + ".com";
+}
+
 // Map friendly app name → catalog key (e.g. "HubSpot" → "hubspot")
 function appNameToKey(name: string, catalog: Record<string, AppCatalogEntry>): string | null {
   const n = normKey(name);
@@ -71,10 +76,11 @@ function hasBranchNode(nodeTypes: string[]): boolean {
 function VisNode({
   name, domain, excluded, visible, onToggle,
 }: {
-  name: string; domain: string | null;
+  name: string; domain: string;
   excluded: boolean; visible: boolean;
   onToggle: () => void;
 }) {
+  const [imgFailed, setImgFailed] = useState(false);
   return (
     <div
       className="flex flex-col items-center gap-1.5"
@@ -89,11 +95,11 @@ function VisNode({
           ? "bg-slate-900/60 border-slate-800 opacity-35"
           : "bg-slate-800 border-slate-600/60 shadow-md shadow-black/30"
       }`}>
-        {domain
+        {!imgFailed
           ? <img
               src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
               className="h-6 w-6 object-contain" alt={name}
-              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+              onError={() => setImgFailed(true)}
             />
           : <span className="text-sm font-bold text-slate-400">{name[0]}</span>
         }
@@ -151,12 +157,12 @@ function FlowVisualizer({
     return () => timers.forEach(window.clearTimeout);
   }, [apps]);
 
-  const getDomain = (name: string): string | null => {
+  const getDomain = (name: string): string => {
     const key = Object.keys(catalog).find(k =>
       catalog[k].label.toLowerCase() === name.toLowerCase() ||
       k === name.toLowerCase().replace(/[^a-z0-9]/g, "")
     );
-    return key ? catalog[key].domain : null;
+    return key ? catalog[key].domain : guessDomain(name);
   };
 
   if (apps.length === 0) return null;
@@ -255,6 +261,70 @@ function Section({ title, subtitle, children, step }: {
         </div>
       </div>
       <div className="p-6">{children}</div>
+    </div>
+  );
+}
+
+// ─── Generic (non-catalog) connect modal ──────────────────────────────────────
+
+function GenericConnectModal({
+  appName, workspaceId, onClose,
+}: {
+  appName: string; workspaceId: string; onClose: () => void;
+}) {
+  const appSlug    = appName.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_");
+  const webhookUrl = `${API_BASE_URL}/api/webhooks/generic?workspaceId=${workspaceId}&app=${encodeURIComponent(appSlug)}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center gap-3">
+          <div className="h-7 w-7 rounded-lg bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+            {appName[0]}
+          </div>
+          <h3 className="text-sm font-semibold text-white">Connect {appName} manually</h3>
+          <button onClick={onClose} className="ml-auto text-slate-500 hover:text-white text-xl leading-none">×</button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-xl p-3 text-xs text-indigo-300 leading-relaxed">
+            iqpipe already captures events from <strong>{appName}</strong> if it's part of a connected n8n or Make.com flow.
+            Use this webhook for direct inbound events — replies, subscription changes, etc.
+          </div>
+
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-2">
+              Webhook URL — register this in {appName}
+            </label>
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
+              <code className="text-xs text-indigo-300 truncate flex-1">{webhookUrl}</code>
+              <CopyBtn text={webhookUrl} />
+            </div>
+            <p className="text-[10px] text-slate-600 mt-1.5">
+              Tag the event type by appending{" "}
+              <code className="text-slate-500">&amp;eventType=subscription_created</code>{" "}
+              — use snake_case event names.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
+              Required payload fields
+            </label>
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1 font-mono text-[10px] text-slate-500">
+              <p><span className="text-slate-400">email</span> — contact email <span className="text-rose-500/60">(required)</span></p>
+              <p><span className="text-slate-400">first_name</span> / <span className="text-slate-400">last_name</span> — optional</p>
+              <p><span className="text-slate-400">company</span> — optional</p>
+              <p><span className="text-slate-400">phone</span> / <span className="text-slate-400">linkedin_url</span> — optional</p>
+            </div>
+          </div>
+
+          <button onClick={onClose}
+            className="w-full px-4 py-2 rounded-xl border border-slate-700 text-sm text-slate-400 hover:text-white transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -443,34 +513,39 @@ function EventSelector({
 
 function AppRow({
   appName, appKey, catalog, conn, mirrorId, workspaceId, token,
-  onConnect, onDisconnect, onEventsUpdated,
+  n8nEvents, onConnect, onDisconnect, onEventsUpdated,
 }: {
   appName: string; appKey: string | null;
   catalog: Record<string, AppCatalogEntry>;
   conn: AppConnection | null;
   mirrorId: string; workspaceId: string; token: string;
+  n8nEvents?: { count: number; lastAt: string | null; eventTypes: string[] };
   onConnect: (conn: AppConnection) => void;
   onDisconnect: (connId: string) => void;
   onEventsUpdated: (conn: AppConnection) => void;
 }) {
-  const [showModal, setShowModal] = useState(false);
-  const entry = appKey ? catalog[appKey] : null;
-  const domain = entry?.domain;
+  const [showModal,        setShowModal]        = useState(false);
+  const [showGenericModal, setShowGenericModal] = useState(false);
+  const [imgFailed,        setImgFailed]        = useState(false);
+
+  const entry  = appKey ? catalog[appKey] : null;
+  const domain = entry?.domain ?? guessDomain(appName);
 
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          {domain
+          {!imgFailed
             ? <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
-                className="h-6 w-6 object-contain rounded" alt={appName} />
+                className="h-6 w-6 object-contain rounded" alt={appName}
+                onError={() => setImgFailed(true)} />
             : <div className="h-6 w-6 rounded bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-400">
                 {appName[0]}
               </div>
           }
           <div>
             <p className="text-sm font-medium text-white">{appName}</p>
-            {entry && (
+            {entry ? (
               <div className="flex items-center gap-1.5 mt-0.5">
                 {entry.connectionType === "webhook"
                   ? <span className="flex items-center gap-1 text-[9px] text-sky-400"><Webhook size={9} />Webhook</span>
@@ -478,9 +553,14 @@ function AppRow({
                   ? <span className="flex items-center gap-1 text-[9px] text-amber-400"><RefreshCw size={9} />Polling</span>
                   : <span className="flex items-center gap-1 text-[9px] text-violet-400"><Link2 size={9} />Webhook + API</span>
                 }
-                {!appKey && <span className="text-[9px] text-slate-600 italic">— map to known app</span>}
               </div>
-            )}
+            ) : n8nEvents && n8nEvents.count > 0 ? (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {n8nEvents.eventTypes.slice(0, 4).map(t => (
+                  <span key={t} className="text-[9px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded-full font-mono">{t}</span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -490,15 +570,29 @@ function AppRow({
               <CheckCircle2 size={11} />Connected
             </span>
           )}
-          {!appKey && (
-            <span className="text-[10px] text-amber-400 flex items-center gap-1">
-              <AlertTriangle size={11} />Unknown step
+          {/* Non-catalog app: show n8n event count OR "no events" */}
+          {!appKey && n8nEvents && n8nEvents.count > 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/8 border border-emerald-500/15 rounded-lg px-2 py-1">
+              <Activity size={10} />{n8nEvents.count} via n8n
             </span>
           )}
+          {!appKey && (!n8nEvents || n8nEvents.count === 0) && (
+            <span className="flex items-center gap-1 text-[10px] text-slate-600">
+              <Circle size={10} />No events yet
+            </span>
+          )}
+          {/* Connect button for catalog apps */}
           {appKey && !conn && (
             <button onClick={() => setShowModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-medium transition-colors">
               <Plug size={11} />Connect
+            </button>
+          )}
+          {/* Manual connect for non-catalog apps */}
+          {!appKey && (
+            <button onClick={() => setShowGenericModal(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-700 text-[10px] text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+              <Webhook size={9} />Manual connect
             </button>
           )}
           {conn && (
@@ -525,12 +619,26 @@ function AppRow({
         </div>
       )}
 
+      {/* Last n8n event time for non-catalog apps */}
+      {!appKey && n8nEvents?.lastAt && (
+        <p className="text-[10px] text-slate-700 mt-2 flex items-center gap-1">
+          <Clock size={9} />Last n8n event {fmtDate(n8nEvents.lastAt)}
+        </p>
+      )}
+
       {showModal && entry && (
         <ConnectModal
           appKey={appKey!} entry={entry} mirrorId={mirrorId}
           workspaceId={workspaceId} token={token}
           onConnected={conn => { onConnect(conn); setShowModal(false); }}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {showGenericModal && (
+        <GenericConnectModal
+          appName={appName} workspaceId={workspaceId}
+          onClose={() => setShowGenericModal(false)}
         />
       )}
     </div>
@@ -609,6 +717,11 @@ export default function WorkflowMirrorDetailPage() {
   // Unknown app mappings: "HTTP Request" → appKey
   const [unknownMap, setUnknownMap] = useState<Record<string, string>>({});
 
+  // n8n execution event counts per sourceApp
+  const [appEventCounts, setAppEventCounts] = useState<Record<string, {
+    count: number; lastAt: string | null; eventTypes: string[];
+  }>>({});
+
   // Excluded apps (not recorded by iqpipe)
   const [excludedApps, setExcludedApps] = useState<Set<string>>(new Set());
 
@@ -646,11 +759,20 @@ export default function WorkflowMirrorDetailPage() {
     const wf = wfList.find((w: WorkflowMeta) => w.id === id) ?? null;
     setWfMeta(wf);
 
+    // Fetch n8n event counts per sourceApp
+    if (platform === "n8n") {
+      const countsRes = await fetch(
+        `${API_BASE_URL}/api/n8n-connect/app-event-counts?workspaceId=${wsId}`,
+        { headers: { Authorization: `Bearer ${t}` } },
+      );
+      if (countsRes.ok) setAppEventCounts(await countsRes.json());
+    }
+
     // Restore excluded apps from saved event filter (whitelist → invert to excluded)
     if (wf?.eventFilter?.enabled && wf.eventFilter.apps.length > 0) {
       const whitelisted = new Set(wf.eventFilter.apps);
-      const excluded = new Set((wf.appsUsed ?? []).filter(a => !whitelisted.has(a)));
-      setExcludedApps(excluded);
+      const excluded = new Set((wf.appsUsed ?? []).filter((a: string) => !whitelisted.has(a)));
+      setExcludedApps(excluded as Set<string>);
     }
 
     // Fetch mirror config
@@ -729,14 +851,6 @@ export default function WorkflowMirrorDetailPage() {
     });
   };
 
-  // ── Unknown app mapping ───────────────────────────────────────────────────
-  const mapUnknown = async (nodeName: string, appKey: string) => {
-    const next = { ...unknownMap, [nodeName]: appKey };
-    setUnknownMap(next);
-    // Ensure mirror exists first
-    if (!mirror) await upsertMirror({ unknownMappings: next });
-    else          await upsertMirror({ unknownMappings: next });
-  };
 
   // ── Exclude / include app from recording ─────────────────────────────────
   const toggleExclude = useCallback(async (appName: string) => {
@@ -870,42 +984,27 @@ export default function WorkflowMirrorDetailPage() {
                 const conn = mirror?.appConnections.find(c =>
                   c.appKey === row.appKey
                 ) ?? null;
+                const displayName = row.isUnknown && row.appKey
+                  ? (catalog[row.appKey]?.label ?? row.displayName)
+                  : row.displayName;
                 return (
-                  <div key={row.displayName}>
-                    {/* Unknown node mapping */}
-                    {row.isUnknown && !row.appKey && (
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className="text-xs text-amber-400 font-medium">{row.displayName}</span>
-                        <span className="text-xs text-slate-600">→ map to:</span>
-                        <select
-                          value=""
-                          onChange={e => { if (e.target.value) mapUnknown(row.displayName, e.target.value); }}
-                          className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500 appearance-none"
-                        >
-                          <option value="">— select app —</option>
-                          {Object.entries(catalog).map(([k, v]) => (
-                            <option key={k} value={k}>{v.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    <AppRow
-                      appName={row.isUnknown && row.appKey ? (catalog[row.appKey]?.label ?? row.displayName) : row.displayName}
-                      appKey={row.appKey}
-                      catalog={catalog}
-                      conn={conn}
-                      mirrorId={mirrorId || "pending"}
-                      workspaceId={wsId}
-                      token={token}
-                      onConnect={async (newConn) => {
-                        // Create mirror first if it doesn't exist yet
-                        if (!mirror) await upsertMirror({});
-                        handleConnect(newConn);
-                      }}
-                      onDisconnect={handleDisconnect}
-                      onEventsUpdated={handleEventsUpdated}
-                    />
-                  </div>
+                  <AppRow
+                    key={row.displayName}
+                    appName={displayName}
+                    appKey={row.appKey}
+                    catalog={catalog}
+                    conn={conn}
+                    mirrorId={mirrorId || "pending"}
+                    workspaceId={wsId}
+                    token={token}
+                    n8nEvents={appEventCounts[displayName] ?? appEventCounts[displayName.toLowerCase().replace(/[^a-z0-9]/g, "_")]}
+                    onConnect={async (newConn) => {
+                      if (!mirror) await upsertMirror({});
+                      handleConnect(newConn);
+                    }}
+                    onDisconnect={handleDisconnect}
+                    onEventsUpdated={handleEventsUpdated}
+                  />
                 );
               })}
             </div>

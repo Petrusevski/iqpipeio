@@ -194,6 +194,47 @@ router.post("/event-filter", async (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
+// ── GET /api/n8n-connect/app-event-counts ─────────────────────────────────────
+// Returns N8nQueuedEvent counts grouped by sourceApp for a workspace.
+// Used by the WorkflowMirrorDetailPage to show "X events via n8n" for non-catalog apps.
+
+router.get("/app-event-counts", async (req: Request, res: Response) => {
+  const workspaceId = getWorkspaceId(req);
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId required" }) as any;
+
+  const grouped = await prisma.n8nQueuedEvent.groupBy({
+    by:    ["sourceApp"],
+    where: { workspaceId },
+    _count: { id: true },
+    _max:   { createdAt: true },
+  });
+
+  const appNames = grouped.map(g => g.sourceApp);
+  const typeRows = appNames.length
+    ? await prisma.n8nQueuedEvent.findMany({
+        where:    { workspaceId, sourceApp: { in: appNames } },
+        select:   { sourceApp: true, eventType: true },
+        distinct: ["sourceApp", "eventType"],
+      })
+    : [];
+
+  const typesByApp: Record<string, string[]> = {};
+  for (const r of typeRows) {
+    (typesByApp[r.sourceApp] ??= []).push(r.eventType);
+  }
+
+  const result: Record<string, { count: number; lastAt: string | null; eventTypes: string[] }> = {};
+  for (const g of grouped) {
+    result[g.sourceApp] = {
+      count:      g._count.id,
+      lastAt:     g._max.createdAt?.toISOString() ?? null,
+      eventTypes: typesByApp[g.sourceApp] ?? [],
+    };
+  }
+
+  return res.json(result);
+});
+
 // ── POST /api/n8n-connect/poll-now ────────────────────────────────────────────
 // Trigger an immediate execution poll for a workspace (bypasses 5-min interval).
 

@@ -38,6 +38,7 @@
 import { Router, Request, Response } from "express";
 import Stripe from "stripe";
 import axios from "axios";
+import { createHash } from "crypto";
 import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
 import { resolveIqLead, recordTouchpoint } from "../utils/identity";
@@ -2316,6 +2317,63 @@ router.post("/n8n/errors/:id/retry", async (req: Request, res: Response) => {
   });
 
   return res.json({ status: "requeued", queueEventId: queueEvent?.id ?? null });
+});
+
+// ── POST /api/webhooks/generic ────────────────────────────────────────────────
+// Generic inbound webhook for apps not in the catalog.
+// Query params: workspaceId (required), app (app slug), eventType (optional)
+// Payload: any JSON object containing email / linkedin_url / phone
+
+router.post("/generic", async (req: Request, res: Response) => {
+  const workspaceId = (req.query.workspaceId as string) || "";
+  const rawApp      = (req.query.app      as string) || "unknown";
+  const eventType   = (req.query.eventType as string) || "event";
+
+  if (!workspaceId) return res.status(400).json({ error: "workspaceId required" }) as any;
+
+  const appSlug = rawApp.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_");
+
+  const body    = req.body ?? {};
+  const email    = (body.email ?? body.emailAddress ?? body.customer?.email ?? null) as string | null;
+  const linkedin = (body.linkedin_url ?? body.linkedin ?? null) as string | null;
+  const phone    = (body.phone ?? body.phone_number ?? null) as string | null;
+
+  // Need at least one contact anchor
+  if (!email && !linkedin && !phone) {
+    return res.json({ ok: true, skipped: "no contact identifier found" });
+  }
+
+  const externalId = (email ?? linkedin ?? phone ?? `${Date.now()}`).slice(0, 200);
+  const timeBucket = Math.floor(Date.now() / 300_000);
+  const iKey = createHash("sha256")
+    .update(`${appSlug}:${externalId}:${eventType}:${timeBucket}`)
+    .digest("hex");
+
+  await prisma.n8nQueuedEvent.upsert({
+    where:  { workspaceId_idempotencyKey: { workspaceId, idempotencyKey: iKey } },
+    create: {
+      workspaceId,
+      workflowId:     "generic_webhook",
+      sourceApp:      appSlug,
+      externalId,
+      eventType,
+      contact: JSON.stringify({
+        email:        email,
+        linkedin_url: linkedin,
+        phone:        phone,
+        first_name:   (body.first_name ?? body.firstName ?? null) as string | null,
+        last_name:    (body.last_name  ?? body.lastName  ?? null) as string | null,
+        company:      (body.company    ?? null) as string | null,
+        title:        (body.title      ?? body.job_title ?? null) as string | null,
+      }),
+      idempotencyKey: iKey,
+      sourceType:     "webhook",
+      sourcePriority: 2,
+    },
+    update: {},
+  });
+
+  return res.json({ ok: true });
 });
 
 export default router;
