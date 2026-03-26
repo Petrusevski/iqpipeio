@@ -129,7 +129,7 @@ router.get("/workflows", async (req: Request, res: Response) => {
     orderBy: [{ active: "desc" }, { name: "asc" }],
     select: {
       id: true, n8nId: true, name: true, active: true,
-      tags: true, appsUsed: true, nodeCount: true,
+      tags: true, appsUsed: true, nodeTypes: true, nodeCount: true,
       triggerType: true, description: true,
       lastUpdatedAt: true, syncedAt: true,
       lastExecCursor: true, eventFilter: true, execSyncEnabled: true,
@@ -141,6 +141,7 @@ router.get("/workflows", async (req: Request, res: Response) => {
       ...w,
       tags:           JSON.parse(w.tags),
       appsUsed:       JSON.parse(w.appsUsed),
+      nodeTypes:      JSON.parse(w.nodeTypes),
       eventFilter:    w.eventFilter ? JSON.parse(w.eventFilter) : null,
       lastUpdatedAt:  w.lastUpdatedAt?.toISOString() ?? null,
       syncedAt:       w.syncedAt.toISOString(),

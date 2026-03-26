@@ -4,7 +4,7 @@ import {
   ArrowLeft, GitBranch, CheckCircle2, Circle, AlertTriangle,
   Plug, Settings2, Key, Webhook, RefreshCw, Trash2,
   ChevronDown, ChevronUp, Copy, Check, ExternalLink,
-  Link2, Activity, Clock,
+  Link2, Activity, Clock, X, Plus,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -32,7 +32,9 @@ interface Mirror {
 
 interface WorkflowMeta {
   id: string; name: string; active: boolean;
+  n8nId?: string; makeId?: string;
   appsUsed: string[]; nodeCount: number; nodeTypes?: string[];
+  eventFilter?: { enabled: boolean; apps: string[]; eventTypes: string[] } | null;
   triggerType: string;
 }
 
@@ -54,6 +56,174 @@ function appNameToKey(name: string, catalog: Record<string, AppCatalogEntry>): s
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// ─── Flow Visualizer ──────────────────────────────────────────────────────────
+
+const BRANCH_SLUGS = new Set(["if", "switch", "splitInBatches", "compareDatasets"]);
+
+function hasBranchNode(nodeTypes: string[]): boolean {
+  return nodeTypes.some(t =>
+    BRANCH_SLUGS.has((t.split(".").pop() ?? "").replace(/Trigger$/, ""))
+  );
+}
+
+function VisNode({
+  name, domain, excluded, visible, onToggle,
+}: {
+  name: string; domain: string | null;
+  excluded: boolean; visible: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      className="flex flex-col items-center gap-1.5"
+      style={{
+        transition: "opacity 0.45s ease, transform 0.45s ease",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(10px)",
+      }}
+    >
+      <div className={`relative group h-12 w-12 rounded-xl border flex items-center justify-center transition-all duration-200 ${
+        excluded
+          ? "bg-slate-900/60 border-slate-800 opacity-35"
+          : "bg-slate-800 border-slate-600/60 shadow-md shadow-black/30"
+      }`}>
+        {domain
+          ? <img
+              src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+              className="h-6 w-6 object-contain" alt={name}
+              onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          : <span className="text-sm font-bold text-slate-400">{name[0]}</span>
+        }
+        <button
+          onClick={onToggle}
+          title={excluded ? "Re-include in recording" : "Exclude from recording"}
+          className={`absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full border flex items-center justify-center
+            opacity-0 group-hover:opacity-100 transition-all duration-150
+            ${excluded
+              ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/40"
+              : "bg-slate-700 border-slate-600 text-slate-500 hover:bg-rose-500/20 hover:border-rose-400/40 hover:text-rose-400"
+            }`}
+        >
+          {excluded ? <Plus size={7} /> : <X size={7} />}
+        </button>
+      </div>
+      <span className={`text-[9px] leading-tight text-center max-w-[52px] truncate transition-colors ${
+        excluded ? "line-through text-slate-700" : "text-slate-500"
+      }`}>{name}</span>
+    </div>
+  );
+}
+
+function VisConnector({ visible, branch }: { visible: boolean; branch?: boolean }) {
+  return (
+    <div
+      className="flex items-start pt-[22px]"
+      style={{ transition: "opacity 0.3s ease", opacity: visible ? 1 : 0 }}
+    >
+      <div className={`w-5 h-px ${branch ? "bg-indigo-500/30" : "bg-slate-700"}`} />
+      <div className={`w-0 h-0 border-y-[3px] border-y-transparent border-l-[5px] ${
+        branch ? "border-l-indigo-500/40" : "border-l-slate-600"
+      }`} />
+    </div>
+  );
+}
+
+function FlowVisualizer({
+  apps, nodeTypes, excludedApps, onToggle, catalog,
+}: {
+  apps: string[];
+  nodeTypes: string[];
+  excludedApps: Set<string>;
+  onToggle: (app: string) => void;
+  catalog: Record<string, AppCatalogEntry>;
+}) {
+  const isBranched = hasBranchNode(nodeTypes);
+  const [visibleCount, setVisibleCount] = useState(0);
+
+  useEffect(() => {
+    setVisibleCount(0);
+    const timers = apps.map((_, i) =>
+      window.setTimeout(() => setVisibleCount(n => Math.max(n, i + 1)), i * 200 + 250)
+    );
+    return () => timers.forEach(window.clearTimeout);
+  }, [apps]);
+
+  const getDomain = (name: string): string | null => {
+    const key = Object.keys(catalog).find(k =>
+      catalog[k].label.toLowerCase() === name.toLowerCase() ||
+      k === name.toLowerCase().replace(/[^a-z0-9]/g, "")
+    );
+    return key ? catalog[key].domain : null;
+  };
+
+  if (apps.length === 0) return null;
+
+  if (!isBranched) {
+    return (
+      <div className="flex items-start gap-0 flex-wrap">
+        {apps.map((app, i) => (
+          <div key={app} className="flex items-start">
+            <VisNode
+              name={app} domain={getDomain(app)}
+              excluded={excludedApps.has(app)}
+              visible={visibleCount > i}
+              onToggle={() => onToggle(app)}
+            />
+            {i < apps.length - 1 && <VisConnector visible={visibleCount > i} />}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Branched — split apps into two rows
+  const mid = Math.ceil(apps.length / 2);
+  const branchA = apps.slice(0, mid);
+  const branchB = apps.slice(mid);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <GitBranch size={11} className="text-indigo-400/50" />
+        <span className="text-[10px] text-slate-600">Branching flow detected — apps distributed across paths</span>
+      </div>
+      <div className="space-y-3">
+        {/* Branch A */}
+        <div className="flex items-start gap-0 pl-3 border-l-2 border-indigo-500/25 flex-wrap">
+          {branchA.map((app, i) => (
+            <div key={app} className="flex items-start">
+              <VisNode
+                name={app} domain={getDomain(app)}
+                excluded={excludedApps.has(app)}
+                visible={visibleCount > i}
+                onToggle={() => onToggle(app)}
+              />
+              {i < branchA.length - 1 && <VisConnector visible={visibleCount > i} branch />}
+            </div>
+          ))}
+        </div>
+        {/* Branch B */}
+        <div className="flex items-start gap-0 pl-3 border-l-2 border-purple-500/20 flex-wrap">
+          {branchB.map((app, i) => (
+            <div key={app} className="flex items-start">
+              <VisNode
+                name={app} domain={getDomain(app)}
+                excluded={excludedApps.has(app)}
+                visible={visibleCount > i + branchA.length}
+                onToggle={() => onToggle(app)}
+              />
+              {i < branchB.length - 1 && (
+                <VisConnector visible={visibleCount > i + branchA.length} branch />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Copy button ──────────────────────────────────────────────────────────────
@@ -439,6 +609,9 @@ export default function WorkflowMirrorDetailPage() {
   // Unknown app mappings: "HTTP Request" → appKey
   const [unknownMap, setUnknownMap] = useState<Record<string, string>>({});
 
+  // Excluded apps (not recorded by iqpipe)
+  const [excludedApps, setExcludedApps] = useState<Set<string>>(new Set());
+
   // Correlation key selection
   const [corrKey, setCorrKey] = useState<string>("");
   const [savingKey, setSavingKey] = useState(false);
@@ -472,6 +645,13 @@ export default function WorkflowMirrorDetailPage() {
     const wfList = wfRes.ok ? await wfRes.json() : [];
     const wf = wfList.find((w: WorkflowMeta) => w.id === id) ?? null;
     setWfMeta(wf);
+
+    // Restore excluded apps from saved event filter (whitelist → invert to excluded)
+    if (wf?.eventFilter?.enabled && wf.eventFilter.apps.length > 0) {
+      const whitelisted = new Set(wf.eventFilter.apps);
+      const excluded = new Set((wf.appsUsed ?? []).filter(a => !whitelisted.has(a)));
+      setExcludedApps(excluded);
+    }
 
     // Fetch mirror config
     const mirRes = await fetch(
@@ -558,6 +738,31 @@ export default function WorkflowMirrorDetailPage() {
     else          await upsertMirror({ unknownMappings: next });
   };
 
+  // ── Exclude / include app from recording ─────────────────────────────────
+  const toggleExclude = useCallback(async (appName: string) => {
+    if (!wfMeta) return;
+    const next = new Set(excludedApps);
+    next.has(appName) ? next.delete(appName) : next.add(appName);
+    setExcludedApps(next);
+
+    const allApps   = wfMeta.appsUsed ?? [];
+    const whitelist = allApps.filter(a => !next.has(a));
+    const nativeId  = wfMeta.n8nId ?? wfMeta.makeId ?? "";
+    if (!nativeId || !wsId) return;
+
+    const endpoint = platform === "n8n" ? "n8n-connect" : "make-connect";
+    await fetch(`${API_BASE_URL}/api/${endpoint}/event-filter`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        workspaceId: wsId,
+        n8nId: nativeId,
+        execSyncEnabled: true,
+        filter: { enabled: next.size > 0, apps: whitelist, eventTypes: [] },
+      }),
+    }).catch(() => {});
+  }, [excludedApps, wfMeta, wsId, token, platform]);
+
   // ── Derive app list from appsUsed + unknown mappings ─────────────────────
   const UNKNOWN_NODES = new Set(["HTTP Request", "Webhook"]);
   const detectedApps = wfMeta?.appsUsed ?? [];
@@ -625,6 +830,34 @@ export default function WorkflowMirrorDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* ── Flow Visualizer ── */}
+        {detectedApps.length > 0 && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="flex items-start justify-between mb-5">
+              <div>
+                <h2 className="text-sm font-semibold text-white">Flow Mirror</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  iqpipe detected {detectedApps.length} app{detectedApps.length !== 1 ? "s" : ""} in this flow.
+                  Hover any node to exclude it from recording.
+                </p>
+              </div>
+              {excludedApps.size > 0 && (
+                <span className="flex items-center gap-1.5 text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1 shrink-0">
+                  <AlertTriangle size={10} />
+                  {excludedApps.size} excluded
+                </span>
+              )}
+            </div>
+            <FlowVisualizer
+              apps={detectedApps}
+              nodeTypes={wfMeta.nodeTypes ?? []}
+              excludedApps={excludedApps}
+              onToggle={toggleExclude}
+              catalog={catalog}
+            />
+          </div>
+        )}
 
         {/* ── Step 1: Detected Apps ── */}
         <Section step={1} title="Detected Apps"
