@@ -24,6 +24,20 @@ type Period      = "7d" | "30d" | "90d" | "all";
 interface DayCount  { date: string; count: number }
 interface FunnelStep { label: string; count: number }
 
+interface PerFlowStat {
+  id:           string;
+  nativeId:     string;
+  name:         string;
+  platform:     "n8n" | "make";
+  active:       boolean;
+  appsUsed:     string[];
+  appKeys:      string[];
+  eventCount:   number;
+  successCount: number;
+  successRate:  number;
+  lastActivity: string | null;
+}
+
 interface ReportData {
   period:    string;
   workspace: { name: string };
@@ -45,6 +59,7 @@ interface ReportData {
   };
   funnelSteps: FunnelStep[];
   avgHealthScore: number;
+  perFlow: PerFlowStat[];
 }
 
 // ── Static config ─────────────────────────────────────────────────────────────
@@ -188,7 +203,7 @@ function IqpipeLogo({ size = 20 }: { size?: number }) {
 }
 
 // GTM Snapshot — LinkedIn landscape
-function SnapshotCard({ data, insight, format }: { data: ReportData; insight: string; format: CardFormat }) {
+function SnapshotCard({ data, insight, format, activeFlows }: { data: ReportData; insight: string; format: CardFormat; activeFlows: PerFlowStat[] }) {
   const isStory = format === "story";
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/60 p-6 flex flex-col gap-4 overflow-hidden">
@@ -249,6 +264,11 @@ function SnapshotCard({ data, insight, format }: { data: ReportData; insight: st
         </div>
       )}
 
+      {/* Selected flows */}
+      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
+        <FlowStrip flows={activeFlows} />
+      )}
+
       {/* AI insight */}
       {insight && (
         <div className="relative bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 text-xs text-slate-300 leading-relaxed italic">
@@ -270,7 +290,7 @@ function SnapshotCard({ data, insight, format }: { data: ReportData; insight: st
 }
 
 // Campaign Funnel
-function FunnelCard({ data, insight, format }: { data: ReportData; insight: string; format: CardFormat }) {
+function FunnelCard({ data, insight, format, activeFlows }: { data: ReportData; insight: string; format: CardFormat; activeFlows: PerFlowStat[] }) {
   const isStory = format === "story";
   const top    = data.funnelSteps[0]?.count ?? 0;
   const bottom = data.funnelSteps[data.funnelSteps.length - 1]?.count ?? 0;
@@ -309,6 +329,10 @@ function FunnelCard({ data, insight, format }: { data: ReportData; insight: stri
         <FunnelSVG steps={data.funnelSteps} />
       </div>
 
+      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
+        <FlowStrip flows={activeFlows} />
+      )}
+
       {insight && (
         <div className="relative bg-violet-500/10 border border-violet-500/20 rounded-xl p-3 text-xs text-slate-300 leading-relaxed italic">
           {insight}
@@ -327,7 +351,7 @@ function FunnelCard({ data, insight, format }: { data: ReportData; insight: stri
 }
 
 // Weekly Digest
-function DigestCard({ data, insight, format }: { data: ReportData; insight: string; format: CardFormat }) {
+function DigestCard({ data, insight, format, activeFlows }: { data: ReportData; insight: string; format: CardFormat; activeFlows: PerFlowStat[] }) {
   const last7 = data.events.byDay.slice(-7);
   const prev7 = data.events.byDay.slice(-14, -7);
   const totalLast = last7.reduce((a, d) => a + d.count, 0);
@@ -385,6 +409,10 @@ function DigestCard({ data, insight, format }: { data: ReportData; insight: stri
         </div>
       )}
 
+      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
+        <FlowStrip flows={activeFlows} />
+      )}
+
       <div className="relative flex items-center justify-between">
         <div className="flex gap-3 text-[10px] text-slate-500">
           <span>{data.workflows.total} active workflows</span>
@@ -397,7 +425,7 @@ function DigestCard({ data, insight, format }: { data: ReportData; insight: stri
 }
 
 // Revenue Signal
-function RevenueCard({ data, insight, format }: { data: ReportData; insight: string; format: CardFormat }) {
+function RevenueCard({ data, insight, format, activeFlows }: { data: ReportData; insight: string; format: CardFormat; activeFlows: PerFlowStat[] }) {
   const isStory = format === "story";
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/40 p-6 flex flex-col gap-4 overflow-hidden">
@@ -463,6 +491,10 @@ function RevenueCard({ data, insight, format }: { data: ReportData; insight: str
         </div>
       </div>
 
+      {activeFlows.length > 0 && activeFlows.length < (data.perFlow?.length ?? 99) && (
+        <FlowStrip flows={activeFlows} />
+      )}
+
       {insight && (
         <div className="relative bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-xs text-slate-300 leading-relaxed italic">
           {insight}
@@ -480,15 +512,181 @@ function RevenueCard({ data, insight, format }: { data: ReportData; insight: str
   );
 }
 
+// ── Flow selector ─────────────────────────────────────────────────────────────
+
+const PLATFORM_BADGE: Record<"n8n" | "make", { label: string; color: string }> = {
+  n8n:  { label: "n8n",      color: "bg-orange-500/20 text-orange-400 border-orange-500/20" },
+  make: { label: "Make.com", color: "bg-violet-500/20 text-violet-400 border-violet-500/20" },
+};
+
+function FlowSelector({
+  flows, selectedIds, onToggle, onSelectAll,
+}: {
+  flows: PerFlowStat[];
+  selectedIds: string[];
+  onToggle:    (id: string) => void;
+  onSelectAll: () => void;
+}) {
+  if (!flows.length) {
+    return (
+      <p className="text-xs text-slate-600 py-2">No automations connected yet.</p>
+    );
+  }
+
+  const allSelected = selectedIds.length === 0;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Select all toggle */}
+      <button
+        onClick={onSelectAll}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+          allSelected
+            ? "bg-indigo-500/10 border-indigo-500/30 text-white"
+            : "bg-slate-800/30 border-slate-700/50 text-slate-400 hover:border-slate-600"
+        }`}
+      >
+        <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+          allSelected ? "bg-indigo-500 border-indigo-500" : "border-slate-600"
+        }`}>
+          {allSelected && <Check size={9} className="text-white" />}
+        </div>
+        All flows ({flows.length})
+      </button>
+
+      {/* Individual flows */}
+      <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto no-scrollbar">
+        {flows.map(flow => {
+          const isSelected = !allSelected && selectedIds.includes(flow.id);
+          const badge      = PLATFORM_BADGE[flow.platform];
+          return (
+            <button
+              key={flow.id}
+              onClick={() => onToggle(flow.id)}
+              className={`flex flex-col gap-2 p-2.5 rounded-xl border text-left transition-all ${
+                isSelected
+                  ? "bg-indigo-500/10 border-indigo-500/25"
+                  : "bg-slate-800/30 border-slate-700/40 hover:border-slate-600"
+              }`}
+            >
+              {/* Row 1: checkbox + name + platform */}
+              <div className="flex items-center gap-2">
+                <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                  isSelected ? "bg-indigo-500 border-indigo-500" : "border-slate-600"
+                }`}>
+                  {isSelected && <Check size={9} className="text-white" />}
+                </div>
+                <span className={`flex-1 text-xs font-medium truncate ${isSelected ? "text-white" : "text-slate-300"}`}>
+                  {flow.name}
+                </span>
+                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${badge.color}`}>
+                  {badge.label}
+                </span>
+                {!flow.active && (
+                  <span className="text-[9px] text-slate-600 border border-slate-700 rounded px-1">inactive</span>
+                )}
+              </div>
+
+              {/* Row 2: app logos */}
+              {flow.appKeys.length > 0 && (
+                <div className="flex items-center gap-1 ml-5 flex-wrap">
+                  {flow.appKeys.slice(0, 8).map((key, i) => (
+                    <div key={i} className="w-4 h-4 rounded bg-white/5 overflow-hidden flex items-center justify-center">
+                      <img
+                        src={`${API_BASE_URL}/api/proxy/favicon?domain=${APP_DOMAINS[key] ?? key + ".com"}`}
+                        alt={key}
+                        className="w-3 h-3 object-contain"
+                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </div>
+                  ))}
+                  {flow.appKeys.length > 8 && (
+                    <span className="text-[9px] text-slate-600">+{flow.appKeys.length - 8}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Row 3: KPIs */}
+              <div className="flex items-center gap-3 ml-5 text-[10px]">
+                <span className={flow.eventCount > 0 ? "text-slate-300 font-semibold" : "text-slate-600"}>
+                  {flow.eventCount.toLocaleString()} events
+                </span>
+                {flow.eventCount > 0 && (
+                  <span className={flow.successRate >= 80 ? "text-emerald-400" : flow.successRate >= 50 ? "text-amber-400" : "text-red-400"}>
+                    {flow.successRate}% success
+                  </span>
+                )}
+                {flow.lastActivity && (
+                  <span className="text-slate-600">
+                    {new Date(flow.lastActivity).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Selected flows strip (shared across card types) ───────────────────────────
+
+function FlowStrip({ flows }: { flows: PerFlowStat[] }) {
+  if (!flows.length) return null;
+  return (
+    <div className="relative flex flex-col gap-1.5">
+      <div className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Included flows</div>
+      <div className="flex flex-col gap-1">
+        {flows.map(f => (
+          <div key={f.id} className="flex items-center gap-2 bg-slate-800/40 rounded-lg px-2 py-1.5">
+            <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${
+              f.platform === "n8n"
+                ? "bg-orange-500/20 text-orange-400"
+                : "bg-violet-500/20 text-violet-400"
+            }`}>
+              {f.platform === "n8n" ? "n8n" : "Make"}
+            </span>
+            <span className="flex-1 text-[10px] text-slate-300 truncate font-medium">{f.name}</span>
+            <div className="flex items-center gap-0.5">
+              {f.appKeys.slice(0, 5).map((key, i) => (
+                <div key={i} className="w-3.5 h-3.5 rounded bg-white/5 overflow-hidden flex items-center justify-center">
+                  <img
+                    src={`${API_BASE_URL}/api/proxy/favicon?domain=${APP_DOMAINS[key] ?? key + ".com"}`}
+                    alt={key} className="w-2.5 h-2.5 object-contain"
+                    onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                </div>
+              ))}
+            </div>
+            {f.eventCount > 0 && (
+              <span className="text-[9px] text-slate-500 font-mono tabular-nums">
+                {f.eventCount.toLocaleString()}
+              </span>
+            )}
+            {f.eventCount > 0 && (
+              <span className={`text-[9px] font-semibold ${
+                f.successRate >= 80 ? "text-emerald-400" : f.successRate >= 50 ? "text-amber-400" : "text-red-400"
+              }`}>
+                {f.successRate}%
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Card wrapper ──────────────────────────────────────────────────────────────
 
 function ReportCard({
-  reportType, cardFormat, data, insight,
+  reportType, cardFormat, data, insight, activeFlows,
 }: {
   reportType: ReportType; cardFormat: CardFormat;
-  data: ReportData; insight: string;
+  data: ReportData; insight: string; activeFlows: PerFlowStat[];
 }) {
-  const props = { data, insight, format: cardFormat };
+  const props = { data, insight, format: cardFormat, activeFlows };
   switch (reportType) {
     case "snapshot": return <SnapshotCard {...props} />;
     case "funnel":   return <FunnelCard   {...props} />;
@@ -500,12 +698,13 @@ function ReportCard({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ReportStudioPage() {
-  const [workspaceId, setWorkspaceId]   = useState("");
-  const [reportType,  setReportType]    = useState<ReportType>("snapshot");
-  const [cardFormat,  setCardFormat]    = useState<CardFormat>("linkedin");
-  const [period,      setPeriod]        = useState<Period>("30d");
-  const [data,        setData]          = useState<ReportData | null>(null);
-  const [loading,     setLoading]       = useState(false);
+  const [workspaceId,  setWorkspaceId]  = useState("");
+  const [reportType,   setReportType]   = useState<ReportType>("snapshot");
+  const [cardFormat,   setCardFormat]   = useState<CardFormat>("linkedin");
+  const [period,       setPeriod]       = useState<Period>("30d");
+  const [data,         setData]         = useState<ReportData | null>(null);
+  const [loading,      setLoading]      = useState(false);
+  const [selectedIds,  setSelectedIds]  = useState<string[]>([]);  // empty = all flows
   const [insight,     setInsight]       = useState("");
   const [aiLoading,   setAiLoading]     = useState(false);
   const [exporting,   setExporting]     = useState(false);
@@ -526,11 +725,25 @@ export default function ReportStudioPage() {
       .catch(() => {});
   }, []);
 
+  const handleToggleFlow = (id: string) => {
+    setSelectedIds(prev => {
+      // If currently "all selected" (empty), switch to selecting only this one
+      if (prev.length === 0) return [id];
+      const has = prev.includes(id);
+      const next = has ? prev.filter(x => x !== id) : [...prev, id];
+      // If all flows are now selected, collapse back to "all" (empty)
+      return data && next.length === data.perFlow.length ? [] : next;
+    });
+  };
+
+  const handleSelectAll = () => setSelectedIds([]);
+
   const loadData = useCallback(async () => {
     if (!workspaceId) return;
     setLoading(true);
     setInsight("");
     setShareToken("");
+    setSelectedIds([]);
     try {
       const r = await fetch(
         `${API_BASE_URL}/api/report-studio/data?workspaceId=${workspaceId}&period=${period}`,
@@ -708,6 +921,28 @@ export default function ReportStudioPage() {
             </div>
           </div>
 
+          {/* Flow selector */}
+          {data && data.perFlow.length > 0 && (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  Select flows
+                </div>
+                {selectedIds.length > 0 && (
+                  <span className="text-[10px] text-indigo-400 font-semibold">
+                    {selectedIds.length} of {data.perFlow.length} selected
+                  </span>
+                )}
+              </div>
+              <FlowSelector
+                flows={data.perFlow}
+                selectedIds={selectedIds}
+                onToggle={handleToggleFlow}
+                onSelectAll={handleSelectAll}
+              />
+            </div>
+          )}
+
           {/* AI insights */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
             <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">AI insights</div>
@@ -813,6 +1048,11 @@ export default function ReportStudioPage() {
                 cardFormat={cardFormat}
                 data={data}
                 insight={insight}
+                activeFlows={
+                  selectedIds.length === 0
+                    ? (data.perFlow ?? [])
+                    : (data.perFlow ?? []).filter(f => selectedIds.includes(f.id))
+                }
               />
             </div>
           )}

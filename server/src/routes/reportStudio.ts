@@ -19,6 +19,20 @@ const router = Router();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface PerFlowStat {
+  id:          string;   // DB cuid (N8nWorkflowMeta.id or MakeScenarioMeta.id)
+  nativeId:    string;   // n8nId / makeId
+  name:        string;
+  platform:    "n8n" | "make";
+  active:      boolean;
+  appsUsed:    string[]; // friendly names e.g. ["HubSpot","Clay"]
+  appKeys:     string[]; // normalised keys e.g. ["hubspot","clay"]
+  eventCount:  number;
+  successCount: number;
+  successRate: number;
+  lastActivity: string | null;
+}
+
 export interface ReportData {
   period:    string;
   workspace: { name: string };
@@ -26,6 +40,7 @@ export interface ReportData {
     total: number; n8n: number; make: number;
     list: { name: string; platform: string; appsUsed: string[]; healthScore: number }[];
   };
+  perFlow: PerFlowStat[];
   events: {
     total: number; successful: number; failed: number; successRate: number;
     byDay: { date: string; count: number }[];
@@ -46,6 +61,11 @@ export interface ReportData {
 
 function safeParseJson<T>(val: string, fallback: T): T {
   try { return JSON.parse(val) as T; } catch { return fallback; }
+}
+
+// "HubSpot" → "hubspot", "Make.com" → "makecom" (no favicon, graceful)
+function appNameToKey(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function periodToDate(period: string): Date | null {
@@ -101,7 +121,7 @@ router.get("/data", async (req: Request, res: Response) => {
   // ── Events (n8n queue) ────────────────────────────────────────────────────
   const eventsRaw = await prisma.n8nQueuedEvent.findMany({
     where:  { workspaceId, ...(dateFilter ? { createdAt: dateFilter } : {}) },
-    select: { id: true, status: true, createdAt: true, contact: true },
+    select: { id: true, status: true, createdAt: true, contact: true, workflowId: true },
   });
 
   const successful = eventsRaw.filter(e => e.status === "done").length;
@@ -113,6 +133,19 @@ router.get("/data", async (req: Request, res: Response) => {
   eventsRaw.forEach(e => {
     const c = e.contact as any;
     if (c?.email) contactEmails.add(c.email.toLowerCase());
+  });
+
+  // ── Per-flow event stats ──────────────────────────────────────────────────
+  // Group n8n events by native workflowId → match to N8nWorkflowMeta.n8nId
+  const flowEventMap: Record<string, { total: number; success: number; lastAt: Date | null }> = {};
+  eventsRaw.forEach(e => {
+    const key = e.workflowId;
+    if (!flowEventMap[key]) flowEventMap[key] = { total: 0, success: 0, lastAt: null };
+    flowEventMap[key].total++;
+    if (e.status === "done") flowEventMap[key].success++;
+    if (!flowEventMap[key].lastAt || e.createdAt > flowEventMap[key].lastAt!) {
+      flowEventMap[key].lastAt = e.createdAt;
+    }
   });
 
   // ── App events ────────────────────────────────────────────────────────────
@@ -166,6 +199,30 @@ router.get("/data", async (req: Request, res: Response) => {
   const verifiedCount  = correlations.filter(c => c.verified).length;
   const mismatchedCount = correlations.filter(c => !c.verified && c.discrepancy).length;
 
+  // ── Build perFlow stat list ───────────────────────────────────────────────
+  const perFlow: PerFlowStat[] = [
+    ...n8nWorkflows.map(w => {
+      const stat = flowEventMap[w.n8nId] ?? { total: 0, success: 0, lastAt: null };
+      const apps = safeParseJson<string[]>(w.appsUsed, []);
+      return {
+        id: w.id, nativeId: w.n8nId, name: w.name, platform: "n8n" as const,
+        active: w.active, appsUsed: apps, appKeys: apps.map(appNameToKey),
+        eventCount: stat.total, successCount: stat.success,
+        successRate: stat.total > 0 ? Math.round(stat.success / stat.total * 100) : 0,
+        lastActivity: stat.lastAt ? stat.lastAt.toISOString() : null,
+      };
+    }),
+    ...makeScenarios.map(s => {
+      const apps = safeParseJson<string[]>(s.appsUsed, []);
+      return {
+        id: s.id, nativeId: s.makeId, name: s.name, platform: "make" as const,
+        active: s.active, appsUsed: apps, appKeys: apps.map(appNameToKey),
+        // Make events not tracked via N8nQueuedEvent — show 0 until Make execution sync added
+        eventCount: 0, successCount: 0, successRate: 0, lastActivity: null,
+      };
+    }),
+  ].sort((a, b) => b.eventCount - a.eventCount);  // most active flows first
+
   const data: ReportData = {
     period,
     workspace: { name: workspace?.name ?? "My Workspace" },
@@ -186,6 +243,7 @@ router.get("/data", async (req: Request, res: Response) => {
         })),
       ],
     },
+    perFlow,
     events: {
       total: eventsRaw.length,
       successful,
