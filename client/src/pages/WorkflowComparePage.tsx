@@ -12,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Trophy, TrendingUp, RefreshCw, ChevronDown,
   Bot, Layers, AlertTriangle, CheckCircle2,
-  BarChart3, DollarSign, Zap, ShieldCheck,
+  BarChart3, Zap, ShieldCheck,
   Network, Star, ArrowUpRight, Info, Download,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
@@ -110,11 +110,6 @@ function relativeTime(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function fmtCurrency(val: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency", currency, maximumFractionDigits: 0,
-  }).format(val);
-}
 
 const GRADE_STYLE: Record<string, { color: string; bg: string; border: string }> = {
   A: { color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
@@ -227,9 +222,6 @@ export default function WorkflowComparePage() {
   const [period,         setPeriod]         = useState<Period>("30d");
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
   const [activePlatform, setActivePlatform] = useState<"n8n" | "make">("n8n");
-  const [acv,            setAcv]            = useState<number>(5000);
-  const [acvInput,       setAcvInput]       = useState("5000");
-
   const [wsId,         setWsId]         = useState<string | null>(null);
   const [loadingWs,    setLoadingWs]    = useState(true);
   const [loadingN8n,   setLoadingN8n]   = useState(false);
@@ -334,7 +326,7 @@ export default function WorkflowComparePage() {
     const params = new URLSearchParams({
       workspaceId: wsId,
       period,
-      acv:         String(acv),
+      acv:         "1",
       platform:    "all",
     });
     selPlatformIds.forEach(id => params.append("ids[]", id));
@@ -348,7 +340,7 @@ export default function WorkflowComparePage() {
       .catch(e => { if (e.name !== "AbortError") console.error("[workflow-score]", e); })
       .finally(() => setLoadingScore(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsId, selected, period, acv, activePlatform]);
+  }, [wsId, selected, period, activePlatform]);
 
   // ── Selection handlers ───────────────────────────────────────────────────────
   function toggleSelect(internalId: string) {
@@ -620,25 +612,29 @@ export default function WorkflowComparePage() {
       y += DH;
     }
 
-    // ── Leakage row
-    const LH = 64;
-    elems.push(Tx(PX + IP, y + 24, "Leakage Value", 11, C.white, "500"));
-    elems.push(Tx(PX + IP, y + 40, "Est. revenue lost from failures", 9, C.slate7));
+    // ── Leakage Risk row
+    const LH     = 64;
+    const maxRaw = Math.max(...scoredItems.map(wf => wf.leakage.totalLoss));
+    const svgRiskScore = (wf: ScoredWorkflow) =>
+      maxRaw > 0 ? Math.round((wf.leakage.totalLoss / maxRaw) * 100) : 0;
+    const minRisk = Math.min(...scoredItems.map(svgRiskScore));
+
+    elems.push(Tx(PX + IP, y + 24, "Leakage Risk", 11, C.white, "500"));
+    elems.push(Tx(PX + IP, y + 38, "Relative failure impact \u00b7 0 = none", 9, C.slate7));
     for (let i = 0; i < n; i++) {
-      const wf      = scoredItems[i];
-      const loss    = wf.leakage.totalLoss;
-      const hasLoss = loss > 0;
-      const isLeast = scoredItems.every(wfx => wfx.leakage.totalLoss >= loss);
-      const x0      = colX(i);
+      const wf    = scoredItems[i];
+      const score = svgRiskScore(wf);
+      const x0    = colX(i);
+      const col   = score === 0 ? C.slate7 : score <= 33 ? C.emerald : score <= 66 ? C.amber : C.rose;
       if (wf.id === winnerPlatformId) elems.push(Rect(x0, y, CW, LH, "#1e1b4b18"));
-      if (hasLoss) {
-        elems.push(Tx(x0 + IP, y + 32, fmtCurrency(loss, currency), 15,
-          isLeast ? C.emerald : C.rose, "700"));
-        if (isLeast) elems.push(Tx(x0 + IP, y + 50, "\u25b2 Least leakage", 9, C.emerald));
-      } else {
-        elems.push(Tx(x0 + IP, y + 32, "\u2014", 14, C.slate7));
-        elems.push(Tx(x0 + IP, y + 50, "No failed events", 9, C.slate7));
-      }
+      // bar track
+      elems.push(Rect(x0 + IP, y + 18, 94, 5, C.border, 2));
+      // bar fill
+      if (score > 0) elems.push(Rect(x0 + IP, y + 18, Math.round(94 * score / 100), 5, col, 2));
+      // score number
+      elems.push(Tx(x0 + IP + 98, y + 24, String(score), 11, col, "700"));
+      if (score === 0) elems.push(Tx(x0 + IP, y + 46, "No failed events", 9, C.slate7));
+      if (score > 0 && score === minRisk) elems.push(Tx(x0 + IP, y + 46, "\u25b2 Lowest risk", 9, C.emerald));
     }
     elems.push(HLine(PX, y + LH, W - PX, y + LH));
     y += LH;
@@ -665,7 +661,7 @@ export default function WorkflowComparePage() {
     const FH = 30;
     elems.push(HLine(PX, y, W - PX, y, C.border, 0.5));
     elems.push(Tx(PX + IP, y + 20,
-      `Leakage = failed events \u00d7 ACV ($${acv.toLocaleString()}) \u00d7 conversion probability per event type  \u00b7  Pillar scores normalized within selected set`,
+      `Leakage Risk = relative failure impact score (0\u2013100) normalized within selected set  \u00b7  Pillar scores normalized within selected set`,
       8, C.slate7));
     y += FH;
 
@@ -715,23 +711,6 @@ export default function WorkflowComparePage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* ACV input */}
-            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">
-              <DollarSign size={12} className="text-emerald-400 shrink-0" />
-              <span className="text-[11px] text-slate-500">ACV</span>
-              <input
-                type="number" min="1" step="500"
-                value={acvInput}
-                onChange={e => setAcvInput(e.target.value)}
-                onBlur={() => {
-                  const v = parseFloat(acvInput);
-                  if (!isNaN(v) && v > 0) setAcv(v);
-                  else setAcvInput(String(acv));
-                }}
-                className="w-20 bg-transparent text-sm text-white text-right focus:outline-none"
-              />
-            </div>
-
             {/* Period picker */}
             <div className="relative">
               <button
@@ -1182,47 +1161,61 @@ export default function WorkflowComparePage() {
                             ))}
                           </tr>
 
-                          {/* ── Leakage Value ── */}
-                          <tr>
-                            <td className="px-5 py-4">
-                              <div className="flex items-center gap-2">
-                                <AlertTriangle size={13} className="text-rose-400 shrink-0" />
-                                <div>
-                                  <p className="text-xs font-medium text-white">Leakage Value</p>
-                                  <p className="text-[10px] text-slate-600">Est. revenue lost from failures</p>
-                                </div>
-                              </div>
-                            </td>
-                            {scoredItems.map(wf => {
-                              const loss    = wf.leakage.totalLoss;
-                              const hasLoss = loss > 0;
-                              const isLeast = scoredItems.every(x => x.leakage.totalLoss >= loss);
-                              return (
-                                <td key={wf.id} className={`px-5 py-4 ${wf.id === winnerPlatformId ? "bg-indigo-500/3" : ""}`}>
-                                  <div>
-                                    <p className={`text-base font-bold tabular-nums ${hasLoss ? (isLeast ? "text-emerald-400" : "text-rose-400") : "text-slate-600"}`}>
-                                      {hasLoss ? fmtCurrency(loss, currency) : "—"}
-                                    </p>
-                                    {hasLoss && (
-                                      <div className="mt-1 space-y-0.5">
-                                        {wf.leakage.breakdown.slice(0, 2).map(b => (
-                                          <p key={b.eventType} className="text-[10px] text-slate-600">
-                                            {b.eventType.replace(/_/g, " ")} × {b.failedCount}
-                                            {" → "}
-                                            <span className="text-rose-500">{fmtCurrency(b.estimatedLoss, currency)}</span>
-                                          </p>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {isLeast && hasLoss && (
-                                      <span className="text-[10px] text-emerald-400">▲ Least leakage</span>
-                                    )}
-                                    {!hasLoss && <span className="text-[10px] text-slate-700">No failed events</span>}
+                          {/* ── Leakage Risk ── */}
+                          {(() => {
+                            const maxRaw = Math.max(...scoredItems.map(wf => wf.leakage.totalLoss));
+                            const riskScore = (wf: ScoredWorkflow) =>
+                              maxRaw > 0 ? Math.round((wf.leakage.totalLoss / maxRaw) * 100) : 0;
+                            const minScore  = Math.min(...scoredItems.map(riskScore));
+                            return (
+                              <tr>
+                                <td className="px-5 py-4">
+                                  <div className="flex items-center gap-2">
+                                    <AlertTriangle size={13} className="text-rose-400 shrink-0" />
+                                    <div>
+                                      <p className="text-xs font-medium text-white">Leakage Risk</p>
+                                      <p className="text-[10px] text-slate-600">Relative failure impact · 0 = none</p>
+                                    </div>
                                   </div>
                                 </td>
-                              );
-                            })}
-                          </tr>
+                                {scoredItems.map(wf => {
+                                  const score    = riskScore(wf);
+                                  const isLowest = score === minScore;
+                                  const barColor =
+                                    score === 0   ? "bg-slate-700" :
+                                    score <= 33   ? "bg-emerald-500" :
+                                    score <= 66   ? "bg-amber-500"   : "bg-rose-500";
+                                  const textColor =
+                                    score === 0   ? "text-slate-600" :
+                                    score <= 33   ? "text-emerald-400" :
+                                    score <= 66   ? "text-amber-400"   : "text-rose-400";
+                                  return (
+                                    <td key={wf.id} className={`px-5 py-4 ${wf.id === winnerPlatformId ? "bg-indigo-500/3" : ""}`}>
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-20 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${score}%` }} />
+                                          </div>
+                                          <span className={`text-sm font-bold tabular-nums ${textColor}`}>{score}</span>
+                                        </div>
+                                        {score > 0 && (
+                                          <div className="space-y-0.5">
+                                            {wf.leakage.breakdown.slice(0, 2).map(b => (
+                                              <p key={b.eventType} className="text-[10px] text-slate-600">
+                                                {b.eventType.replace(/_/g, " ")} × {b.failedCount}
+                                              </p>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {isLowest && score > 0 && <span className="text-[10px] text-emerald-400">▲ Lowest risk</span>}
+                                        {score === 0 && <span className="text-[10px] text-slate-700">No failed events</span>}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })()}
 
                           {/* ── Winner row ── */}
                           <tr className="border-t-2 border-indigo-500/20 bg-indigo-500/5">
@@ -1259,7 +1252,7 @@ export default function WorkflowComparePage() {
                     <div className="px-5 py-3 border-t border-slate-800 flex items-center justify-between gap-4 text-[10px] text-slate-700">
                       <div className="flex items-center gap-2">
                         <Info size={10} />
-                        Leakage = failed events × ACV (${acv.toLocaleString()}) × conversion probability per event type.
+                        Leakage Risk = relative failure impact (0–100) normalized within the selected set. 0 = no failed events.
                         All pillar scores are normalized within the selected set.
                       </div>
                       <button
