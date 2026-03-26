@@ -210,6 +210,9 @@ export default function AutomationsPage() {
 
   const token = () => localStorage.getItem("iqpipe_token") ?? "";
 
+  // Reset platform selection on every mount so navigating back always shows the picker
+  useEffect(() => { setSelectedPlatform(null); }, []);
+
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/workspaces/primary`, {
       headers: { Authorization: `Bearer ${token()}` },
