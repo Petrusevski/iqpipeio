@@ -402,6 +402,75 @@ router.post("/mail/send", requireAdmin, async (req: AdminRequest, res: Response)
   return res.json({ sent, failed, errors: errors.slice(0, 10) });
 });
 
+// ─── POST /api/admin/notify ───────────────────────────────────────────────────
+// Send a notification to: all workspaces, a specific workspace, or a specific user.
+// Body: { title, body, severity, target: "all"|"workspace"|"user", workspaceId?, userId? }
+
+router.post("/notify", requireAdmin, async (req: AdminRequest, res: Response) => {
+  const { title, body, severity = "info", target, workspaceId, userId } = req.body as {
+    title?:       string;
+    body?:        string;
+    severity?:    string;
+    target?:      "all" | "workspace" | "user";
+    workspaceId?: string;
+    userId?:      string;
+  };
+
+  if (!title?.trim() || !body?.trim()) {
+    return res.status(400).json({ error: "title and body are required" }) as any;
+  }
+  if (!["all", "workspace", "user"].includes(target || "")) {
+    return res.status(400).json({ error: "target must be all, workspace, or user" }) as any;
+  }
+
+  let count = 0;
+
+  if (target === "all") {
+    const workspaces = await prisma.workspace.findMany({ select: { id: true } });
+    await prisma.notification.createMany({
+      data: workspaces.map(ws => ({
+        workspaceId: ws.id,
+        userId:      null,
+        type:        "admin_broadcast",
+        title:       title.trim(),
+        body:        body.trim(),
+        severity,
+      })),
+    });
+    count = workspaces.length;
+  } else if (target === "workspace") {
+    if (!workspaceId) return res.status(400).json({ error: "workspaceId required" }) as any;
+    await prisma.notification.create({
+      data: { workspaceId, userId: null, type: "admin_broadcast", title: title.trim(), body: body.trim(), severity },
+    });
+    count = 1;
+  } else {
+    // target === "user"
+    if (!workspaceId || !userId) {
+      return res.status(400).json({ error: "workspaceId and userId required" }) as any;
+    }
+    await prisma.notification.create({
+      data: { workspaceId, userId, type: "admin_message", title: title.trim(), body: body.trim(), severity },
+    });
+    count = 1;
+  }
+
+  return res.json({ ok: true, count });
+});
+
+// ─── GET /api/admin/notify/history ────────────────────────────────────────────
+// Returns last 50 admin-sent notifications across all workspaces.
+
+router.get("/notify/history", requireAdmin, async (_req: AdminRequest, res: Response) => {
+  const rows = await prisma.notification.findMany({
+    where:   { type: { in: ["admin_broadcast", "admin_message"] } },
+    orderBy: { createdAt: "desc" },
+    take:    50,
+    select:  { id: true, title: true, body: true, severity: true, type: true, workspaceId: true, userId: true, createdAt: true },
+  });
+  return res.json({ notifications: rows });
+});
+
 // ─── GET /api/admin/mail/logs ─────────────────────────────────────────────────
 
 router.get("/mail/logs", requireAdmin, async (_req: AdminRequest, res: Response) => {

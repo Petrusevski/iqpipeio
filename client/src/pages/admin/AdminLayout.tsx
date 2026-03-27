@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, Users, CreditCard, Mail, Activity,
-  LogOut, ShieldCheck, Menu, Building2,
+  LogOut, ShieldCheck, Menu, Building2, Bell,
 } from "lucide-react";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { path: "/admin36486/billing",  label: "Billing",      icon: CreditCard },
   { path: "/admin36486/activity", label: "Activity",     icon: Activity },
   { path: "/admin36486/mailing",  label: "Mailing",      icon: Mail },
+  { path: "/admin36486/notify",   label: "Notify",       icon: Bell },
 ];
 
 export default function AdminLayout() {

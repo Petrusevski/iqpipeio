@@ -11,6 +11,7 @@ import AdminWorkspacesPage from "./pages/admin/AdminWorkspacesPage";
 import AdminBillingPage    from "./pages/admin/AdminBillingPage";
 import AdminActivityPage   from "./pages/admin/AdminActivityPage";
 import AdminMailingPage    from "./pages/admin/AdminMailingPage";
+import AdminNotifyPage    from "./pages/admin/AdminNotifyPage";
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
   const token = sessionStorage.getItem("iqpipe_admin_token");
@@ -77,6 +78,7 @@ function App() {
           <Route path="billing"         element={<AdminBillingPage />} />
           <Route path="activity"        element={<AdminActivityPage />} />
           <Route path="mailing"         element={<AdminMailingPage />} />
+          <Route path="notify"          element={<AdminNotifyPage />} />
         </Route>
 
         <Route path="*"                 element={<Navigate to="/" replace />} />
@@ -114,6 +116,7 @@ function App() {
                   <Route path="billing"      element={<AdminBillingPage />} />
                   <Route path="activity"     element={<AdminActivityPage />} />
                   <Route path="mailing"      element={<AdminMailingPage />} />
+                  <Route path="notify"       element={<AdminNotifyPage />} />
                 </Route>
               </Routes>
             </AdminGuard>
