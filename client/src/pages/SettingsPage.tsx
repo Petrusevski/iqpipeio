@@ -99,7 +99,28 @@ function UpgradeModal({
   currentPlan: string;
   onClose: () => void;
 }) {
-  const [isYearly, setIsYearly] = useState(true);
+  const [isYearly,    setIsYearly]    = useState(true);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [checkoutErr, setCheckoutErr] = useState<string | null>(null);
+
+  const startCheckout = async (planId: string) => {
+    setCheckoutErr(null);
+    setLoadingPlan(planId);
+    try {
+      const token = localStorage.getItem("iqpipe_token");
+      const res   = await fetch(`${API_BASE_URL}/api/checkout/session`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ planId, billing: isYearly ? "yearly" : "monthly" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start checkout.");
+      window.location.href = data.url;
+    } catch (err: any) {
+      setCheckoutErr(err.message);
+      setLoadingPlan(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -121,7 +142,7 @@ function UpgradeModal({
           <div>
             <h2 className="text-base font-bold text-white">Upgrade your plan</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              30-day free trial on every plan. No credit card required to start.
+              Activate immediately. Cancel any time.
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -199,14 +220,18 @@ function UpgradeModal({
                   </div>
                 ) : (
                   <button
-                    onClick={() => window.alert(`To upgrade to ${plan.name}, please contact support@iqpipe.io`)}
-                    className={`w-full py-2 rounded-xl text-xs font-bold transition-all ${
+                    onClick={() => startCheckout(plan.id)}
+                    disabled={loadingPlan !== null}
+                    className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed ${
                       plan.popular
                         ? "bg-white text-slate-950 hover:bg-slate-100 shadow-lg shadow-indigo-500/10"
                         : "bg-indigo-600 hover:bg-indigo-500 text-white"
                     }`}
                   >
-                    Upgrade to {plan.name}
+                    {loadingPlan === plan.id
+                      ? <><Loader2 size={12} className="animate-spin" /> Redirecting…</>
+                      : `Upgrade to ${plan.name}`
+                    }
                   </button>
                 )}
               </div>
@@ -214,9 +239,14 @@ function UpgradeModal({
           })}
         </div>
 
+        {checkoutErr && (
+          <div className="mx-6 mb-3 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+            <AlertTriangle size={12} className="shrink-0" /> {checkoutErr}
+          </div>
+        )}
         <div className="px-6 pb-5 flex items-center justify-center gap-2 text-[11px] text-slate-500">
           <Lock size={11} />
-          Payments processed securely via Stripe · PCI DSS Level 1 · No card required today
+          Payments processed securely via Stripe · PCI DSS Level 1
           <ShieldCheck size={11} className="text-emerald-500" />
         </div>
       </motion.div>

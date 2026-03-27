@@ -180,7 +180,7 @@ router.post("/session", requireAuth, async (req: AuthenticatedRequest, res: Resp
           planId,
           billing,
         },
-        trial_period_days: workspace.plan === "trial" ? undefined : 0,
+        trial_period_days: 0,  // always charge immediately — no free trials via checkout
       },
 
       metadata: {
