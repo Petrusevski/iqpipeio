@@ -707,6 +707,9 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
           {/* ── Right column ── */}
           <div className="space-y-6">
 
+            {/* Pricing Plan */}
+            <PricingPlanSection currentPlan={workspace.plan} />
+
             {/* Data & privacy */}
             <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
               <h2 className="text-sm font-semibold text-slate-100 mb-1">Data & privacy</h2>
@@ -773,6 +776,151 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
         </div>
       </div>
     </>
+  );
+}
+
+// ─── Pricing Plan Section ─────────────────────────────────────────────────────
+
+function PricingPlanSection({ currentPlan }: { currentPlan: string }) {
+  const [isYearly,    setIsYearly]    = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [checkoutErr, setCheckoutErr] = useState<string | null>(null);
+
+  const startCheckout = async (planId: string) => {
+    setCheckoutErr(null);
+    setLoadingPlan(planId);
+    try {
+      const token = localStorage.getItem("iqpipe_token");
+      const res   = await fetch(`${API_BASE_URL}/api/checkout/session`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ planId, billing: isYearly ? "yearly" : "monthly" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ? `${data.error}: ${data.detail}` : (data.error || "Failed to start checkout."));
+      window.location.href = data.url;
+    } catch (err: any) {
+      setCheckoutErr(err.message);
+      setLoadingPlan(null);
+    }
+  };
+
+  const PLAN_ORDER = ["starter", "growth", "agency"];
+  const currentIdx = PLAN_ORDER.indexOf(currentPlan);
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-slate-100">Pricing plan</h2>
+        {/* Billing toggle */}
+        <div className="flex items-center gap-1.5 text-[11px]">
+          <span className={!isYearly ? "text-slate-200 font-medium" : "text-slate-500"}>Monthly</span>
+          <button
+            onClick={() => setIsYearly(v => !v)}
+            className="w-8 h-4 bg-slate-700 rounded-full relative p-0.5 transition-colors hover:bg-slate-600 shrink-0"
+          >
+            <span className={`block w-3 h-3 bg-indigo-400 rounded-full transition-transform ${isYearly ? "translate-x-4" : "translate-x-0"}`} />
+          </button>
+          <span className={isYearly ? "text-slate-200 font-medium" : "text-slate-500"}>
+            Yearly <span className="text-emerald-400 font-semibold">−20%</span>
+          </span>
+        </div>
+      </div>
+      <p className="text-xs text-slate-400 mb-4">Your current plan and available upgrades or downgrades.</p>
+
+      <div className="space-y-2.5">
+        {PLANS.map((plan, idx) => {
+          const isCurrent = currentPlan === plan.id;
+          const price     = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
+          const isUpgrade = idx > currentIdx && currentIdx >= 0;
+          const isDowngrade = idx < currentIdx;
+
+          return (
+            <div
+              key={plan.id}
+              className={`rounded-xl border p-3.5 transition-all ${
+                isCurrent
+                  ? "border-indigo-500/50 bg-indigo-950/30"
+                  : "border-slate-800 bg-slate-950/50"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {/* Status dot */}
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${isCurrent ? "bg-indigo-400" : "bg-slate-700"}`} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold text-slate-100">{plan.name}</span>
+                      {plan.popular && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-1.5 py-0.5 rounded-full">
+                          Popular
+                        </span>
+                      )}
+                      {isCurrent && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      <Zap size={9} className="text-amber-400 shrink-0" />
+                      {plan.toolLimit}
+                      <span className="text-slate-700">·</span>
+                      <span className="font-semibold text-slate-300">${price}<span className="font-normal text-slate-500">/mo</span></span>
+                    </div>
+                  </div>
+                </div>
+
+                {isCurrent ? (
+                  <span className="text-[11px] text-slate-600 shrink-0">Current plan</span>
+                ) : (
+                  <button
+                    onClick={() => startCheckout(plan.id)}
+                    disabled={loadingPlan !== null}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isUpgrade
+                        ? "bg-indigo-600 hover:bg-indigo-500 text-white"
+                        : isDowngrade
+                          ? "bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300"
+                          : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                    }`}
+                  >
+                    {loadingPlan === plan.id
+                      ? <><Loader2 size={11} className="animate-spin" /> Redirecting…</>
+                      : isDowngrade ? `Downgrade` : `Upgrade`
+                    }
+                  </button>
+                )}
+              </div>
+
+              {/* Feature highlights — only on current plan */}
+              {isCurrent && (
+                <div className="mt-2.5 pt-2.5 border-t border-slate-800/60 flex flex-wrap gap-x-3 gap-y-1">
+                  {plan.features.slice(0, 4).map(f => (
+                    <div key={f} className="flex items-center gap-1 text-[11px] text-slate-500">
+                      <CheckCircle2 size={10} className="text-indigo-400 shrink-0" />
+                      {f}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {checkoutErr && (
+        <div className="mt-3 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+          <AlertTriangle size={11} className="shrink-0" /> {checkoutErr}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-600">
+        <Lock size={10} />
+        Payments via Stripe · PCI DSS Level 1
+        <ShieldCheck size={10} className="text-emerald-600" />
+      </div>
+    </section>
   );
 }
 
