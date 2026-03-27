@@ -46,6 +46,8 @@ import adminRouter from "./routes/admin";
 import workflowMirrorRouter from "./routes/workflowMirror";
 import appWebhooksRouter    from "./routes/appWebhooks";
 import reportStudioRouter   from "./routes/reportStudio";
+import mcpApiRouter         from "./routes/mcpApi";
+import mcpServerRouter      from "./routes/mcpServer";
 
 const app = express();
 
@@ -181,5 +183,7 @@ app.use("/api/admin",          adminRouter);
 app.use("/api/workflow-mirror", workflowMirrorRouter);
 app.use("/api/app-webhooks",    appWebhooksRouter);
 app.use("/api/report-studio",   reportStudioRouter);
+app.use("/api/mcp",             mcpApiRouter);
+app.use("/mcp",                 mcpServerRouter);
 
 export default app;

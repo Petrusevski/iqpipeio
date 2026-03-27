@@ -1,0 +1,23 @@
+{
+  "name": "iqpipe-mcp",
+  "version": "0.1.0",
+  "description": "IQPipe MCP server — exposes IQPipe data to AI agents via the Model Context Protocol",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "iqpipe-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}

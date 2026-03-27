@@ -5,7 +5,7 @@ import { useSettings } from "../hooks/useSettings";
 import {
   Clock, AlertTriangle, CheckCircle2, X, Zap, Lock, ShieldCheck,
   Receipt, Download, Loader2, ChevronDown, Bell, BellOff, BellRing,
-  Sparkles, Trash2, RefreshCw,
+  Sparkles, Trash2, RefreshCw, Bot, Copy, Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
@@ -710,6 +710,9 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
             {/* Pricing Plan */}
             <PricingPlanSection currentPlan={workspace.plan} />
 
+            {/* AI Agent Access */}
+            <AiAgentAccessPanel apiKey={workspace.publicApiKey ?? ""} />
+
             {/* Data & privacy */}
             <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
               <h2 className="text-sm font-semibold text-slate-100 mb-1">Data & privacy</h2>
@@ -1061,6 +1064,67 @@ function PushNotificationsPanel() {
       {pushState.error && (
         <p className="mt-2 text-[11px] text-rose-400">{pushState.error}</p>
       )}
+    </section>
+  );
+}
+
+// ─── AI Agent Access Panel ────────────────────────────────────────────────────
+
+function AiAgentAccessPanel({ apiKey }: { apiKey: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyKey = () => {
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-center gap-2 mb-1">
+        <Bot size={14} className="text-indigo-400" />
+        <h2 className="text-sm font-semibold text-slate-100">AI Agent Access (MCP)</h2>
+      </div>
+      <p className="text-xs text-slate-400 mb-4">
+        Give Claude or any MCP-compatible AI agent read-only access to your IQPipe workspace — live feed, contacts, workflows, and funnel.
+      </p>
+
+      {/* API Key display */}
+      <div className="mb-4">
+        <label className="text-[11px] text-slate-500 mb-1.5 block">Your workspace API key</label>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 min-w-0 truncate px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-300 font-mono">
+            {apiKey || "—"}
+          </code>
+          <button
+            onClick={copyKey}
+            disabled={!apiKey}
+            title="Copy API key"
+            className="shrink-0 p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-600 mt-1.5">
+          Treat this like a password — anyone with this key can read your workspace data.
+        </p>
+      </div>
+
+      {/* Quick setup */}
+      <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-3 text-[11px] text-slate-400 space-y-2">
+        <p className="font-semibold text-slate-300 text-xs">Claude Desktop quick setup</p>
+        <ol className="list-decimal list-inside space-y-1 text-slate-500">
+          <li>Build the MCP server: <code className="text-slate-400">packages/mcp/</code> in the IQPipe repo</li>
+          <li>Open Claude Desktop → Settings → Developer → Edit Config</li>
+          <li>Add <code className="text-slate-400">iqpipe</code> server with your key and API URL</li>
+          <li>Restart Claude Desktop — ask it to <em>"show my live feed"</em></li>
+        </ol>
+        <p className="text-slate-600 pt-1">
+          Available tools: <span className="text-slate-500">get_live_feed · get_funnel · list_workflows · get_workflow_health · search_contacts</span>
+        </p>
+      </div>
     </section>
   );
 }

@@ -27,10 +27,10 @@ const router = Router();
 
 type ProviderStatus = "connected" | "not_connected";
 
-type AuthData = {
+export type AuthData = {
   apiKey?: string;
   accessToken?: string;
-  tableId?: string; 
+  tableId?: string;
   [key: string]: any;
 };
 
@@ -48,7 +48,7 @@ function extractClayID(input: string): { viewId: string | null, tableId: string 
   return { viewId: null, tableId: cleanInput };
 }
 
-const parseAuthData = (raw?: string | null): AuthData | null => {
+export const parseAuthData = (raw?: string | null): AuthData | null => {
   if (!raw) return null;
   try {
     const decrypted = decrypt(raw);
@@ -60,7 +60,7 @@ const parseAuthData = (raw?: string | null): AuthData | null => {
 };
 
 // Validate that incoming secrets are non-empty strings of reasonable length
-function sanitizeSecrets(raw: Record<string, unknown>): AuthData {
+export function sanitizeSecrets(raw: Record<string, unknown>): AuthData {
   const out: AuthData = {};
   for (const [k, v] of Object.entries(raw)) {
     if (typeof v === "string" && v.trim().length >= 8) {
@@ -73,7 +73,7 @@ function sanitizeSecrets(raw: Record<string, unknown>): AuthData {
 // Return type definition for checkers
 type CheckerResult = { success: boolean; message?: string };
 
-const providerCheckers: Record<
+export const providerCheckers: Record<
   string,
   (auth: AuthData | null) => Promise<CheckerResult>
 > = {

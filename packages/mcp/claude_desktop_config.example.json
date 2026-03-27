@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "iqpipe": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\Nikola Petrusevski\\Desktop\\Revenuela\\packages\\mcp\\dist\\index.js"
+      ],
+      "env": {
+        "IQPIPE_API_URL": "http://localhost:4000",
+        "IQPIPE_API_KEY": "rvn_pk_YOUR_KEY_HERE"
+      }
+    }
+  }
+}
