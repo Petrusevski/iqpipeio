@@ -180,7 +180,7 @@ router.post("/session", requireAuth, async (req: AuthenticatedRequest, res: Resp
           planId,
           billing,
         },
-        trial_period_days: 0,  // always charge immediately — no free trials via checkout
+        // No trial_period_days — omitting it means charge immediately
       },
 
       metadata: {
