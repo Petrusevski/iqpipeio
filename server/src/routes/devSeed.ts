@@ -1196,6 +1196,12 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
     platform:    "make",
   }));
 
+  // Mark workspace as demo so the frontend can lock down mutations
+  await prisma.workspace.update({
+    where: { id: workspaceId },
+    data:  { isDemo: true },
+  });
+
   res.json({
     seeded: true,
     workspace:   membership.workspace.name,

@@ -50,6 +50,7 @@ model Workspace {
 
   dataAnonymization   Boolean @default(false)
   dataRetentionMonths Int     @default(12)
+  isDemo              Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

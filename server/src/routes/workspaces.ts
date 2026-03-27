@@ -52,10 +52,11 @@ router.get("/primary", verifyToken, async (req: AuthenticatedRequest, res: Respo
       return res.status(404).json({ error: "No workspace found for this user" });
     }
 
-    return res.json({ 
-      id: membership.workspaceId, 
-      name: membership.workspace.name,
-      slug: membership.workspace.slug
+    return res.json({
+      id:     membership.workspaceId,
+      name:   membership.workspace.name,
+      slug:   membership.workspace.slug,
+      isDemo: membership.workspace.isDemo,
     });
 
   } catch (error) {

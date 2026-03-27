@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 import SeedBanner from "../components/SeedBanner";
+import DemoModeBanner from "../components/DemoModeBanner";
+import { useDemoMode } from "../hooks/useDemoMode";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -963,6 +965,7 @@ async function generateSnapshotSVG(cards: ToolCard[]): Promise<string> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function LiveFeedPage() {
+  const isDemo = useDemoMode();
   const [cards,       setCards]       = useState<ToolCard[]>([]);
   const [signals,     setSignals]     = useState<SignalEvent[]>([]);
   const [batchEvents, setBatchEvents] = useState<BatchEvent[]>([]);
@@ -1228,6 +1231,8 @@ export default function LiveFeedPage() {
 
   return (
     <div className="h-full flex flex-col bg-slate-950 text-white overflow-hidden">
+
+      {isDemo && <DemoModeBanner />}
 
       {snapshotDataUrl && (
         <SnapshotModal

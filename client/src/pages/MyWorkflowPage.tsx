@@ -5,6 +5,8 @@ import {
   Activity, Layers, ChevronRight, CheckCircle2, Circle, AlertTriangle,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
+import DemoModeBanner from "../components/DemoModeBanner";
+import { useDemoMode } from "../hooks/useDemoMode";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,7 +140,8 @@ function AutomationCard({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function MyWorkflowPage() {
-  const navigate = useNavigate();
+  const navigate    = useNavigate();
+  const isDemo      = useDemoMode();
   const [workspaceId,   setWorkspaceId]   = useState("");
   const [n8nWorkflows,  setN8nWorkflows]  = useState<N8nWorkflow[]>([]);
   const [makeScenarios, setMakeScenarios] = useState<MakeScenario[]>([]);
@@ -228,6 +231,7 @@ export default function MyWorkflowPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 overflow-y-auto bg-slate-950 min-h-0">
+      {isDemo && <DemoModeBanner />}
       <div className="max-w-6xl mx-auto px-6 py-8">
 
         {/* Header */}
@@ -251,8 +255,11 @@ export default function MyWorkflowPage() {
                 Refresh
               </button>
             )}
-            <button onClick={() => navigate("/automations")}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white font-medium transition-colors">
+            <button
+              onClick={() => !isDemo && navigate("/automations")}
+              disabled={isDemo}
+              title={isDemo ? "Disabled in demo mode" : undefined}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors">
               <ExternalLink size={13} />
               Manage connections
             </button>
@@ -280,8 +287,11 @@ export default function MyWorkflowPage() {
             <p className="text-sm text-slate-600 max-w-xs mb-6">
               Connect your n8n or Make.com account to sync your workflows here.
             </p>
-            <button onClick={() => navigate("/automations")}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white font-medium transition-colors">
+            <button
+              onClick={() => !isDemo && navigate("/automations")}
+              disabled={isDemo}
+              title={isDemo ? "Disabled in demo mode" : undefined}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm text-white font-medium transition-colors">
               Connect automation platform
             </button>
           </div>

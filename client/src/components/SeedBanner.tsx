@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { markDemoMode } from "../hooks/useDemoMode";
 import {
   Sparkles, RefreshCw, CheckCircle2, AlertTriangle,
   Zap, ArrowRight, Bot, Layers,
@@ -31,6 +32,7 @@ export default function SeedBanner({ onSeeded }: Props) {
       } else if (d.seeded) {
         setSeedStatus("done");
         setSeedMsg(`Seeded ${d.iqLeads} contacts · ${d.touchpoints} events across ${d.integrations?.total ?? d.integrations?.tools?.length ?? "15"} tools.`);
+        markDemoMode(true);
         setTimeout(() => onSeeded?.(), 800);
       } else {
         setSeedStatus("error");
