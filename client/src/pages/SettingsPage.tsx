@@ -114,7 +114,7 @@ function UpgradeModal({
         body:    JSON.stringify({ planId, billing: isYearly ? "yearly" : "monthly" }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to start checkout.");
+      if (!res.ok) throw new Error(data.detail ? `${data.error}: ${data.detail}` : (data.error || "Failed to start checkout."));
       window.location.href = data.url;
     } catch (err: any) {
       setCheckoutErr(err.message);
