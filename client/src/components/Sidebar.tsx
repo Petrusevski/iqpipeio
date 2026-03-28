@@ -6,7 +6,6 @@ import {
   Settings,
   HeartPulse,
   GitBranch,
-  Fingerprint,
   Workflow,
   BarChart3,
   Sparkles,
@@ -78,9 +77,7 @@ export default function Sidebar() {
       {/* BRAND */}
       <div className="h-16 flex items-center px-5 border-b border-slate-800/50 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-1 ring-indigo-500/40 flex items-center justify-center text-indigo-400">
-            <Fingerprint size={16} />
-          </div>
+          <img src="/logo.png" alt="iqpipe" className="h-8 w-8 rounded-lg object-contain" />
           <div className="flex flex-col">
             <span className="font-bold text-sm tracking-tight text-white leading-none">iqpipe</span>
             <span className="text-[10px] font-medium text-indigo-400 tracking-wide mt-0.5">GTM OBSERVABILITY</span>
