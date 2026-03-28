@@ -86,7 +86,7 @@ function createServer(workspaceId: string, baseUrl: string): any {
   server.tool(
     "get_live_feed",
     "Signal health for all connected tools: event counts (24h / 7d / all-time), " +
-    "status (healthy / warning / silent / never), and top event types per tool.",
+    "status (live / slow / silent / never), and top event types per tool.",
     {},
     async () => {
       const now = new Date();
@@ -119,8 +119,8 @@ function createServer(workspaceId: string, baseUrl: string): any {
         const hoursSince = lastAt ? (now.getTime() - new Date(lastAt).getTime()) / 3_600_000 : null;
         let status = "never";
         if (hoursSince !== null) {
-          if (hoursSince <= threshold * 0.5)  status = "healthy";
-          else if (hoursSince <= threshold)   status = "warning";
+          if (hoursSince <= threshold * 0.5)  status = "live";
+          else if (hoursSince <= threshold)   status = "slow";
           else                                status = "silent";
         }
         return {

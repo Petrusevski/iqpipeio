@@ -98,8 +98,8 @@ router.get("/live-feed", requireApiKey, async (req: ApiKeyRequest, res: Response
       const hoursSince = lastAt ? (now.getTime() - new Date(lastAt).getTime()) / 3_600_000 : null;
       let status = "never";
       if (hoursSince !== null) {
-        if (hoursSince <= threshold * 0.5)  status = "healthy";
-        else if (hoursSince <= threshold)   status = "warning";
+        if (hoursSince <= threshold * 0.5)  status = "live";
+        else if (hoursSince <= threshold)   status = "slow";
         else                                status = "silent";
       }
       return {
