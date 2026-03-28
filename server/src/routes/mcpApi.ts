@@ -39,7 +39,7 @@ import { encrypt } from "../utils/encryption";
 import { testN8nConnection, syncN8nConnection } from "../services/n8nClient";
 import { testMakeConnection, syncMakeConnection } from "../services/makeClient";
 import {
-  providerCheckers, sanitizeSecrets, parseAuthData,
+  providerCheckers, sanitizeSecrets,
 } from "./integrations";
 import { APP_CATALOG } from "./workflowMirror";
 
@@ -135,13 +135,19 @@ router.get("/funnel", requireApiKey, async (req: ApiKeyRequest, res: Response) =
     const where: any = { workspaceId };
 
     if (workflowId) {
-      // Touchpoint.workflowId stores the n8n native ID (n8nId), not the IQPipe meta ID.
-      // Resolve: if the caller passed an IQPipe internal ID, look up the corresponding n8nId.
-      const meta = await prisma.n8nWorkflowMeta.findFirst({
-        where:  { workspaceId, OR: [{ id: workflowId }, { n8nId: workflowId }] },
-        select: { n8nId: true },
-      });
-      where.workflowId = meta?.n8nId ?? workflowId;
+      // Touchpoint.workflowId stores the platform-native ID (n8nId or makeId),
+      // not the IQPipe meta ID. Resolve across both platforms.
+      const [n8nMeta, makeMeta] = await Promise.all([
+        prisma.n8nWorkflowMeta.findFirst({
+          where:  { workspaceId, OR: [{ id: workflowId }, { n8nId: workflowId }] },
+          select: { n8nId: true },
+        }),
+        prisma.makeScenarioMeta.findFirst({
+          where:  { workspaceId, OR: [{ id: workflowId }, { makeId: workflowId }] },
+          select: { makeId: true },
+        }),
+      ]);
+      where.workflowId = n8nMeta?.n8nId ?? makeMeta?.makeId ?? workflowId;
     }
 
     const rows = await prisma.touchpoint.groupBy({

@@ -156,14 +156,19 @@ function createServer(workspaceId: string, baseUrl: string): any {
       const where: any = { workspaceId };
 
       if (workflowId) {
-        // Touchpoint.workflowId stores the n8n native ID (n8nId), not the IQPipe meta ID.
-        // Resolve: if the caller passed an IQPipe internal ID, look up the corresponding n8nId.
-        const meta = await prisma.n8nWorkflowMeta.findFirst({
-          where:  { workspaceId, OR: [{ id: workflowId }, { n8nId: workflowId }] },
-          select: { n8nId: true },
-        });
-        // Use n8nId if found, otherwise try the value as-is (Make scenario IDs are stored directly)
-        where.workflowId = meta?.n8nId ?? workflowId;
+        // Touchpoint.workflowId stores the platform-native ID (n8nId or makeId),
+        // not the IQPipe meta ID. Resolve across both platforms.
+        const [n8nMeta, makeMeta] = await Promise.all([
+          prisma.n8nWorkflowMeta.findFirst({
+            where:  { workspaceId, OR: [{ id: workflowId }, { n8nId: workflowId }] },
+            select: { n8nId: true },
+          }),
+          prisma.makeScenarioMeta.findFirst({
+            where:  { workspaceId, OR: [{ id: workflowId }, { makeId: workflowId }] },
+            select: { makeId: true },
+          }),
+        ]);
+        where.workflowId = n8nMeta?.n8nId ?? makeMeta?.makeId ?? workflowId;
       }
 
       const rows = await prisma.touchpoint.groupBy({ by: ["eventType"], where, _count: { id: true } });
@@ -185,26 +190,60 @@ function createServer(workspaceId: string, baseUrl: string): any {
   // ── list_workflows ─────────────────────────────────────────────────────────
   server.tool(
     "list_workflows",
-    "All n8n workflows and Make.com scenarios: name, platform, active status, apps used, node count.",
+    "Returns ALL saved automation workflows across every connected platform (n8n AND Make.com). " +
+    "Each workflow has a 'platform' field ('n8n' or 'make') — always read the full list before " +
+    "drawing conclusions. Never assume a workflow is n8n-only. " +
+    "Fields: id, name, platform, active, appsUsed, nodeCount, triggerType, lastUpdatedAt.",
     {},
     async () => {
-      const [n8n, make] = await Promise.all([
+      const [n8nRows, makeRows] = await Promise.all([
         prisma.n8nWorkflowMeta.findMany({
-          where: { workspaceId }, orderBy: [{ active: "desc" }, { name: "asc" }],
-          select: { id: true, n8nId: true, name: true, active: true, appsUsed: true, nodeCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
+          where:   { workspaceId },
+          orderBy: [{ active: "desc" }, { name: "asc" }],
+          select:  { id: true, n8nId: true, name: true, active: true, appsUsed: true, nodeCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
         }),
         prisma.makeScenarioMeta.findMany({
-          where: { workspaceId }, orderBy: [{ active: "desc" }, { name: "asc" }],
-          select: { id: true, makeId: true, name: true, active: true, appsUsed: true, moduleCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
+          where:   { workspaceId },
+          orderBy: [{ active: "desc" }, { name: "asc" }],
+          select:  { id: true, makeId: true, name: true, active: true, appsUsed: true, moduleCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
         }),
       ]);
+
+      // Flat unified array — platform-neutral, sorted active-first then name
+      const all = [
+        ...n8nRows.map(w => ({
+          id:            w.id,
+          nativeId:      w.n8nId,
+          platform:      "n8n",
+          name:          w.name,
+          active:        w.active,
+          appsUsed:      JSON.parse(w.appsUsed),
+          nodeCount:     w.nodeCount,
+          triggerType:   w.triggerType,
+          lastUpdatedAt: w.lastUpdatedAt?.toISOString() ?? null,
+          syncedAt:      w.syncedAt.toISOString(),
+        })),
+        ...makeRows.map(s => ({
+          id:            s.id,
+          nativeId:      s.makeId,
+          platform:      "make",
+          name:          s.name,
+          active:        s.active,
+          appsUsed:      JSON.parse(s.appsUsed),
+          nodeCount:     s.moduleCount,
+          triggerType:   s.triggerType,
+          lastUpdatedAt: s.lastUpdatedAt?.toISOString() ?? null,
+          syncedAt:      s.syncedAt.toISOString(),
+        })),
+      ].sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+
       return {
         content: [{
           type: "text" as const,
-          text: JSON.stringify({
-            n8n:  n8n.map(w => ({ ...w, platform: "n8n",  appsUsed: JSON.parse(w.appsUsed), lastUpdatedAt: w.lastUpdatedAt?.toISOString() ?? null, syncedAt: w.syncedAt.toISOString() })),
-            make: make.map(s => ({ ...s, platform: "make", nodeCount: s.moduleCount, appsUsed: JSON.parse(s.appsUsed), lastUpdatedAt: s.lastUpdatedAt?.toISOString() ?? null, syncedAt: s.syncedAt.toISOString() })),
-          }, null, 2),
+          text: JSON.stringify({ total: all.length, workflows: all }, null, 2),
         }],
       };
     }
@@ -213,7 +252,9 @@ function createServer(workspaceId: string, baseUrl: string): any {
   // ── get_workflow_health ────────────────────────────────────────────────────
   server.tool(
     "get_workflow_health",
-    "Success rates and health labels per workflow (healthy ≥90%, warning ≥70%, critical <70%).",
+    "Success rates and health labels for ALL workflows across every platform (n8n AND Make.com). " +
+    "Returns a flat list — every item has a 'platform' field. Always evaluate all items, not just n8n ones. " +
+    "Health: healthy ≥90%, warning ≥70%, critical <70%, no_data = no events in period.",
     { period: z.enum(["7d", "14d", "30d", "90d"]).optional().default("30d") },
     async ({ period }: any) => {
       const days  = parseInt((period ?? "30d").replace("d", "")) || 30;
