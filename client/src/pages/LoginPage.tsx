@@ -108,9 +108,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
         <div className="w-full max-w-sm">
           <div className="mb-8 text-center">
-            <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white text-xl font-bold shadow-lg shadow-indigo-500/20 mb-4">
-              iq
-            </div>
+            <img src="/logo.png" alt="iqpipe" className="h-16 w-16 object-contain mx-auto mb-4 drop-shadow-lg" />
             <h2 className="text-2xl font-bold text-white tracking-tight">Welcome back</h2>
             <p className="text-sm text-slate-400 mt-2">
               Enter your credentials to access your workspace.

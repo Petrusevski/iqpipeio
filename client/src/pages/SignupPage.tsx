@@ -267,9 +267,7 @@ export default function SignupPage({ onSignupSuccess }: SignupPageProps) {
               )}
 
               <div className="mb-7 text-center">
-                <div className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-gradient-to-br from-fuchsia-600 to-indigo-600 text-white text-base font-bold shadow-lg shadow-fuchsia-500/20 mb-3">
-                  iq
-                </div>
+                <img src="/logo.png" alt="iqpipe" className="h-16 w-16 object-contain mx-auto mb-3 drop-shadow-lg" />
                 <h2 className="text-2xl font-bold text-white tracking-tight">Create your account</h2>
                 <p className="text-xs text-slate-400 mt-1.5">
                   30-day free trial · No credit card required
