@@ -18,7 +18,7 @@
  *     }
  *   }
  *
- * All 12 tools are available:
+ * All 25 tools are available:
  *   Read:  get_live_feed, get_funnel, list_workflows, get_workflow_health,
  *          search_contacts, get_workflow_mirror, get_mirror_app_catalog
  *   Write: connect_integration, disconnect_integration, connect_n8n,
@@ -26,6 +26,7 @@
  *   CRM:   get_contact, create_contact, update_contact,
  *          list_deals, create_deal, update_deal,
  *          list_accounts, create_account, update_account
+ *   Diagnostics: get_anomalies, diagnose_issue, apply_fix, watch_recovery
  */
 
 import { Router, Request, Response } from "express";
@@ -44,6 +45,9 @@ import { testN8nConnection, syncN8nConnection } from "../services/n8nClient";
 import { testMakeConnection, syncMakeConnection } from "../services/makeClient";
 import { providerCheckers, sanitizeSecrets } from "./integrations";
 import { APP_CATALOG } from "./workflowMirror";
+import { diagnose } from "../services/diagnosticEngine";
+import { applyFix } from "../services/remediationEngine";
+import { watchRecovery } from "../services/recoveryWatcher";
 
 const router = Router();
 
@@ -856,6 +860,149 @@ function createServer(workspaceId: string, baseUrl: string): any {
 
       const updated = await prisma.account.update({ where: { id }, data });
       return { content: [{ type: "text" as const, text: JSON.stringify({ ok: true, id: updated.id, name: updated.name, lifecycleStage: updated.lifecycleStage }, null, 2) }] };
+    }
+  );
+
+  // ── Tool: get_anomalies ───────────────────────────────────────────────────
+
+  server.tool(
+    "get_anomalies",
+    "Returns all active anomaly notifications for this workspace — tool status changes " +
+    "(live→slow, slow→silent), workflow health degradations, and event-type disappearances. " +
+    "These are detected automatically every 30 minutes by IQPipe's background scanner. " +
+    "Use this as your starting point for diagnosing GTM issues without needing any external API keys.",
+    {
+      unreadOnly: z.boolean().optional().default(true).describe("If true (default), return only unread anomaly notifications."),
+      limit:      z.number().int().min(1).max(100).optional().default(20),
+    },
+    async ({ unreadOnly, limit }: any) => {
+      const where: any = {
+        workspaceId,
+        type: { in: ["tool_status", "workflow_health", "event_gap"] },
+      };
+      if (unreadOnly !== false) where.isRead = false;
+
+      const rows = await prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take:    limit ?? 20,
+        select:  { id: true, type: true, title: true, body: true, severity: true, isRead: true, createdAt: true },
+      });
+
+      const result = {
+        count:     rows.length,
+        anomalies: rows.map((n: any) => ({
+          id:        n.id,
+          type:      n.type,
+          severity:  n.severity,
+          title:     n.title,
+          details:   n.body,
+          detected:  (n.createdAt as Date).toISOString(),
+          read:      n.isRead,
+        })),
+        hint: rows.length === 0
+          ? "No active anomalies detected. All tools and workflows appear healthy."
+          : `Found ${rows.length} anomaly/anomalies. Investigate the most severe ones first (severity=error before warning).`,
+      };
+
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── Tool: diagnose_issue ─────────────────────────────────────────────────
+
+  server.tool(
+    "diagnose_issue",
+    "Performs a root-cause diagnosis for a detected GTM anomaly. " +
+    "Pass EXACTLY ONE of: tool (integration slug, e.g. 'hubspot'), workflowId (n8n/Make workflow id), " +
+    "or eventType (iqpipe event type, e.g. 'email_sent'). " +
+    "The engine cross-references event timestamps, credential update history, workflow failure ratios, " +
+    "funnel gaps, and app connection status to rank probable causes by confidence. " +
+    "Also returns affected contact count and estimated revenue at risk. " +
+    "Call get_anomalies first to identify what to diagnose — then call this tool for each anomaly.",
+    {
+      tool:       z.string().optional().describe("Integration tool slug, e.g. 'hubspot', 'apollo', 'heyreach'. Use this when a tool is slow or silent."),
+      workflowId: z.string().optional().describe("Workflow ID from list_workflows or get_anomalies. Use this when a workflow's health degraded."),
+      eventType:  z.string().optional().describe("IQPipe event type, e.g. 'email_sent', 'meeting_booked'. Use this when an event type disappeared from the feed."),
+    },
+    async ({ tool: toolArg, workflowId, eventType }: any) => {
+      if (!toolArg && !workflowId && !eventType) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Provide exactly one of: tool, workflowId, or eventType." }) }] };
+      }
+
+      const report = await diagnose(workspaceId, { tool: toolArg, workflowId, eventType });
+      return { content: [{ type: "text" as const, text: JSON.stringify(report, null, 2) }] };
+    }
+  );
+
+  // ── Tool: apply_fix ──────────────────────────────────────────────────────
+
+  server.tool(
+    "apply_fix",
+    "Applies a remediation for a diagnosed GTM anomaly. " +
+    "Call diagnose_issue first to get the probable cause, then call this tool with that cause. " +
+    "Fixes are classified as: " +
+    "(1) auto-executed — IQPipe applies the fix immediately (e.g. return fresh webhook URL, re-activate paused workflow); " +
+    "(2) needs_confirmation — IQPipe can execute but requires user approval first (e.g. activating a workflow); " +
+    "(3) manual_required — IQPipe generates precise step-by-step instructions tailored to the specific tool. " +
+    "For confirmation-required fixes: present the description to the user, get their approval, then re-call with confirmed:true. " +
+    "IMPORTANT: Never pass confirmed:true without explicit user approval.",
+    {
+      cause:      z.string().describe(
+        "The diagnosed cause key from diagnose_issue. E.g. 'webhook_delivery_failed', 'api_key_rotated_or_revoked', " +
+        "'workflow_not_triggering', 'rate_limit_or_quota_exhausted', 'integration_disconnected', 'never_received_events', " +
+        "'app_connection_broken', 'workflow_processing_errors', 'upstream_funnel_step_broken', " +
+        "'event_type_filter_removed_or_trigger_changed', 'all_source_tools_silent'."
+      ),
+      tool:       z.string().optional().describe("Tool slug from diagnose_issue, e.g. 'hubspot', 'heyreach'."),
+      workflowId: z.string().optional().describe("Workflow ID from diagnose_issue."),
+      eventType:  z.string().optional().describe("Event type from diagnose_issue, e.g. 'email_sent'."),
+      confirmed:  z.boolean().optional().default(false).describe(
+        "Set to true ONLY after the user has explicitly approved an action that modifies external state. Default false."
+      ),
+    },
+    async ({ cause, tool: toolArg, workflowId, eventType, confirmed }: any) => {
+      const result = await applyFix(workspaceId, {
+        cause,
+        tool:       toolArg,
+        workflowId,
+        eventType,
+        confirmed:  confirmed ?? false,
+        baseUrl,
+      });
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── Tool: watch_recovery ─────────────────────────────────────────────────
+
+  server.tool(
+    "watch_recovery",
+    "Checks whether a tool, workflow, or event type has recovered after a fix was applied. " +
+    "Call this after apply_fix to verify the fix worked. This is a point-in-time snapshot — " +
+    "call it periodically (every 5 minutes) until status is 'recovered' or 'timeout'. " +
+    "Recovery signals: tool → first new touchpoint after fix; workflow → success rate ≥ 90% or +15pt; event type → reappears in live feed. " +
+    "On recovery: reports first event details (contact, company, deal amount), minutes after fix, and funnel health. " +
+    "On timeout: automatically runs a second-level diagnosis and returns the updated probable cause for re-diagnosis. " +
+    "Pass EXACTLY ONE of: tool, workflowId, or eventType — the same subject passed to apply_fix.",
+    {
+      tool:            z.string().optional().describe("Tool slug to watch, e.g. 'hubspot'. Use if fix was for a silent/slow tool."),
+      workflowId:      z.string().optional().describe("Workflow ID to watch. Use if fix was for a degraded workflow."),
+      eventType:       z.string().optional().describe("Event type to watch, e.g. 'email_sent'. Use if fix was for a disappeared event type."),
+      fixAppliedAt:    z.string().describe("ISO 8601 timestamp of when the fix was applied. Use the current time if unknown. Example: '2024-03-21T14:32:00Z'."),
+      timeoutMinutes:  z.number().int().min(5).max(120).optional().describe(
+        "How many minutes to wait before declaring a timeout and escalating. Default: 30 for tools/events, 20 for workflows."
+      ),
+    },
+    async ({ tool: toolArg, workflowId, eventType, fixAppliedAt, timeoutMinutes }: any) => {
+      const result = await watchRecovery(workspaceId, {
+        tool:          toolArg,
+        workflowId,
+        eventType,
+        fixAppliedAt:  fixAppliedAt ?? new Date().toISOString(),
+        timeoutMinutes,
+      });
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
 

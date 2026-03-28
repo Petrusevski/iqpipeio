@@ -697,6 +697,51 @@ export async function pollAllN8nExecutions(): Promise<void> {
 }
 
 /**
+ * Activate or deactivate a single n8n workflow via the n8n API.
+ * Returns { ok, active } on success or { ok: false, error } on failure.
+ */
+export async function setN8nWorkflowActive(
+  workspaceId: string,
+  n8nWorkflowId: string,
+  active: boolean,
+): Promise<{ ok: boolean; active?: boolean; error?: string }> {
+  const conn = await prisma.n8nConnection.findUnique({ where: { workspaceId } });
+  if (!conn || conn.status !== "connected") {
+    return { ok: false, error: "No active n8n connection for this workspace." };
+  }
+
+  let apiKey: string;
+  try {
+    apiKey = decrypt(conn.apiKeyEnc);
+  } catch {
+    return { ok: false, error: "Failed to decrypt n8n API key." };
+  }
+
+  const base = conn.baseUrl.replace(/\/$/, "");
+  const endpoint = active
+    ? `${base}/api/v1/workflows/${n8nWorkflowId}/activate`
+    : `${base}/api/v1/workflows/${n8nWorkflowId}/deactivate`;
+
+  try {
+    await axios.post(endpoint, {}, {
+      headers: { "X-N8N-API-KEY": apiKey, Accept: "application/json" },
+      timeout: 10_000,
+    });
+
+    // Update local meta
+    await prisma.n8nWorkflowMeta.updateMany({
+      where:  { workspaceId, n8nId: n8nWorkflowId },
+      data:   { active },
+    });
+
+    return { ok: true, active };
+  } catch (err: any) {
+    const msg: string = err?.response?.data?.message ?? err?.message ?? "Request failed";
+    return { ok: false, error: msg };
+  }
+}
+
+/**
  * Sync all connected n8n workspaces. Called from syncPoller every 2 hours.
  */
 export async function syncAllN8nConnections(): Promise<void> {

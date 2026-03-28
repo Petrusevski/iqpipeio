@@ -302,6 +302,50 @@ export async function syncMakeConnection(
   return { synced, errors };
 }
 
+/**
+ * Activate or pause a Make.com scenario via the Make API.
+ * Returns { ok, active } on success or { ok: false, error } on failure.
+ */
+export async function setMakeScenarioActive(
+  workspaceId: string,
+  makeScenarioId: string,
+  active: boolean,
+): Promise<{ ok: boolean; active?: boolean; error?: string }> {
+  const conn = await prisma.makeConnection.findUnique({ where: { workspaceId } });
+  if (!conn || conn.status !== "connected") {
+    return { ok: false, error: "No active Make.com connection for this workspace." };
+  }
+
+  let apiKey: string;
+  try {
+    const { decrypt } = await import("../utils/encryption");
+    apiKey = decrypt(conn.apiKeyEnc);
+  } catch {
+    return { ok: false, error: "Failed to decrypt Make API key." };
+  }
+
+  const base   = `https://${conn.region}.make.com/api/v2`;
+  const action = active ? "resume" : "stop";
+  const url    = `${base}/scenarios/${makeScenarioId}/${action}`;
+
+  try {
+    await axios.post(url, {}, {
+      headers: { Authorization: `Token ${apiKey}`, Accept: "application/json" },
+      timeout: 10_000,
+    });
+
+    await prisma.makeScenarioMeta.updateMany({
+      where: { workspaceId, makeId: makeScenarioId },
+      data:  { active },
+    });
+
+    return { ok: true, active };
+  } catch (err: any) {
+    const msg: string = err?.response?.data?.message ?? err?.message ?? "Request failed";
+    return { ok: false, error: msg };
+  }
+}
+
 export async function syncAllMakeConnections(): Promise<void> {
   const connections = await prisma.makeConnection.findMany({
     where:  { status: { not: "disconnected" } },

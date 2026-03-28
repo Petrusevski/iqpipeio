@@ -14,6 +14,7 @@ import { syncAllWorkspaces } from "./syncService";
 import { startN8nQueueProcessor } from "./n8nQueueProcessor";
 import { syncAllN8nConnections, pollAllN8nExecutions } from "./n8nClient";
 import { syncAllMakeConnections } from "./makeClient";
+import { startAnomalyDetector } from "./anomalyDetector";
 import { prisma } from "../db";
 
 const POLL_INTERVAL_MS     = 2 * 60 * 60 * 1000; // 2 hours  — workflow metadata sync
@@ -48,6 +49,9 @@ export function startSyncPoller(): void {
 
   // Start n8n async queue processor (independent loop, every 15s)
   startN8nQueueProcessor();
+
+  // Start GTM anomaly detector (Phase 1 — runs every 30 min)
+  startAnomalyDetector();
 
   // Run full API poll immediately on startup
   runCycle().catch(console.error);
