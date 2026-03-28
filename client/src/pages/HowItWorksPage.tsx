@@ -113,8 +113,8 @@ const CentralHub = () => (
     <div className="absolute inset-0 rounded-full bg-gradient-to-br from-indigo-500/20 via-fuchsia-500/20 to-sky-400/20 blur-md animate-pulse" />
     
     {/* UPDATED LOGO CONTAINER */}
-    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 ring-1 ring-indigo-500/40 shadow-inner mb-1">
-      <Fingerprint size={24} />
+    <div className="h-10 w-10 rounded-xl overflow-hidden shadow-inner mb-1">
+      <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
     </div>
     
     <div className="text-[9px] font-mono text-slate-400 uppercase tracking-wider">

@@ -146,8 +146,8 @@ export default function PublicIntegrationsPage() {
                   transition={{ delay: 0.25 }}
                   className="relative flex flex-col items-center gap-3 p-6 rounded-2xl border border-indigo-500/40 bg-indigo-500/8 w-52 z-10 shadow-[0_0_60px_-15px_rgba(99,102,241,0.3)]"
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 ring-2 ring-indigo-500/50 flex items-center justify-center">
-                    <Fingerprint size={28} className="text-indigo-300" />
+                  <div className="w-14 h-14 rounded-2xl overflow-hidden ring-2 ring-indigo-500/50">
+                    <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
                   </div>
                   <div className="text-center">
                     <div className="text-sm font-bold text-indigo-200">iqpipe</div>
@@ -399,8 +399,8 @@ export default function PublicIntegrationsPage() {
               <div className="h-12 w-12 rounded-2xl bg-white flex items-center justify-center shadow-lg">
                 <img src="https://www.google.com/s2/favicons?domain=n8n.io&sz=64" alt="n8n" width={24} height={24} className="object-contain" />
               </div>
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-1 ring-indigo-500/40 flex items-center justify-center text-indigo-400">
-                <Fingerprint size={22} />
+              <div className="h-12 w-12 rounded-2xl overflow-hidden ring-1 ring-indigo-500/40">
+                <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
               </div>
             </div>
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">

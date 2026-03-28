@@ -640,7 +640,7 @@ export default function DemoPage() {
                 ))}
                 <span className="text-slate-600 text-sm">→</span>
                 <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-indigo-500/25 bg-indigo-500/8 text-sm font-semibold text-indigo-300">
-                  <Fingerprint size={16} />
+                  <img src="/logo.png" alt="iqpipe" className="h-4 w-4 object-contain" />
                   iqpipe
                 </div>
               </div>
@@ -783,8 +783,8 @@ export default function DemoPage() {
             className="max-w-xl mx-auto text-center"
           >
             <div className="flex justify-center mb-6">
-              <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-1 ring-indigo-500/40 flex items-center justify-center text-indigo-400">
-                <Fingerprint size={28} />
+              <div className="h-14 w-14 rounded-2xl overflow-hidden">
+                <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
               </div>
             </div>
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Ready to connect your automations?</h2>
