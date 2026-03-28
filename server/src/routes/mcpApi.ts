@@ -129,10 +129,22 @@ router.get("/funnel", requireApiKey, async (req: ApiKeyRequest, res: Response) =
   const workflowId  = req.query.workflowId as string | undefined;
 
   try {
-    const where: any = { workspaceId, status: { not: "failed" } };
-    if (workflowId) where.workflowId = workflowId;
+    // Touchpoint is the canonical event store for ALL sources (webhooks, n8n, Make, direct API).
+    // N8nQueuedEvent only contains events routed through the n8n queue processor and is often
+    // sparse, so we always query Touchpoint for funnel data.
+    const where: any = { workspaceId };
 
-    const rows = await prisma.n8nQueuedEvent.groupBy({
+    if (workflowId) {
+      // Touchpoint.workflowId stores the n8n native ID (n8nId), not the IQPipe meta ID.
+      // Resolve: if the caller passed an IQPipe internal ID, look up the corresponding n8nId.
+      const meta = await prisma.n8nWorkflowMeta.findFirst({
+        where:  { workspaceId, OR: [{ id: workflowId }, { n8nId: workflowId }] },
+        select: { n8nId: true },
+      });
+      where.workflowId = meta?.n8nId ?? workflowId;
+    }
+
+    const rows = await prisma.touchpoint.groupBy({
       by:    ["eventType"],
       where,
       _count: { id: true },

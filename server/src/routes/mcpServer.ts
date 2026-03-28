@@ -145,13 +145,28 @@ function createServer(workspaceId: string, baseUrl: string): any {
   // ── get_funnel ─────────────────────────────────────────────────────────────
   server.tool(
     "get_funnel",
-    "GTM funnel stages with event counts and conversion rates between adjacent stages.",
-    { workflowId: z.string().optional().describe("Filter to a specific workflow ID.") },
+    "GTM funnel stages with event counts and conversion rates between adjacent stages. " +
+    "Reads from IQPipe's full event database (all sources: webhooks, n8n, Make, direct API). " +
+    "When workflowId is provided, filters to events that passed through that specific workflow.",
+    { workflowId: z.string().optional().describe("IQPipe workflow ID or n8n native ID from list_workflows. Leave empty for workspace-wide funnel.") },
     async ({ workflowId }: any) => {
-      const where: any = { workspaceId, status: { not: "failed" } };
-      if (workflowId) where.workflowId = workflowId;
+      // Touchpoint is the canonical event store for ALL sources (webhooks, n8n, Make, direct API).
+      // N8nQueuedEvent only contains events routed through the n8n queue processor and is often
+      // sparse, so we always query Touchpoint for funnel data.
+      const where: any = { workspaceId };
 
-      const rows = await prisma.n8nQueuedEvent.groupBy({ by: ["eventType"], where, _count: { id: true } });
+      if (workflowId) {
+        // Touchpoint.workflowId stores the n8n native ID (n8nId), not the IQPipe meta ID.
+        // Resolve: if the caller passed an IQPipe internal ID, look up the corresponding n8nId.
+        const meta = await prisma.n8nWorkflowMeta.findFirst({
+          where:  { workspaceId, OR: [{ id: workflowId }, { n8nId: workflowId }] },
+          select: { n8nId: true },
+        });
+        // Use n8nId if found, otherwise try the value as-is (Make scenario IDs are stored directly)
+        where.workflowId = meta?.n8nId ?? workflowId;
+      }
+
+      const rows = await prisma.touchpoint.groupBy({ by: ["eventType"], where, _count: { id: true } });
       const ORDER: Record<string, number> = {
         contact_created: 1, email_sent: 2, email_opened: 3, email_clicked: 4,
         reply_received: 5, meeting_booked: 6, deal_created: 7, deal_won: 8, deal_lost: 8,
