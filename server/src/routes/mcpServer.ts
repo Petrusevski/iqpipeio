@@ -85,8 +85,9 @@ function createServer(workspaceId: string, baseUrl: string): any {
   // ── get_live_feed ──────────────────────────────────────────────────────────
   server.tool(
     "get_live_feed",
-    "Signal health for all connected tools: event counts (24h / 7d / all-time), " +
-    "status (live / slow / silent / never), and top event types per tool.",
+    "Returns already-ingested signal health for all connected tools: event counts (24h / 7d / all-time), " +
+    "status (live / slow / silent / never), and top event types per tool. " +
+    "No credentials needed — reads from IQPipe's stored event database.",
     {},
     async () => {
       const now = new Date();
@@ -234,9 +235,10 @@ function createServer(workspaceId: string, baseUrl: string): any {
   // ── search_contacts ────────────────────────────────────────────────────────
   server.tool(
     "search_contacts",
-    "Search contacts (IqLeads) by company, name, or event type. " +
-    "Use eventType to filter contacts who have a specific event in their touchpoint history — e.g. 'deal_won', 'meeting_booked', 'payment_received', 'reply_received'. " +
-    "Combine with q for further narrowing. Returns up to 200.",
+    "Search contacts from IQPipe's already-stored event database — no credentials or integrations needed. " +
+    "Use eventType to filter contacts who have a specific event in their history — e.g. 'deal_won', 'meeting_booked', 'payment_received', 'reply_received'. " +
+    "Do NOT use setup_workflow_mirror to answer questions about existing contact data — use this tool instead. " +
+    "Combine with q to also filter by name or company.",
     {
       q:         z.string().optional().describe("Search query — displayName or company."),
       eventType: z.string().optional().describe("Filter to contacts who have this event type in their history. e.g. 'deal_won', 'meeting_booked', 'payment_received'."),
@@ -410,8 +412,9 @@ function createServer(workspaceId: string, baseUrl: string): any {
   // ── setup_workflow_mirror ──────────────────────────────────────────────────
   server.tool(
     "setup_workflow_mirror",
-    "Create or update a workflow mirror: connect apps with credentials/webhooks and configure " +
-    "which events to observe. Call get_mirror_app_catalog first for valid appKeys and event keys.\n" +
+    "Set up LIVE webhook/polling connections for a workflow mirror going forward — only use this when the user explicitly wants to connect new app integrations. " +
+    "Do NOT call this to query existing contact data or events already in IQPipe — use search_contacts with eventType instead.\n" +
+    "Call get_mirror_app_catalog first for valid appKeys and event keys.\n" +
     "correlationKey: shared field that links events across apps (e.g. 'email').\n" +
     "Supported appKeys: hubspot, salesforce, pipedrive, attio, instantly, lemlist, smartlead, " +
     "heyreach, apollo, clay, stripe, calendly, slack.",
