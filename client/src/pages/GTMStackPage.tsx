@@ -252,8 +252,8 @@ export default function GTMStackPage() {
                 className="flex flex-col items-center gap-4"
               >
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-2 ring-indigo-500/40 flex items-center justify-center">
-                    <Fingerprint size={36} className="text-indigo-400" />
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden ring-2 ring-indigo-500/40">
+                    <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
                   </div>
                   <motion.div
                     className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-950 flex items-center justify-center"
@@ -318,7 +318,7 @@ export default function GTMStackPage() {
                 {
                   step: "1",
                   color: "indigo",
-                  icon: Fingerprint,
+                  icon: null,
                   title: "Connect your Make.com or n8n account",
                   body: "OAuth-connect your automation platform in iqpipe Settings. iqpipe immediately fetches all your existing workflows — no copying, no manual steps.",
                   code: "Settings → Connections\n→ Connect Make.com or n8n\n→ Workflows imported automatically",
@@ -354,7 +354,10 @@ export default function GTMStackPage() {
                       Step {card.step}
                     </div>
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-${card.color}-500/10 border border-${card.color}-500/20`}>
-                      <CardIcon size={16} className={`text-${card.color}-400`} />
+                      {card.icon
+                        ? <CardIcon size={16} className={`text-${card.color}-400`} />
+                        : <img src="/logo.png" alt="iqpipe" className="h-6 w-6 object-contain" />
+                      }
                     </div>
                     <h3 className="text-sm font-bold text-white">{card.title}</h3>
                     <p className="text-xs text-slate-400 leading-relaxed flex-1">{card.body}</p>
@@ -497,8 +500,8 @@ export default function GTMStackPage() {
 
                   {/* iqpipe hub */}
                   <div className="flex items-center gap-3 p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 mt-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-1 ring-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
-                      <Fingerprint size={15} />
+                    <div className="w-8 h-8 rounded-lg overflow-hidden ring-1 ring-indigo-500/40 shrink-0">
+                      <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
                     </div>
                     <div>
                       <div className="text-xs font-semibold text-indigo-300">iqpipe — across every stage</div>
@@ -578,8 +581,8 @@ export default function GTMStackPage() {
                     <img src={`${API_BASE_URL}/api/proxy/favicon?domain=n8n.io`} width={22} height={22} alt="n8n" className="object-contain" />
                   </div>
                   <div className="text-slate-700 text-xl">→</div>
-                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 ring-1 ring-indigo-500/40 flex items-center justify-center text-indigo-400">
-                    <Fingerprint size={22} />
+                  <div className="h-12 w-12 rounded-2xl overflow-hidden ring-1 ring-indigo-500/40">
+                    <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
                   </div>
                 </div>
               </div>
