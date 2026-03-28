@@ -280,8 +280,9 @@ router.get("/workflow-health", requireApiKey, async (req: ApiKeyRequest, res: Re
 // ─── GET /api/mcp/contacts ────────────────────────────────────────────────────
 router.get("/contacts", requireApiKey, async (req: ApiKeyRequest, res: Response) => {
   const workspaceId = req.workspaceId!;
-  const search = (req.query.q as string) || "";
-  const limit  = Math.min(parseInt((req.query.limit as string) || "50"), 200);
+  const search    = (req.query.q         as string) || "";
+  const eventType = (req.query.eventType as string) || "";
+  const limit     = Math.min(parseInt((req.query.limit as string) || "50"), 200);
 
   try {
     const where: any = { workspaceId };
@@ -291,6 +292,9 @@ router.get("/contacts", requireApiKey, async (req: ApiKeyRequest, res: Response)
         { email:    { contains: search, mode: "insensitive" } },
         { company:  { contains: search, mode: "insensitive" } },
       ];
+    }
+    if (eventType) {
+      where.touchpoints = { some: { workspaceId, eventType } };
     }
 
     const leads = await prisma.lead.findMany({
