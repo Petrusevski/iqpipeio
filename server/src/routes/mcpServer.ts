@@ -234,30 +234,29 @@ function createServer(workspaceId: string, baseUrl: string): any {
   // ── search_contacts ────────────────────────────────────────────────────────
   server.tool(
     "search_contacts",
-    "Search contacts by name, email, company, or event type. " +
-    "Use eventType to filter contacts who have a specific event in their history — e.g. 'deal_won', 'meeting_booked', 'payment_received'. " +
+    "Search contacts (IqLeads) by company, name, or event type. " +
+    "Use eventType to filter contacts who have a specific event in their touchpoint history — e.g. 'deal_won', 'meeting_booked', 'payment_received', 'reply_received'. " +
     "Combine with q for further narrowing. Returns up to 200.",
     {
-      q:         z.string().optional().describe("Search query — name, email, or company."),
+      q:         z.string().optional().describe("Search query — displayName or company."),
       eventType: z.string().optional().describe("Filter to contacts who have this event type in their history. e.g. 'deal_won', 'meeting_booked', 'payment_received'."),
       limit:     z.number().int().min(1).max(200).optional().default(50),
     },
     async ({ q, eventType, limit }: any) => {
       const where: any = { workspaceId };
       if (q) where.OR = [
-        { fullName: { contains: q, mode: "insensitive" } },
-        { email:    { contains: q, mode: "insensitive" } },
-        { company:  { contains: q, mode: "insensitive" } },
+        { displayName: { contains: q, mode: "insensitive" } },
+        { company:     { contains: q, mode: "insensitive" } },
       ];
       if (eventType) where.touchpoints = { some: { workspaceId, eventType } };
-      const leads = await prisma.lead.findMany({
-        where, orderBy: { createdAt: "desc" }, take: limit ?? 50,
-        select: { id: true, fullName: true, email: true, company: true, title: true, status: true, source: true, createdAt: true },
+      const leads = await prisma.iqLead.findMany({
+        where, orderBy: { lastSeenAt: "desc" }, take: limit ?? 50,
+        select: { id: true, displayName: true, company: true, title: true, firstSeenAt: true, lastSeenAt: true },
       });
       return {
         content: [{
           type: "text" as const,
-          text: JSON.stringify(leads.map(l => ({ ...l, name: l.fullName || l.email || "Unknown", createdAt: l.createdAt.toISOString() })), null, 2),
+          text: JSON.stringify(leads.map(l => ({ ...l, firstSeenAt: l.firstSeenAt.toISOString(), lastSeenAt: l.lastSeenAt.toISOString() })), null, 2),
         }],
       };
     }

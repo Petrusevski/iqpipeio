@@ -288,34 +288,31 @@ router.get("/contacts", requireApiKey, async (req: ApiKeyRequest, res: Response)
     const where: any = { workspaceId };
     if (search) {
       where.OR = [
-        { fullName: { contains: search, mode: "insensitive" } },
-        { email:    { contains: search, mode: "insensitive" } },
-        { company:  { contains: search, mode: "insensitive" } },
+        { displayName: { contains: search, mode: "insensitive" } },
+        { company:     { contains: search, mode: "insensitive" } },
       ];
     }
     if (eventType) {
       where.touchpoints = { some: { workspaceId, eventType } };
     }
 
-    const leads = await prisma.lead.findMany({
+    const leads = await prisma.iqLead.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { lastSeenAt: "desc" },
       take: limit,
       select: {
-        id: true, fullName: true, email: true, company: true,
-        title: true, status: true, source: true, createdAt: true,
+        id: true, displayName: true, company: true,
+        title: true, firstSeenAt: true, lastSeenAt: true,
       },
     });
 
     res.json(leads.map(l => ({
-      id:        l.id,
-      name:      l.fullName || l.email || "Unknown",
-      email:     l.email,
-      company:   l.company,
-      title:     l.title,
-      status:    l.status,
-      source:    l.source,
-      createdAt: l.createdAt.toISOString(),
+      id:          l.id,
+      name:        l.displayName || "Unknown",
+      company:     l.company,
+      title:       l.title,
+      firstSeenAt: l.firstSeenAt.toISOString(),
+      lastSeenAt:  l.lastSeenAt.toISOString(),
     })));
   } catch (err) {
     console.error("[mcp/contacts]", err);
