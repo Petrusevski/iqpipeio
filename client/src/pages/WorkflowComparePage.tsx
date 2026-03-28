@@ -455,16 +455,17 @@ export default function WorkflowComparePage() {
   async function exportSVG() {
     if (!scoreData || scoredItems.length < 2) return;
 
-    // Prefetch all favicons as base64 data URLs so they embed in the SVG
+    // Prefetch all favicons + logo as base64 data URLs so they embed in the SVG
     const allApps = [...new Set(scoredItems.flatMap(wf => wf.appsUsed))];
     const faviconMap: Record<string, string | null> = {};
-    await Promise.all(
-      allApps.map(async app => {
+    const [logoB64] = await Promise.all([
+      fetchAsBase64(`${window.location.origin}/logo.png`),
+      ...allApps.map(async app => {
         faviconMap[app] = await fetchAsBase64(
           `${API_BASE_URL}/api/proxy/favicon?domain=${appDomain(app)}`,
         );
       }),
-    );
+    ]);
 
     const n   = scoredItems.length;
     const LW  = 178;   // label column width
@@ -522,10 +523,16 @@ export default function WorkflowComparePage() {
     let y = PY;
 
     // ── Title bar
-    const TH = 48;
+    const TH = 52;
     elems.push(Rect(PX, y, W - 2 * PX, TH, C.card, 12));
-    elems.push(Tx(PX + IP, y + 18, "iqpipe", 13, C.indigo, "700"));
-    elems.push(Tx(PX + IP, y + 35, "GTM Alpha Score — Workflow Comparison", 10, C.slate5));
+    if (logoB64) {
+      elems.push(`<image href="${logoB64}" x="${PX + IP}" y="${y + 8}" width="36" height="36" preserveAspectRatio="xMidYMid meet"/>`);
+      elems.push(Tx(PX + IP + 44, y + 22, "iqpipe", 13, C.indigo, "700"));
+      elems.push(Tx(PX + IP + 44, y + 38, "GTM Alpha Score — Workflow Comparison", 10, C.slate5));
+    } else {
+      elems.push(Tx(PX + IP, y + 18, "iqpipe", 13, C.indigo, "700"));
+      elems.push(Tx(PX + IP, y + 35, "GTM Alpha Score — Workflow Comparison", 10, C.slate5));
+    }
     const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     elems.push(Tx(W - PX - IP, y + 30, dateStr, 10, C.slate7, "400", "end"));
     y += TH;

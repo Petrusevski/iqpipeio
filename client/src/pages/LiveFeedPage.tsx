@@ -685,17 +685,32 @@ function SnapshotModal({
       ctx.scale(2, 2);
       ctx.drawImage(img, 0, 0);
       URL.revokeObjectURL(svgUrl);
-      canvas.toBlob(blob => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement("a");
-        a.href     = url;
-        a.download = `gtm-stack-${new Date().toISOString().slice(0, 10)}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-      }, "image/png");
+
+      // Watermark: logo bottom-right
+      const logoImg = new Image();
+      const finalize = () => {
+        canvas.toBlob(blob => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a   = document.createElement("a");
+          a.href     = url;
+          a.download = `gtm-stack-${new Date().toISOString().slice(0, 10)}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 100);
+        }, "image/png");
+      };
+      logoImg.onload = () => {
+        const size = 28;
+        const pad  = 12;
+        ctx.globalAlpha = 0.7;
+        ctx.drawImage(logoImg, svgW - size - pad, svgH - size - pad, size, size);
+        ctx.globalAlpha = 1;
+        finalize();
+      };
+      logoImg.onerror = finalize;
+      logoImg.src = "/logo.png";
     };
     img.src = svgUrl;
   };
@@ -834,14 +849,15 @@ const CH_ACCENT: Record<string, string> = {
 };
 
 async function generateSnapshotSVG(cards: ToolCard[]): Promise<string> {
-  // Pre-fetch favicons as base64 so they embed in the SVG
+  // Pre-fetch favicons + logo as base64 so they embed in the SVG
   const faviconMap: Record<string, string | null> = {};
-  await Promise.all(
-    cards.map(async c => {
+  const [logoB64] = await Promise.all([
+    fetchAsBase64(`${window.location.origin}/logo.png`),
+    ...cards.map(async c => {
       const domain = TOOL_DOMAINS[c.tool];
       if (domain) faviconMap[c.tool] = await fetchAsBase64(`${API_BASE_URL}/api/proxy/favicon?domain=${domain}`);
-    })
-  );
+    }),
+  ]);
 
   const COLS = Math.min(5, Math.max(1, cards.length));
   const ROWS = Math.ceil(cards.length / COLS);
@@ -874,8 +890,14 @@ async function generateSnapshotSVG(cards: ToolCard[]): Promise<string> {
 
   // Title bar
   elems.push(Rect(PX, PY, W - 2 * PX, TH, "#111827", 12));
-  elems.push(Tx(PX + 16, PY + 22, "iqpipe", 15, "#818cf8", "700"));
-  elems.push(Tx(PX + 16, PY + 40, "GTM Stack Snapshot", 10, "#475569"));
+  if (logoB64) {
+    elems.push(`<image href="${logoB64}" x="${PX + 12}" y="${PY + 10}" width="36" height="36" preserveAspectRatio="xMidYMid meet"/>`);
+    elems.push(Tx(PX + 54, PY + 25, "iqpipe", 14, "#818cf8", "700"));
+    elems.push(Tx(PX + 54, PY + 41, "GTM Stack Snapshot", 10, "#475569"));
+  } else {
+    elems.push(Tx(PX + 16, PY + 22, "iqpipe", 15, "#818cf8", "700"));
+    elems.push(Tx(PX + 16, PY + 40, "GTM Stack Snapshot", 10, "#475569"));
+  }
   const dateStr = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const total24h = cards.reduce((s, c) => s + c.events24h, 0);
   const liveCount = cards.filter(c => c.status === "healthy").length;
