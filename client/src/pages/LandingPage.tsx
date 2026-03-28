@@ -92,8 +92,8 @@ const MasterNode = () => (
   >
     <div className="absolute -right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-indigo-500 ring-4 ring-slate-950 z-30" />
     <div className="absolute inset-0 bg-indigo-500/10 blur-xl rounded-2xl -z-10" />
-    <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-xl overflow-hidden shadow-lg">
-      <img src="/logo.png" alt="iqpipe" className="h-full w-full object-contain" />
+    <div className="mb-2 flex items-center justify-center w-full">
+      <img src="/logo.png" alt="iqpipe" className="h-20 w-20 object-contain drop-shadow-lg" />
     </div>
     <div className="text-base font-bold text-white tracking-tight">iqpipe</div>
     <LiveIdTicker />

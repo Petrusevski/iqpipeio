@@ -8,9 +8,7 @@ export default function Footer() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             {/* UPDATED LOGO */}
-            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 ring-1 ring-indigo-500/40">
-              <Fingerprint size={16} />
-            </div>
+            <img src="/logo.png" alt="iqpipe" className="h-7 w-7 rounded-lg object-contain" />
             <div className="leading-tight">
               <div className="text-xs font-semibold text-slate-50">
                 iqpipe
