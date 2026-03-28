@@ -18,12 +18,12 @@ import Footer from "../components/Footer";
 // --- PRECISE GEOMETRY CONFIGURATION ---
 const CARD_HEIGHT = 64;
 const GAP = 20;
-const MASTER_WIDTH = 180;
+const MASTER_WIDTH = 200;
 const STACK_WIDTH = 240;
 const CONNECTOR_SPAN = 120;
 const TOTAL_ITEMS = 5;
 const TOTAL_HEIGHT = (CARD_HEIGHT * TOTAL_ITEMS) + (GAP * (TOTAL_ITEMS - 1));
-const MASTER_HEIGHT = 140;
+const MASTER_HEIGHT = 200;
 const MASTER_Y_CENTER = TOTAL_HEIGHT / 2;
 
 // --- SUB-COMPONENTS (Visualizations) ---
