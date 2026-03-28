@@ -6,6 +6,7 @@ import {
   Clock, AlertTriangle, X,
   Receipt, Download, Loader2, ChevronDown, Bell, BellOff, BellRing,
   Sparkles, Trash2, RefreshCw, Bot, Copy, Check,
+  CheckCircle2, Lock, ShieldCheck, Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
