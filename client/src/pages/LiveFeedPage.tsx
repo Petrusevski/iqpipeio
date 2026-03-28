@@ -6,6 +6,7 @@ import {
   TrendingUp, MessageSquare, Calendar, DollarSign,
   MousePointerClick, UserCheck, MailX, BellOff,
   Filter, X, Check, Camera, Copy, History,
+  ChevronLeft, FileSpreadsheet,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 import SeedBanner from "../components/SeedBanner";
@@ -1002,6 +1003,11 @@ export default function LiveFeedPage() {
   const [snapping,        setSnapping]        = useState(false);
   const [snapshotDataUrl, setSnapshotDataUrl] = useState<string | null>(null);
 
+  // Feed pagination
+  const [feedPage, setFeedPage] = useState(1);
+  const FEED_PAGE_SIZE = 20;
+  const FEED_MAX       = 100;
+
   // History modal state
   const [historyOpen,    setHistoryOpen]    = useState(false);
   const [historyDays,    setHistoryDays]    = useState<7 | 30 | 60 | 90>(30);
@@ -1178,7 +1184,7 @@ export default function LiveFeedPage() {
   });
 
   const hasActiveFilter = filterEvents.size > 0 || filterApps.size > 0 || filterStacks.size > 0 || filterStatus.size > 0;
-  const clearAll = () => { setFilterEvents(new Set()); setFilterApps(new Set()); setFilterStacks(new Set()); setFilterStatus(new Set()); };
+  const clearAll = () => { setFilterEvents(new Set()); setFilterApps(new Set()); setFilterStacks(new Set()); setFilterStatus(new Set()); setFeedPage(1); };
 
   // ── Snapshot ──────────────────────────────────────────────────────────────
   const buildCaption = () => {
@@ -1197,6 +1203,49 @@ export default function LiveFeedPage() {
       "",
       "#GTM #SalesOps #RevenueOps #iqpipe",
     ].join("\n");
+  };
+
+  const exportFeedExcel = (allEntries: FeedEntry[]) => {
+    const rows = allEntries.map(e => {
+      if (e.kind === "signal") {
+        const ev = e.event;
+        return [
+          new Date(ev.recordedAt).toISOString(),
+          ev.tool ?? "",
+          ev.channel ?? "",
+          ev.eventType ?? "",
+          ev.displayName ?? "",
+          ev.company ?? "",
+          JSON.stringify(ev.meta ?? {}),
+        ];
+      } else {
+        const b = e.batch;
+        return [
+          new Date(b.latestAt).toISOString(),
+          b.sourceApp ?? "",
+          "batch",
+          b.eventType ?? "",
+          "",
+          "",
+          `count:${b.count}`,
+        ];
+      }
+    });
+
+    const header = ["Timestamp", "Tool", "Channel", "Event Type", "Contact", "Company", "Meta"];
+    const csv = [header, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `iqpipe-feed-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const takeSnapshot = async () => {
@@ -1593,10 +1642,12 @@ export default function LiveFeedPage() {
               })),
             ].sort((a, b) => b.at - a.at);
 
-            const SIGNAL_LIMIT = 50;
-            const shown = entries.slice(0, SIGNAL_LIMIT);
-            const signalCount = filteredSignals.length;
-            const batchCount  = filteredBatch.length;
+            const cappedEntries = entries.slice(0, FEED_MAX);
+            const totalPages    = Math.ceil(cappedEntries.length / FEED_PAGE_SIZE);
+            const safePage      = Math.min(feedPage, Math.max(1, totalPages));
+            const shown         = cappedEntries.slice((safePage - 1) * FEED_PAGE_SIZE, safePage * FEED_PAGE_SIZE);
+            const signalCount   = filteredSignals.length;
+            const batchCount    = filteredBatch.length;
 
             return (
               <div>
@@ -1677,16 +1728,53 @@ export default function LiveFeedPage() {
                       );
                     })}
 
-                    {entries.length > SIGNAL_LIMIT && (
-                      <div className="px-6 py-4 text-center border-t border-slate-800/40">
+                    {/* Pagination + export */}
+                    <div className="px-6 py-3 border-t border-slate-800/40 flex items-center justify-between gap-3 flex-wrap">
+                      {/* Page controls */}
+                      <div className="flex items-center gap-2">
                         <button
-                          onClick={() => openHistory(30)}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium transition-all"
+                          onClick={() => setFeedPage(p => Math.max(1, p - 1))}
+                          disabled={safePage <= 1}
+                          className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 transition-all"
                         >
-                          <History size={12}/> View full history — {entries.length - SIGNAL_LIMIT} more
+                          <ChevronLeft size={13} />
+                        </button>
+                        <span className="text-xs text-slate-500 tabular-nums">
+                          Page {safePage} of {Math.max(1, totalPages)}
+                          <span className="text-slate-700 mx-1">·</span>
+                          {cappedEntries.length} events shown
+                        </span>
+                        <button
+                          onClick={() => setFeedPage(p => Math.min(totalPages, p + 1))}
+                          disabled={safePage >= totalPages}
+                          className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 transition-all"
+                        >
+                          <ChevronRight size={13} />
                         </button>
                       </div>
-                    )}
+
+                      {/* Export / more */}
+                      <div className="flex items-center gap-2">
+                        {entries.length > FEED_MAX && (
+                          <span className="text-[11px] text-slate-600">
+                            {entries.length - FEED_MAX} more events — export to see all
+                          </span>
+                        )}
+                        <button
+                          onClick={() => exportFeedExcel(entries)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium transition-all"
+                          title="Export all events to CSV"
+                        >
+                          <FileSpreadsheet size={12} className="text-emerald-400" /> Export CSV
+                        </button>
+                        <button
+                          onClick={() => openHistory(30)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium transition-all"
+                        >
+                          <History size={11}/> History
+                        </button>
+                      </div>
+                    </div>
                   </>
                 )}
               </div>
