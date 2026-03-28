@@ -7,9 +7,12 @@ import {
   User,
   Menu,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import { SETUP_KEY } from "./SetupWizard";
 import { API_BASE_URL } from "../../config";
+import PlansModal, { PLAN_LABELS } from "./PlansModal";
 
 const API_BASE = API_BASE_URL;
 
@@ -29,10 +32,12 @@ type Notification = {
 
 export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifOpen,   setNotifOpen]   = useState(false);
+  const [showPlans,   setShowPlans]   = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<string>("trial");
   const profileRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+  const notifRef   = useRef<HTMLDivElement>(null);
+  const navigate   = useNavigate();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
@@ -43,6 +48,18 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
   // Get user info safely
   const userString = localStorage.getItem("iqpipe_user");
   const user = userString ? JSON.parse(userString) : { fullName: "User" };
+
+  // Fetch current plan
+  useEffect(() => {
+    const token = localStorage.getItem("iqpipe_token");
+    if (!token) return;
+    fetch(`${API_BASE_URL}/api/workspaces/primary`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.plan) setCurrentPlan(d.plan); })
+      .catch(() => {});
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -131,6 +148,7 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
   };
 
   return (
+    <>
     <header className="h-16 border-b border-slate-800 flex items-center px-4 md:px-6 bg-slate-950/80 backdrop-blur z-40 sticky top-0">
       
       {/* Mobile Sidebar Toggle */}
@@ -259,12 +277,28 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-[min(12rem,calc(100vw-2rem))] rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute right-0 top-full mt-2 w-[min(13rem,calc(100vw-2rem))] rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="px-4 py-2 border-b border-slate-800 mb-1">
                  <p className="text-xs font-medium text-slate-200 truncate">{user.fullName}</p>
                  <p className="text-[10px] text-slate-500 truncate">{user.email || "user@iqpipe.io"}</p>
               </div>
-              
+
+              <button
+                onClick={() => {
+                  setShowPlans(true);
+                  setProfileOpen(false);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2 transition-colors"
+              >
+                <Sparkles size={14} className="text-indigo-400" />
+                <span className="flex-1">Current Plan</span>
+                <span className="text-[10px] font-semibold text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2 py-0.5">
+                  {PLAN_LABELS[currentPlan] ?? currentPlan}
+                </span>
+              </button>
+
+              <div className="h-px bg-slate-800 my-1 mx-2" />
+
               <button
                 onClick={() => {
                   navigate("/settings");
@@ -275,7 +309,7 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
                 <Settings size={14} />
                 Settings
               </button>
-              
+
               <button
                 onClick={() => {
                   navigate("/profile");
@@ -286,9 +320,9 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
                 <User size={14} />
                 Profile
               </button>
-              
+
               <div className="h-px bg-slate-800 my-1 mx-2" />
-              
+
               <button
                 onClick={handleLogout}
                 className="w-full text-left px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 flex items-center gap-2 transition-colors"
@@ -301,5 +335,12 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
         </div>
       </div>
     </header>
+
+    <AnimatePresence>
+      {showPlans && (
+        <PlansModal currentPlan={currentPlan} onClose={() => setShowPlans(false)} />
+      )}
+    </AnimatePresence>
+    </>
   );
 }

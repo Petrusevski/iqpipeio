@@ -9,8 +9,11 @@ import {
   Fingerprint,
   Workflow,
   BarChart3,
+  Sparkles,
 } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
+import PlansModal, { PLAN_LABELS } from "./PlansModal";
 
 const navGroups = [
   {
@@ -44,6 +47,8 @@ const navGroups = [
 export default function Sidebar() {
   const navigate = useNavigate();
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
+  const [currentPlan, setCurrentPlan]     = useState<string>("trial");
+  const [showPlans, setShowPlans]         = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("iqpipe_token");
@@ -52,7 +57,10 @@ export default function Sidebar() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.name) setWorkspaceName(d.name); })
+      .then((d) => {
+        if (d?.name) setWorkspaceName(d.name);
+        if (d?.plan) setCurrentPlan(d.plan);
+      })
       .catch(() => {});
   }, []);
 
@@ -152,6 +160,22 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* UPGRADE BUTTON */}
+      <div className="px-3 pb-2 shrink-0">
+        <button
+          onClick={() => setShowPlans(true)}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all group"
+        >
+          <Sparkles size={13} className="text-indigo-400 shrink-0" />
+          <span className="flex-1 text-left text-xs font-medium text-indigo-300 group-hover:text-indigo-200">
+            {currentPlan === "trial" || currentPlan === "free" ? "Upgrade plan" : "Manage plan"}
+          </span>
+          <span className="text-[10px] font-semibold text-slate-500 bg-slate-800 border border-slate-700 rounded-full px-2 py-0.5">
+            {PLAN_LABELS[currentPlan] ?? currentPlan}
+          </span>
+        </button>
+      </div>
+
       {/* WORKSPACE FOOTER */}
       <div className="p-3 border-t border-slate-800/50 shrink-0">
         <button
@@ -168,6 +192,12 @@ export default function Sidebar() {
           <Settings size={12} className="text-slate-600 group-hover:text-slate-400 shrink-0" />
         </button>
       </div>
+
+      <AnimatePresence>
+        {showPlans && (
+          <PlansModal currentPlan={currentPlan} onClose={() => setShowPlans(false)} />
+        )}
+      </AnimatePresence>
     </aside>
   );
 }

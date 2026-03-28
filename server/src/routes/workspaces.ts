@@ -57,6 +57,7 @@ router.get("/primary", verifyToken, async (req: AuthenticatedRequest, res: Respo
       name:   membership.workspace.name,
       slug:   membership.workspace.slug,
       isDemo: membership.workspace.isDemo,
+      plan:   membership.workspace.plan,
     });
 
   } catch (error) {
