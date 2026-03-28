@@ -1211,6 +1211,7 @@ export default function LiveFeedPage() {
         const ev = e.event;
         return [
           new Date(ev.recordedAt).toISOString(),
+          ev.iqLeadId ?? "",
           ev.tool ?? "",
           ev.channel ?? "",
           ev.eventType ?? "",
@@ -1222,6 +1223,7 @@ export default function LiveFeedPage() {
         const b = e.batch;
         return [
           new Date(b.latestAt).toISOString(),
+          "",
           b.sourceApp ?? "",
           "batch",
           b.eventType ?? "",
@@ -1232,7 +1234,7 @@ export default function LiveFeedPage() {
       }
     });
 
-    const header = ["Timestamp", "Tool", "Channel", "Event Type", "Contact", "Company", "Meta"];
+    const header = ["Timestamp", "IQ ID", "Tool", "Channel", "Event Type", "Contact", "Company", "Meta"];
     const csv = [header, ...rows]
       .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
       .join("\n");
