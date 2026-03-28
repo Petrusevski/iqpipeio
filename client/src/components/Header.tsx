@@ -10,9 +10,7 @@ export default function Header() {
       <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-4">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 shrink-0">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center text-indigo-400 ring-1 ring-indigo-500/40">
-            <Fingerprint size={18} />
-          </div>
+          <img src="/logo.png" alt="iqpipe" className="h-8 w-8 rounded-lg object-contain" />
           <div className="leading-tight">
             <div className="text-sm font-semibold">iqpipe</div>
             <div className="text-[11px] text-slate-400">GTM Intelligence</div>
