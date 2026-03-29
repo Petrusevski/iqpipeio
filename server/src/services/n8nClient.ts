@@ -547,20 +547,81 @@ const APP_CLASS_HINT: Record<string, string> = {
 };
 
 /**
- * Infer a canonical iqpipe event type from the n8n node name + app name.
- * Delegates entirely to the event taxonomy normalizer.
+ * Try to extract the event type directly from the payload JSON.
+ *
+ * Tools like HeyReach, Instantly, Smartlead, HubSpot etc. include the event
+ * type as a field in their webhook/execution output. We check all common field
+ * names before falling back to the node name.
+ *
+ * Returns null if no recognizable event field is found.
  */
-function inferEventType(nodeName: string, appName: string): string {
-  // Try node name first — it's the most specific signal
+function extractEventTypeFromJson(json: Record<string, any>): string | null {
+  // Common field names used across GTM tools
+  const raw: string | undefined =
+    json.event_type       ??  // HeyReach, Skylead, Dripify, Expandi
+    json.eventType        ??  // Salesloft, Outreach, HubSpot webhooks
+    json.event_name       ??  // Instantly, Smartlead
+    json.event            ??  // generic / custom webhooks
+    json.action           ??  // Klenty, Woodpecker, Reply.io
+    json.activity_type    ??  // Mixmax, Gong
+    json.type             ??  // Waalaxy, Lemlist, LinkedIn automation tools
+    json.trigger          ??  // Make.com mirrors, some CRM webhooks
+    json.status           ??  // Chargebee (subscription.created), Stripe (payment_intent.succeeded)
+    json.object_type      ??  // Pipedrive webhook shape
+    json.deal_stage       ??  // Pipedrive / Salesforce stage fields
+    json.stage            ??  // Generic CRM stage field
+    json.trigger_event    ??  // Overloop, Amplemarket
+    json.webhook_event    ??  // Generic webhook envelope pattern
+    json.notification_type ?? // Groove, Yesware
+    json.activity         ??  // Sendspark, Loom-style video tools
+    json["Event Type"]    ??  // Title-case variants (some CSV exports)
+    json["event type"]    ??  // Space-separated lowercase
+    json.properties?.event_type ?? // HubSpot property bag shape
+    json.properties?.hs_email_status ?? // HubSpot email engagement
+    undefined;
+
+  if (!raw || typeof raw !== "string") return null;
+
+  const normalized = normalizeEventType(raw.trim());
+
+  // Only accept if it resolved to a meaningful canonical key
+  // (not a raw slug from an unrecognized value like "true" or "success")
+  if (normalized !== "event" && normalized !== raw.toLowerCase().replace(/[^a-z0-9]+/g, "_")) {
+    return normalized;
+  }
+
+  // Even if it didn't resolve to a canonical key, try it — the slug
+  // itself may be informative (e.g. "reply_received" stored verbatim)
+  if (normalized && normalized !== "event") return normalized;
+
+  return null;
+}
+
+/**
+ * Infer a canonical iqpipe event type.
+ * Resolution order (highest → lowest priority):
+ *   1. Payload field  — event_type / eventType / event_name / action / type etc.
+ *   2. Node name      — parsed and keyword-matched via normalizeEventType
+ *   3. App class hint — category-level fallback (e.g. all HeyReach → linkedin_sent)
+ *   4. Hard default   — email_sent
+ */
+function inferEventType(nodeName: string, appName: string, json?: Record<string, any>): string {
+  // 1. Payload field — most accurate, straight from the tool's event payload
+  if (json) {
+    const fromPayload = extractEventTypeFromJson(json);
+    if (fromPayload) return fromPayload;
+  }
+
+  // 2. Node name — user-readable label on the n8n canvas
   const fromNode = normalizeEventType(nodeName, appName);
-  // If the normalizer returned a canonical key, we're done
   if (fromNode !== "event" && fromNode !== "contacted") return fromNode;
 
-  // Fall back to app-class hint
+  // 3. App-class hint — category-level last resort
   const hint = APP_CLASS_HINT[appName];
   if (hint) return normalizeEventType(hint);
 
-  return "email_sent"; // safest default for unknown GTM nodes
+  // 4. Hard default
+  return "email_sent";
 }
 
 /** Fuzzy-match a node name against known apps in the workflow's appsUsed list. */
@@ -689,10 +750,11 @@ async function processWorkflowExecutions(
         const json = item?.json ?? item;
         if (!json || typeof json !== "object") continue;
 
-        const contact = extractContactFromJson(json as Record<string, any>);
+        const jsonObj = json as Record<string, any>;
+        const contact = extractContactFromJson(jsonObj);
         if (!contact) continue;
 
-        const eventType = inferEventType(nodeName, appName);
+        const eventType = inferEventType(nodeName, appName, jsonObj);
 
         // Apply event type filter
         if (filter?.eventTypes?.length && !filter.eventTypes.includes(eventType)) continue;
