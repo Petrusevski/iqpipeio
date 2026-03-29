@@ -341,6 +341,10 @@ async function runAttribution(
     const allTouchpoints = await prisma.touchpoint.findMany({
       where: { workspaceId, iqLeadId },
       orderBy: { recordedAt: "asc" },
+      take: 200, // cap: sufficient for attribution, prevents unbounded memory load
+      select: { id: true, tool: true, channel: true, eventType: true,
+                experimentId: true, stackVariant: true, workflowId: true,
+                stepId: true, recordedAt: true, sourcePriority: true },
     });
 
     const meaningful = allTouchpoints.filter(t => MEANINGFUL.has(t.eventType));

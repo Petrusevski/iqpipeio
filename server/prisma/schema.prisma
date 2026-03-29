@@ -440,6 +440,9 @@ model Touchpoint {
   @@index([workspaceId, tool])
   @@index([workspaceId, eventType])
   @@index([workspaceId, recordedAt])
+  // Composite index for the per-day dedup query in recordTouchpoint()
+  // covers: WHERE workspaceId=? AND iqLeadId=? AND tool=? AND eventType=? AND recordedAt>=?
+  @@index([workspaceId, iqLeadId, tool, eventType, recordedAt])
 }
 
 // ── n8n integration layer ────────────────────────────────────────────────────
