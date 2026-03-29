@@ -6,13 +6,11 @@ import {
   Settings,
   User,
   Menu,
-  BookOpen,
   Sparkles,
   PlusCircle,
   MinusCircle,
 } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
-import { SETUP_KEY } from "./SetupWizard";
 import { API_BASE_URL } from "../../config";
 import PlansModal, { PLAN_LABELS } from "./PlansModal";
 import AppRetainModal from "./AppRetainModal";
@@ -21,7 +19,6 @@ const API_BASE = API_BASE_URL;
 
 interface TopbarProps {
   onMenuClick?: () => void;
-  onOpenSetup?: () => void;
 }
 
 type NotificationMeta = {
@@ -43,7 +40,7 @@ type Notification = {
   createdAt: string;
 };
 
-export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
+export default function Topbar({ onMenuClick }: TopbarProps) {
   const [profileOpen,  setProfileOpen]  = useState(false);
   const [notifOpen,    setNotifOpen]    = useState(false);
   const [showPlans,    setShowPlans]    = useState(false);
@@ -177,23 +174,6 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
 
       {/* Right Actions */}
       <div className="flex items-center gap-3 md:gap-4">
-
-        {/* Setup Guide */}
-        <button
-          onClick={onOpenSetup}
-          title="Setup Guide"
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-            localStorage.getItem(SETUP_KEY)
-              ? "border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700 bg-transparent"
-              : "border-indigo-700/50 text-indigo-400 hover:text-indigo-300 hover:border-indigo-600 bg-indigo-500/5"
-          }`}
-        >
-          <BookOpen size={13} />
-          <span className="hidden sm:inline">Guide</span>
-          {!localStorage.getItem(SETUP_KEY) && (
-            <span className="hidden sm:flex h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-          )}
-        </button>
 
         {/* Notifications Dropdown */}
         <div className="relative" ref={notifRef}>

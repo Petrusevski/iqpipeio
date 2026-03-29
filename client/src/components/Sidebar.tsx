@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Zap,
@@ -13,6 +13,13 @@ import {
 import { AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
 import PlansModal, { PLAN_LABELS } from "./PlansModal";
+import SectionIntroModal from "./SectionIntroModal";
+import {
+  GUIDE_STEPS,
+  getCompletedSteps,
+  markStepDone,
+  getNextStep,
+} from "./OnboardingGuide";
 
 const navGroups = [
   {
@@ -46,8 +53,14 @@ const navGroups = [
 export default function Sidebar() {
   const navigate = useNavigate();
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
-  const [currentPlan, setCurrentPlan]     = useState<string>("trial");
-  const [showPlans, setShowPlans]         = useState(false);
+  const [currentPlan,  setCurrentPlan]   = useState<string>("trial");
+  const [showPlans,    setShowPlans]     = useState(false);
+
+  // Guide state
+  const [completedSteps, setCompletedSteps] = useState<Set<string>>(() => getCompletedSteps());
+  const [activeIntro, setActiveIntro]       = useState<string | null>(null);
+
+  const nextStep = getNextStep(completedSteps);
 
   useEffect(() => {
     const token = localStorage.getItem("iqpipe_token");
@@ -63,6 +76,22 @@ export default function Sidebar() {
       .catch(() => {});
   }, []);
 
+  const handleNavClick = useCallback((path: string) => {
+    const step = GUIDE_STEPS.find(s => s.path === path);
+    if (step && nextStep?.path === path) {
+      // Small delay so navigation completes before modal renders
+      setTimeout(() => setActiveIntro(step.key), 120);
+    }
+  }, [nextStep]);
+
+  const handleIntroDone = useCallback((key: string) => {
+    const updated = markStepDone(key);
+    setCompletedSteps(new Set(updated));
+    setActiveIntro(null);
+  }, []);
+
+  const isPulsing = (path: string) => nextStep?.path === path;
+
   const displayName = workspaceName ?? "My Workspace";
   const initials = displayName
     .split(/\s+/)
@@ -71,130 +100,164 @@ export default function Sidebar() {
     .join("")
     .toUpperCase();
 
+  const introStep = GUIDE_STEPS.find(s => s.key === activeIntro) ?? null;
+
   return (
-    <aside className="w-full md:w-56 h-full flex flex-col bg-slate-950">
+    <>
+      <aside className="w-full md:w-56 h-full flex flex-col bg-slate-950">
 
-      {/* BRAND */}
-      <div className="h-16 flex items-center px-5 border-b border-slate-800/50 shrink-0">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="iqpipe" className="h-8 w-8 rounded-lg object-contain" />
-          <div className="flex flex-col">
-            <span className="font-bold text-sm tracking-tight text-white leading-none">iqpipe</span>
-            <span className="text-[10px] font-medium text-indigo-400 tracking-wide mt-0.5">GTM OBSERVABILITY</span>
-          </div>
-        </div>
-      </div>
-
-      {/* NAV */}
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto no-scrollbar">
-
-        {/* ── AUTOMATIONS — featured section ── */}
-        <div>
-          <div className="flex items-center gap-2 px-3 mb-2">
-            <div className="w-1 h-3 rounded-full bg-indigo-500 shrink-0" />
-            <h3 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
-              Automations
-            </h3>
-          </div>
-
-          <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-1">
-            <NavLink
-              to="/automations"
-              className={({ isActive }) =>
-                `group flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? "bg-indigo-500/15 text-white border border-indigo-500/25"
-                    : "text-slate-400 hover:bg-indigo-500/10 hover:text-white border border-transparent"
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Workflow size={15} className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"}`} />
-                  <span>Automations</span>
-                  {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />}
-                </>
-              )}
-            </NavLink>
-          </div>
-        </div>
-
-        {/* ── Regular nav groups ── */}
-        {navGroups.map((group, idx) => (
-          <div key={idx}>
-            <h3 className="px-3 text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1.5">
-              {group.title}
-            </h3>
-            <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
-                    ${isActive
-                      ? "bg-indigo-500/10 text-white border border-indigo-500/20"
-                      : "text-slate-500 hover:bg-slate-900 hover:text-slate-200 border border-transparent"
-                    }`
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <item.icon
-                        size={15}
-                        className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-600 group-hover:text-slate-400"}`}
-                      />
-                      <span>{item.label}</span>
-                      {isActive && (
-                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
-                      )}
-                    </>
-                  )}
-                </NavLink>
-              ))}
+        {/* BRAND */}
+        <div className="h-16 flex items-center px-5 border-b border-slate-800/50 shrink-0">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="iqpipe" className="h-8 w-8 rounded-lg object-contain" />
+            <div className="flex flex-col">
+              <span className="font-bold text-sm tracking-tight text-white leading-none">iqpipe</span>
+              <span className="text-[10px] font-medium text-indigo-400 tracking-wide mt-0.5">GTM OBSERVABILITY</span>
             </div>
           </div>
-        ))}
-      </nav>
+        </div>
 
-      {/* UPGRADE BUTTON */}
-      <div className="px-3 pb-2 shrink-0">
-        <button
-          onClick={() => setShowPlans(true)}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all group"
-        >
-          <Sparkles size={13} className="text-indigo-400 shrink-0" />
-          <span className="flex-1 text-left text-xs font-medium text-indigo-300 group-hover:text-indigo-200">
-            {currentPlan === "trial" || currentPlan === "free" ? "Upgrade plan" : "Manage plan"}
-          </span>
-          <span className="text-[10px] font-semibold text-slate-500 bg-slate-800 border border-slate-700 rounded-full px-2 py-0.5">
-            {PLAN_LABELS[currentPlan] ?? currentPlan}
-          </span>
-        </button>
-      </div>
+        {/* NAV */}
+        <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto no-scrollbar">
 
-      {/* WORKSPACE FOOTER */}
-      <div className="p-3 border-t border-slate-800/50 shrink-0">
-        <button
-          onClick={() => navigate("/settings")}
-          className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-800/50 transition-colors group"
-        >
-          <div className="h-7 w-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-400 group-hover:text-white group-hover:border-slate-600 shrink-0">
-            {initials}
+          {/* ── AUTOMATIONS — featured section ── */}
+          <div>
+            <div className="flex items-center gap-2 px-3 mb-2">
+              <div className="w-1 h-3 rounded-full bg-indigo-500 shrink-0" />
+              <h3 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+                Automations
+              </h3>
+            </div>
+
+            <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 p-1">
+              <NavLink
+                to="/automations"
+                onClick={() => handleNavClick("/automations")}
+                className={({ isActive }) =>
+                  `group relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
+                    isActive
+                      ? "bg-indigo-500/15 text-white border border-indigo-500/25"
+                      : "text-slate-400 hover:bg-indigo-500/10 hover:text-white border border-transparent"
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Workflow size={15} className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"}`} />
+                    <span>Automations</span>
+                    <div className="ml-auto flex items-center">
+                      {isPulsing("/automations") ? (
+                        <PulsingDot />
+                      ) : isActive ? (
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
+                      ) : null}
+                    </div>
+                  </>
+                )}
+              </NavLink>
+            </div>
           </div>
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-xs font-medium text-slate-300 truncate group-hover:text-white">{displayName}</p>
-            <p className="text-[10px] text-slate-600 mt-0.5">Settings</p>
-          </div>
-          <Settings size={12} className="text-slate-600 group-hover:text-slate-400 shrink-0" />
-        </button>
-      </div>
 
-      <AnimatePresence>
-        {showPlans && (
-          <PlansModal currentPlan={currentPlan} onClose={() => setShowPlans(false)} />
-        )}
-      </AnimatePresence>
-    </aside>
+          {/* ── Regular nav groups ── */}
+          {navGroups.map((group, idx) => (
+            <div key={idx}>
+              <h3 className="px-3 text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1.5">
+                {group.title}
+              </h3>
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => handleNavClick(item.path)}
+                    className={({ isActive }) =>
+                      `group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
+                      ${isActive
+                        ? "bg-indigo-500/10 text-white border border-indigo-500/20"
+                        : "text-slate-500 hover:bg-slate-900 hover:text-slate-200 border border-transparent"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon
+                          size={15}
+                          className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-600 group-hover:text-slate-400"}`}
+                        />
+                        <span>{item.label}</span>
+                        <div className="ml-auto flex items-center">
+                          {isPulsing(item.path) ? (
+                            <PulsingDot />
+                          ) : isActive ? (
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
+                          ) : null}
+                        </div>
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* UPGRADE BUTTON */}
+        <div className="px-3 pb-2 shrink-0">
+          <button
+            onClick={() => setShowPlans(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all group"
+          >
+            <Sparkles size={13} className="text-indigo-400 shrink-0" />
+            <span className="flex-1 text-left text-xs font-medium text-indigo-300 group-hover:text-indigo-200">
+              {currentPlan === "trial" || currentPlan === "free" ? "Upgrade plan" : "Manage plan"}
+            </span>
+            <span className="text-[10px] font-semibold text-slate-500 bg-slate-800 border border-slate-700 rounded-full px-2 py-0.5">
+              {PLAN_LABELS[currentPlan] ?? currentPlan}
+            </span>
+          </button>
+        </div>
+
+        {/* WORKSPACE FOOTER */}
+        <div className="p-3 border-t border-slate-800/50 shrink-0">
+          <button
+            onClick={() => navigate("/settings")}
+            className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-800/50 transition-colors group"
+          >
+            <div className="h-7 w-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-bold text-slate-400 group-hover:text-white group-hover:border-slate-600 shrink-0">
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-medium text-slate-300 truncate group-hover:text-white">{displayName}</p>
+              <p className="text-[10px] text-slate-600 mt-0.5">Settings</p>
+            </div>
+            <Settings size={12} className="text-slate-600 group-hover:text-slate-400 shrink-0" />
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {showPlans && (
+            <PlansModal currentPlan={currentPlan} onClose={() => setShowPlans(false)} />
+          )}
+        </AnimatePresence>
+      </aside>
+
+      {/* Section intro modal — rendered outside aside so it covers the full viewport */}
+      {introStep && (
+        <SectionIntroModal
+          step={introStep}
+          onDone={() => handleIntroDone(introStep.key)}
+        />
+      )}
+    </>
+  );
+}
+
+/** Green pulsating dot used for the current onboarding step. */
+function PulsingDot() {
+  return (
+    <span className="relative flex h-2.5 w-2.5">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400" />
+    </span>
   );
 }
