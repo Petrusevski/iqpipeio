@@ -422,7 +422,7 @@ export default function ContactInspectorPage() {
             }}
             placeholder="sarah.mitchell@notion.so"
             className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
-            autoFocus
+            autoFocus={window.innerWidth >= 768}
           />
         </div>
         <button
