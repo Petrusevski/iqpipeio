@@ -2,6 +2,7 @@ node_modules
 dist
 build
 .env
+.env.*
 .DS_Store
 *.log
 server/node_modules
@@ -10,3 +11,7 @@ client/node_modules
 client/dist
 server/dev.db
 server/service-account.json
+
+# Claude Code session files — may contain shell command history with credentials
+.claude/settings.local.json
+.claude/*.jsonl
