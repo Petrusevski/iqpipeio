@@ -61,6 +61,7 @@ export const PLANS = [
       "GTM Report (PDF/XLSX)",
       "API Access & Webhooks",
       "Priority 24/7 Support",
+      "Additional workspaces available at surcharge",
     ],
     popular: true,
   },
