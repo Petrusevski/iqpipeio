@@ -3,7 +3,9 @@
 import { Router } from "express";
 import { prisma } from "../db";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
+import { isFreeEmailDomain, getEmailDomain } from "../utils/corporateEmail";
 
 
 const router = Router();
@@ -279,6 +281,176 @@ router.put("/", async (req, res) => {
       error: "Failed to update settings",
       details: err?.message || "Unknown error",
     });
+  }
+});
+
+/**
+ * GET /api/settings/members
+ * Returns all workspace members + pending invites.
+ */
+router.get("/members", async (req, res) => {
+  try {
+    const membership = await getCurrentMembership(req as AuthenticatedRequest);
+    const workspaceId = membership.workspaceId;
+
+    const [members, invites] = await Promise.all([
+      prisma.workspaceUser.findMany({
+        where: { workspaceId },
+        include: { user: { select: { fullName: true, email: true } } },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.workspaceInvite.findMany({
+        where: { workspaceId, acceptedAt: null, expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    return res.json({
+      members: members.map(m => ({
+        id: m.id,
+        userId: m.userId,
+        fullName: m.user.fullName,
+        email: m.user.email,
+        role: m.role,
+        isBillingOwner: m.isBillingOwner,
+        joinedAt: m.createdAt.toISOString(),
+      })),
+      pendingInvites: invites.map(i => ({
+        id: i.id,
+        email: i.email,
+        role: i.role,
+        expiresAt: i.expiresAt.toISOString(),
+        createdAt: i.createdAt.toISOString(),
+      })),
+    });
+  } catch (err: any) {
+    console.error("GET /api/settings/members error", err);
+    return res.status(500).json({ error: "Failed to load members" });
+  }
+});
+
+/**
+ * POST /api/settings/invite
+ * Invites a user to the workspace.
+ *
+ * Agency plan: invited email must use the workspace's corporate domain.
+ * All plans: free email providers are blocked for agency workspaces.
+ */
+router.post("/invite", async (req, res) => {
+  try {
+    const membership = await getCurrentMembership(req as AuthenticatedRequest);
+    const { workspace } = membership;
+
+    if (!["owner", "admin"].includes(membership.role)) {
+      return res.status(403).json({ error: "Only owners and admins can invite members." });
+    }
+
+    const { email, role = "analyst" } = req.body as { email?: string; role?: string };
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Valid email address required." });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const inviteDomain = getEmailDomain(normalizedEmail);
+
+    // Agency plan: enforce corporate domain
+    if (workspace.plan === "agency") {
+      if (isFreeEmailDomain(normalizedEmail)) {
+        return res.status(400).json({
+          error: "Agency workspaces only accept corporate email addresses. Free providers (Gmail, Yahoo, Hotmail, etc.) are not allowed.",
+        });
+      }
+
+      // Derive corporate domain from owner's email if not set yet
+      let corporateDomain = workspace.primaryDomain;
+      if (!corporateDomain) {
+        const owner = await prisma.workspaceUser.findFirst({
+          where: { workspaceId: workspace.id, role: "owner" },
+          include: { user: { select: { email: true } } },
+        });
+        if (owner) {
+          corporateDomain = getEmailDomain(owner.user.email);
+          await prisma.workspace.update({
+            where: { id: workspace.id },
+            data: { primaryDomain: corporateDomain },
+          });
+        }
+      }
+
+      if (corporateDomain && inviteDomain !== corporateDomain) {
+        return res.status(400).json({
+          error: `Agency workspace members must use a @${corporateDomain} email address.`,
+          requiredDomain: corporateDomain,
+        });
+      }
+    }
+
+    const validRoles = ["admin", "analyst", "readonly"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: "Invalid role. Must be admin, analyst, or readonly." });
+    }
+
+    // Check if user is already a member
+    const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (existingUser) {
+      const alreadyMember = await prisma.workspaceUser.findFirst({
+        where: { workspaceId: workspace.id, userId: existingUser.id },
+      });
+      if (alreadyMember) {
+        return res.status(409).json({ error: "This user is already a member of the workspace." });
+      }
+    }
+
+    // Cancel any existing pending invite for this email
+    await prisma.workspaceInvite.deleteMany({
+      where: { workspaceId: workspace.id, email: normalizedEmail, acceptedAt: null },
+    });
+
+    const invite = await prisma.workspaceInvite.create({
+      data: {
+        workspaceId: workspace.id,
+        email: normalizedEmail,
+        role,
+        invitedById: membership.userId,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
+    // In production this would send an email. For now return the accept link.
+    const acceptUrl = `${process.env.CLIENT_ORIGIN ?? "https://iqpipe.vercel.app"}/accept-invite?token=${invite.token}`;
+
+    return res.status(201).json({
+      ok: true,
+      inviteId: invite.id,
+      email: invite.email,
+      role: invite.role,
+      acceptUrl,
+      note: "Invite created. Share the accept link with the invitee.",
+    });
+  } catch (err: any) {
+    console.error("POST /api/settings/invite error", err);
+    return res.status(500).json({ error: "Failed to create invite" });
+  }
+});
+
+/**
+ * DELETE /api/settings/invite/:id
+ * Cancels a pending invite.
+ */
+router.delete("/invite/:id", async (req, res) => {
+  try {
+    const membership = await getCurrentMembership(req as AuthenticatedRequest);
+    if (!["owner", "admin"].includes(membership.role)) {
+      return res.status(403).json({ error: "Only owners and admins can cancel invites." });
+    }
+
+    await prisma.workspaceInvite.deleteMany({
+      where: { id: req.params.id, workspaceId: membership.workspaceId },
+    });
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to cancel invite" });
   }
 });
 

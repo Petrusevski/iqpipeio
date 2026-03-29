@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
+import { isFreeEmailDomain, getEmailDomain } from "../utils/corporateEmail";
 
 const router = Router();
 
@@ -102,6 +103,120 @@ router.post("/login", async (req, res) => {
   } catch (err: any) {
     console.error("Login error:", err.message);
     return res.status(500).json({ error: "Failed to login" });
+  }
+});
+
+/**
+ * GET /api/auth/invite-info?token=...
+ * Returns invite metadata (email, workspace name) so the accept page can pre-fill the form.
+ */
+router.get("/invite-info", async (req, res) => {
+  const { token } = req.query as { token?: string };
+  if (!token) return res.status(400).json({ error: "Token required" });
+
+  const invite = await prisma.workspaceInvite.findUnique({
+    where: { token },
+    include: { workspace: { select: { name: true, plan: true, primaryDomain: true } } },
+  });
+
+  if (!invite) return res.status(404).json({ error: "Invite not found or already used" });
+  if (invite.acceptedAt) return res.status(410).json({ error: "Invite already accepted" });
+  if (invite.expiresAt < new Date()) return res.status(410).json({ error: "Invite has expired" });
+
+  return res.json({
+    email: invite.email,
+    role: invite.role,
+    workspaceName: invite.workspace.name,
+    workspacePlan: invite.workspace.plan,
+  });
+});
+
+/**
+ * POST /api/auth/accept-invite
+ * Accepts a workspace invite. Creates the user account if they don't have one yet.
+ * Body: { token, fullName, password }
+ */
+router.post("/accept-invite", async (req, res) => {
+  try {
+    const { token, fullName, password } = req.body || {};
+    if (!token) return res.status(400).json({ error: "Token required" });
+
+    const invite = await prisma.workspaceInvite.findUnique({
+      where: { token },
+      include: { workspace: { select: { id: true, name: true, plan: true, primaryDomain: true } } },
+    });
+
+    if (!invite) return res.status(404).json({ error: "Invite not found" });
+    if (invite.acceptedAt) return res.status(410).json({ error: "Invite already accepted" });
+    if (invite.expiresAt < new Date()) return res.status(410).json({ error: "Invite has expired" });
+
+    const email = invite.email;
+
+    // Agency: re-validate domain at acceptance time (defence in depth)
+    if (invite.workspace.plan === "agency") {
+      if (isFreeEmailDomain(email)) {
+        return res.status(400).json({ error: "Agency workspaces require a corporate email address." });
+      }
+      const domain = invite.workspace.primaryDomain;
+      if (domain && getEmailDomain(email) !== domain) {
+        return res.status(400).json({ error: `Only @${domain} email addresses are allowed in this workspace.` });
+      }
+    }
+
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      // New user — fullName + password required
+      if (!fullName || !password) {
+        return res.status(400).json({ error: "fullName and password required for new accounts", needsRegistration: true });
+      }
+      if (String(password).length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters." });
+      }
+      const passwordHash = await bcrypt.hash(password, 12);
+      user = await prisma.user.create({
+        data: { email, fullName: String(fullName).trim(), passwordHash },
+      });
+    }
+
+    // Add to workspace (idempotent)
+    await prisma.workspaceUser.upsert({
+      where: { id: `${invite.workspaceId}_${user.id}` },
+      create: {
+        workspaceId: invite.workspaceId,
+        userId: user.id,
+        role: invite.role,
+        isBillingOwner: false,
+      },
+      update: { role: invite.role },
+    }).catch(async () => {
+      // upsert by compound key not supported — use findFirst + create
+      const existing = await prisma.workspaceUser.findFirst({
+        where: { workspaceId: invite.workspaceId, userId: user!.id },
+      });
+      if (!existing) {
+        await prisma.workspaceUser.create({
+          data: { workspaceId: invite.workspaceId, userId: user!.id, role: invite.role, isBillingOwner: false },
+        });
+      }
+    });
+
+    // Mark invite as accepted
+    await prisma.workspaceInvite.update({
+      where: { id: invite.id },
+      data: { acceptedAt: new Date() },
+    });
+
+    const jwtToken = createToken(user);
+    return res.json({
+      token: jwtToken,
+      user: { id: user.id, email: user.email, fullName: user.fullName },
+      workspaceId: invite.workspaceId,
+      workspaceName: invite.workspace.name,
+    });
+  } catch (err: any) {
+    console.error("Accept invite error:", err.message);
+    return res.status(500).json({ error: "Failed to accept invite" });
   }
 });
 

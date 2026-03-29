@@ -34,6 +34,7 @@ import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { billingStripe, billingStripeConfigured } from "../services/stripeClient";
 import { PLAN_CONFIGS, planByPriceId } from "../config/stripePrices";
 import { notifyWorkspace } from "../utils/webPush";
+import { isFreeEmailDomain, getEmailDomain } from "../utils/corporateEmail";
 
 const router = Router();
 
@@ -280,6 +281,24 @@ async function handleStripeEvent(event: any) {
       const priceId      = subscription.items.data[0]?.price?.id ?? "";
       const periodEnd    = new Date((subscription as any).current_period_end * 1000);
 
+      // For agency upgrades: lock in the owner's corporate domain
+      let primaryDomainUpdate: string | undefined;
+      if (planId === "agency") {
+        const ws = await prisma.workspace.findUnique({
+          where: { id: workspaceId },
+          select: { primaryDomain: true },
+        });
+        if (!ws?.primaryDomain) {
+          const owner = await prisma.workspaceUser.findFirst({
+            where: { workspaceId, role: "owner" },
+            include: { user: { select: { email: true } } },
+          });
+          if (owner && !isFreeEmailDomain(owner.user.email)) {
+            primaryDomainUpdate = getEmailDomain(owner.user.email);
+          }
+        }
+      }
+
       await prisma.workspace.update({
         where: { id: workspaceId },
         data: {
@@ -289,6 +308,7 @@ async function handleStripeEvent(event: any) {
           stripePriceId:           priceId,
           stripeCurrentPeriodEnd:  periodEnd,
           trialEndsAt:             null, // clear trial when subscription activates
+          ...(primaryDomainUpdate ? { primaryDomain: primaryDomainUpdate } : {}),
         },
       });
 

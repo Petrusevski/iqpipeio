@@ -417,59 +417,12 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
             </section>
 
             {/* Team & roles */}
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <h2 className="text-sm font-semibold text-slate-100 mb-1">Team & roles</h2>
-              <p className="text-xs text-slate-400 mb-4">
-                Control who has access to iqpipe and what they can change.
-              </p>
-
-              <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 text-xs">
-                <table className="min-w-full">
-                  <thead className="bg-slate-950/80">
-                    <tr>
-                      <th className="text-left px-3 py-2 text-slate-400 font-normal">Member</th>
-                      <th className="text-left px-3 py-2 text-slate-400 font-normal">Role</th>
-                      <th className="text-left px-3 py-2 text-slate-400 font-normal">Billing owner</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-slate-800/80">
-                      <td className="px-3 py-2 text-slate-100">
-                        <div className="font-medium">{membership.userFullName}</div>
-                        <div className="text-[11px] text-slate-500">{membership.userEmail}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] capitalize">
-                          {membership.role}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-slate-300">
-                        {membership.isBillingOwner ? "Yes" : "No"}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <span className="text-slate-600 text-[11px]">—</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-3 flex justify-between items-center text-xs">
-                <span className="text-slate-500">
-                  Multi-seat access available on{" "}
-                  <button onClick={() => setShowUpgrade(true)} className="text-indigo-400 hover:text-indigo-300 underline">
-                    Growth & Agency plans
-                  </button>
-                </span>
-                <button
-                  onClick={() => window.alert("To invite team members, please upgrade to a Growth or Agency plan.")}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-100 transition-colors"
-                >
-                  Invite member
-                </button>
-              </div>
-            </section>
+            <TeamSection
+              plan={workspace.plan}
+              primaryDomain={workspace.primaryDomain ?? null}
+              currentMembership={membership}
+              onUpgrade={() => setShowUpgrade(true)}
+            />
           </div>
 
           {/* ── Right column ── */}
@@ -836,6 +789,198 @@ function PushNotificationsPanel() {
       {pushState.error && (
         <p className="mt-2 text-[11px] text-rose-400">{pushState.error}</p>
       )}
+    </section>
+  );
+}
+
+// ─── Team Section ─────────────────────────────────────────────────────────────
+
+interface MemberRow { id: string; userId: string; fullName: string; email: string; role: string; isBillingOwner: boolean; joinedAt: string; }
+interface InviteRow { id: string; email: string; role: string; expiresAt: string; createdAt: string; }
+
+function TeamSection({
+  plan, primaryDomain, currentMembership, onUpgrade,
+}: {
+  plan: string;
+  primaryDomain: string | null;
+  currentMembership: { userFullName: string; userEmail: string; role: string; isBillingOwner: boolean };
+  onUpgrade: () => void;
+}) {
+  const canInvite = plan === "growth" || plan === "agency";
+  const isAgency  = plan === "agency";
+
+  const [members,      setMembers]      = useState<MemberRow[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<InviteRow[]>([]);
+  const [showForm,     setShowForm]     = useState(false);
+  const [inviteEmail,  setInviteEmail]  = useState("");
+  const [inviteRole,   setInviteRole]   = useState("analyst");
+  const [inviting,     setInviting]     = useState(false);
+  const [inviteErr,    setInviteErr]    = useState<string | null>(null);
+  const [inviteDone,   setInviteDone]   = useState<string | null>(null);
+
+  const token = localStorage.getItem("iqpipe_token");
+
+  useEffect(() => {
+    if (!canInvite) return;
+    fetch(`${API_BASE_URL}/api/settings/members`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d) { setMembers(d.members); setPendingInvites(d.pendingInvites); }
+      })
+      .catch(() => {});
+  }, [canInvite, token]);
+
+  const handleInvite = async () => {
+    setInviteErr(null);
+    if (!inviteEmail) { setInviteErr("Email required."); return; }
+    setInviting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/settings/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setInviteErr(data.error ?? "Failed to send invite."); return; }
+      setInviteDone(data.acceptUrl);
+      setInviteEmail("");
+      setPendingInvites(prev => [...prev, { id: data.inviteId, email: data.email, role: data.role, expiresAt: new Date(Date.now() + 7*86400000).toISOString(), createdAt: new Date().toISOString() }]);
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const cancelInvite = async (id: string) => {
+    await fetch(`${API_BASE_URL}/api/settings/invite/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setPendingInvites(prev => prev.filter(i => i.id !== id));
+  };
+
+  const allRows = canInvite ? members : [{ id: "me", userId: "", fullName: currentMembership.userFullName, email: currentMembership.userEmail, role: currentMembership.role, isBillingOwner: currentMembership.isBillingOwner, joinedAt: "" }];
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-slate-100">Team &amp; roles</h2>
+        {isAgency && primaryDomain && (
+          <span className="text-[10px] text-slate-500 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-full">
+            @{primaryDomain} only
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-slate-400 mb-4">Control who has access and what they can change.</p>
+
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60 text-xs">
+        <table className="min-w-full">
+          <thead className="bg-slate-950/80">
+            <tr>
+              <th className="text-left px-3 py-2 text-slate-400 font-normal">Member</th>
+              <th className="text-left px-3 py-2 text-slate-400 font-normal">Role</th>
+              <th className="text-left px-3 py-2 text-slate-400 font-normal hidden sm:table-cell">Billing owner</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {allRows.map(m => (
+              <tr key={m.id} className="border-t border-slate-800/80">
+                <td className="px-3 py-2 text-slate-100">
+                  <div className="font-medium">{m.fullName}</div>
+                  <div className="text-[11px] text-slate-500">{m.email}</div>
+                </td>
+                <td className="px-3 py-2">
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] capitalize">{m.role}</span>
+                </td>
+                <td className="px-3 py-2 text-slate-300 hidden sm:table-cell">{m.isBillingOwner ? "Yes" : "No"}</td>
+                <td className="px-3 py-2 text-right"><span className="text-slate-600 text-[11px]">—</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pending invites */}
+      {pendingInvites.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Pending invites</p>
+          {pendingInvites.map(i => (
+            <div key={i.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+              <div>
+                <span className="text-slate-300">{i.email}</span>
+                <span className="ml-2 text-slate-600 capitalize">{i.role}</span>
+              </div>
+              <button onClick={() => cancelInvite(i.id)} className="text-slate-600 hover:text-rose-400 transition-colors text-[10px]">Cancel</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Invite form */}
+      {canInvite && showForm && (
+        <div className="mt-3 p-3 rounded-xl bg-slate-900 border border-slate-700 space-y-3">
+          {isAgency && (
+            <div className="flex items-start gap-2 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              <Lock size={11} className="shrink-0 mt-0.5" />
+              Only <strong>@{primaryDomain || "your corporate domain"}</strong> addresses are allowed.
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              type="email"
+              placeholder={isAgency ? `name@${primaryDomain || "yourdomain.com"}` : "colleague@company.com"}
+              value={inviteEmail}
+              onChange={e => { setInviteEmail(e.target.value); setInviteErr(null); setInviteDone(null); }}
+              className="flex-1 bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            />
+            <select
+              value={inviteRole}
+              onChange={e => setInviteRole(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none"
+            >
+              <option value="admin">Admin</option>
+              <option value="analyst">Analyst</option>
+              <option value="readonly">Read-only</option>
+            </select>
+          </div>
+          {inviteErr && <p className="text-[11px] text-rose-400">{inviteErr}</p>}
+          {inviteDone && (
+            <div className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 break-all">
+              Invite created. Share this link: <span className="font-mono">{inviteDone}</span>
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => { setShowForm(false); setInviteErr(null); setInviteDone(null); }} className="px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-400 hover:text-white transition-colors">Cancel</button>
+            <button onClick={handleInvite} disabled={inviting || !inviteEmail} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-xs text-white font-semibold transition-all flex items-center gap-1.5">
+              {inviting ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+              Send invite
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex justify-between items-center text-xs">
+        {!canInvite ? (
+          <span className="text-slate-500">
+            Multi-seat access available on{" "}
+            <button onClick={onUpgrade} className="text-indigo-400 hover:text-indigo-300 underline">Growth &amp; Agency plans</button>
+          </span>
+        ) : (
+          <span className="text-slate-600">{members.length} member{members.length !== 1 ? "s" : ""}</span>
+        )}
+        {canInvite && !showForm && (
+          <button onClick={() => { setShowForm(true); setInviteDone(null); }} className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-100 transition-colors">
+            Invite member
+          </button>
+        )}
+        {!canInvite && (
+          <button onClick={onUpgrade} className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-100 transition-colors">
+            Invite member
+          </button>
+        )}
+      </div>
     </section>
   );
 }

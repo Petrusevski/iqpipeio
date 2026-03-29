@@ -69,6 +69,7 @@ model Workspace {
   notifications       Notification[]
   experiments         Experiment[]
   iqLeads             IqLead[]
+  invites             WorkspaceInvite[]
 }
 
 model Notification {
@@ -710,6 +711,24 @@ model CorrelationResult {
   @@index([workspaceId, mirrorId])
   @@index([correlationValue])
   @@index([matchedAt])
+}
+
+// ── Workspace invites ──────────────────────────────────────────────────────────
+
+model WorkspaceInvite {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  email       String
+  role        String    @default("analyst") // "admin" | "analyst" | "readonly"
+  token       String    @unique @default(cuid())
+  invitedById String    // User.id of the inviter
+  acceptedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId])
+  @@index([token])
 }
 
 // ── Report Studio ─────────────────────────────────────────────────────────────
