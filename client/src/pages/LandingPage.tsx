@@ -696,7 +696,7 @@ export default function LandingPage() {
                 <div className="text-4xl font-bold text-white mb-1">$299<span className="text-base text-slate-500 font-normal">/mo</span></div>
                 <div className="text-xs text-slate-500 mb-6">Unlimited seats · 20 workspaces · 50 automations · 5M events</div>
                 <ul className="space-y-2.5 text-sm text-slate-300 flex-1">
-                  {["Unlimited Seats · 20 Workspaces", "50 Make.com or n8n automations", "5,000,000 events / month", "All features + Workflow Health", "API access + webhooks", "Priority 24/7 support"].map((f) => (
+                  {["Unlimited Seats · 20 Workspaces", "50 Make.com or n8n automations", "5,000,000 events / month", "All features + Workflow Health", "API access + webhooks", "Priority 24/7 support", "Additional workspaces available at surcharge"].map((f) => (
                     <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />{f}</li>
                   ))}
                 </ul>
@@ -706,37 +706,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Agency Add-on */}
-            <div className="mt-8 mx-auto max-w-4xl">
-              <div className="p-6 rounded-3xl border border-amber-500/30 bg-amber-500/5 relative overflow-hidden">
-                <div className="absolute top-3 right-4 text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-400 uppercase tracking-widest">Agency Only</div>
-                <div className="flex flex-col md:flex-row md:items-center gap-6">
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-amber-400 mb-1">Additional Workspace Add-on</div>
-                    <h3 className="text-xl font-bold text-white mb-2">+1 Workspace · +5 Automations · 75K events/mo</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-3">
-                      Scale client capacity without moving up a plan. Each add-on workspace comes with 5 dedicated automations and 75,000 events/month — sized for a full GTM sequence running 5 automations × 2 runs/week.
-                    </p>
-                    <div className="flex flex-wrap gap-2 text-[11px]">
-                      {[
-                        "~200 contacts/run × 7 events = 1,400 events/run",
-                        "5 automations × 2 runs/week × 4.3 weeks",
-                        "~60,200 events/mo + 25% headroom = 75K",
-                      ].map((note) => (
-                        <span key={note} className="px-2.5 py-1 rounded-full border border-slate-800 bg-slate-900/60 text-slate-500">{note}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-center md:text-right">
-                    <div className="text-3xl font-bold text-white">$49<span className="text-base text-slate-500 font-normal">/mo</span></div>
-                    <div className="text-xs text-slate-500 mb-4">per additional workspace</div>
-                    <a href="/signup?plan=agency&addon=workspace" className="inline-flex items-center gap-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 px-5 py-2.5 text-sm font-bold hover:bg-amber-500/30 transition-all">
-                      Add to Agency plan <ArrowRight size={14} />
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
