@@ -4,7 +4,7 @@
  */
 
 import {
-  Workflow, Zap, Search, HeartPulse, GitBranch, Settings,
+  Workflow, Zap, Search, HeartPulse, GitBranch, BarChart3, Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -66,6 +66,17 @@ export const GUIDE_STEPS: GuideStep[] = [
     description: "See the health of every active sequence and workflow — step-by-step error rates, bounce rates, reply rates, and event volumes. Catch problems before they burn your sending domain or miss quota.",
     whatToDo:    "Look for any workflow with a red health score. That means high bounce rate, API errors, or a silent tool. Click into it to see which step is failing.",
     ctaLabel:    "Check workflow health",
+  },
+  {
+    key:         "compare",
+    path:        "/compare",
+    label:       "Workflow Compare",
+    Icon:        BarChart3,
+    iconColor:   "text-sky-400",
+    title:       "Compare workflows side by side",
+    description: "Workflow Compare lets you run a head-to-head analysis of any two automations — event volumes, conversion rates, tool performance, and outcome attribution. See exactly which workflow is driving more revenue.",
+    whatToDo:    "Select two workflows from your connected n8n or Make.com workspace and click Compare. You'll get a breakdown of which one converts better and why.",
+    ctaLabel:    "Compare workflows",
   },
   {
     key:         "my-workflow",

@@ -135,7 +135,9 @@ export default function Sidebar() {
                 onClick={() => handleNavClick("/automations")}
                 className={({ isActive }) =>
                   `group relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
-                    isActive
+                    isPulsing("/automations")
+                      ? "bg-emerald-500/8 text-white border border-emerald-400/60 animate-pulse"
+                      : isActive
                       ? "bg-indigo-500/15 text-white border border-indigo-500/25"
                       : "text-slate-400 hover:bg-indigo-500/10 hover:text-white border border-transparent"
                   }`
@@ -143,15 +145,11 @@ export default function Sidebar() {
               >
                 {({ isActive }) => (
                   <>
-                    <Workflow size={15} className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"}`} />
+                    <Workflow size={15} className={`shrink-0 transition-colors ${isPulsing("/automations") ? "text-emerald-400" : isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-slate-300"}`} />
                     <span>Automations</span>
-                    <div className="ml-auto flex items-center">
-                      {isPulsing("/automations") ? (
-                        <PulsingDot />
-                      ) : isActive ? (
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
-                      ) : null}
-                    </div>
+                    {!isPulsing("/automations") && isActive && (
+                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
+                    )}
                   </>
                 )}
               </NavLink>
@@ -171,10 +169,12 @@ export default function Sidebar() {
                     to={item.path}
                     onClick={() => handleNavClick(item.path)}
                     className={({ isActive }) =>
-                      `group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
-                      ${isActive
-                        ? "bg-indigo-500/10 text-white border border-indigo-500/20"
-                        : "text-slate-500 hover:bg-slate-900 hover:text-slate-200 border border-transparent"
+                      `group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
+                        isPulsing(item.path)
+                          ? "bg-emerald-500/8 text-white border border-emerald-400/60 animate-pulse"
+                          : isActive
+                          ? "bg-indigo-500/10 text-white border border-indigo-500/20"
+                          : "text-slate-500 hover:bg-slate-900 hover:text-slate-200 border border-transparent"
                       }`
                     }
                   >
@@ -182,16 +182,12 @@ export default function Sidebar() {
                       <>
                         <item.icon
                           size={15}
-                          className={`shrink-0 transition-colors ${isActive ? "text-indigo-400" : "text-slate-600 group-hover:text-slate-400"}`}
+                          className={`shrink-0 transition-colors ${isPulsing(item.path) ? "text-emerald-400" : isActive ? "text-indigo-400" : "text-slate-600 group-hover:text-slate-400"}`}
                         />
                         <span>{item.label}</span>
-                        <div className="ml-auto flex items-center">
-                          {isPulsing(item.path) ? (
-                            <PulsingDot />
-                          ) : isActive ? (
-                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
-                          ) : null}
-                        </div>
+                        {!isPulsing(item.path) && isActive && (
+                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)]" />
+                        )}
                       </>
                     )}
                   </NavLink>
@@ -252,12 +248,3 @@ export default function Sidebar() {
   );
 }
 
-/** Green pulsating dot used for the current onboarding step. */
-function PulsingDot() {
-  return (
-    <span className="relative flex h-2.5 w-2.5">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400" />
-    </span>
-  );
-}
