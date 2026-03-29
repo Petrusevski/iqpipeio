@@ -1077,4 +1077,95 @@ router.patch("/accounts/:id", requireApiKey, async (req: ApiKeyRequest, res: Res
   }
 });
 
+// ─── GET /api/mcp/setup-script ───────────────────────────────────────────────
+// Returns a shell script (PowerShell or bash) that auto-configures Claude
+// Desktop to connect to IQPipe's remote MCP server using the workspace's
+// public API key. No JSON editing required — one command, then restart Desktop.
+//
+// Auth: standard JWT Bearer (dashboard user, not API key)
+// Query: ?platform=windows|mac (defaults to windows)
+
+import { requireAuth } from "../middleware/auth";
+
+router.get("/setup-script", requireAuth, async (req: any, res: Response) => {
+  try {
+    const workspaceId = req.auth?.workspaceId || req.user?.workspaceId;
+    if (!workspaceId) return res.status(401).json({ error: "Unauthorized" });
+
+    const platform = (req.query.platform as string) || "windows";
+
+    const workspace = await prisma.workspace.findUnique({
+      where:  { id: workspaceId },
+      select: { publicApiKey: true },
+    });
+
+    if (!workspace?.publicApiKey) {
+      return res.status(404).json({ error: "API key not found" });
+    }
+
+    const key    = workspace.publicApiKey;
+    const mcpUrl = `https://iqpipe.vercel.app/mcp?key=${key}`;
+
+    if (platform === "mac") {
+      const script = `#!/bin/bash
+# IQPipe × Claude Desktop — one-command setup (macOS / Linux)
+CONFIG="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+mkdir -p "$(dirname "$CONFIG")"
+
+if [ -f "$CONFIG" ]; then
+  python3 - <<'PYEOF'
+import json, os
+path = os.path.expanduser("~/Library/Application Support/Claude/claude_desktop_config.json")
+with open(path) as f:
+    c = json.load(f)
+c.setdefault("mcpServers", {})["iqpipe"] = {"url": "${mcpUrl}"}
+with open(path, "w") as f:
+    json.dump(c, f, indent=2)
+PYEOF
+else
+  echo '{"mcpServers":{"iqpipe":{"url":"${mcpUrl}"}}}' > "$CONFIG"
+fi
+
+echo ""
+echo "✓ IQPipe connected to Claude Desktop."
+echo "  Restart Claude Desktop and ask: 'Show my live feed'"
+echo ""
+`;
+      res.set("Content-Type", "text/plain");
+      return res.send(script);
+    }
+
+    // Windows PowerShell (default)
+    const script = `# IQPipe x Claude Desktop -- one-command setup (Windows)
+$ConfigPath = "$env:APPDATA\\Claude\\claude_desktop_config.json"
+$McpUrl     = "${mcpUrl}"
+
+if (Test-Path $ConfigPath) {
+    $Json = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+} else {
+    New-Item -ItemType Directory -Force -Path (Split-Path $ConfigPath) | Out-Null
+    $Json = [PSCustomObject]@{}
+}
+
+if (-not $Json.PSObject.Properties["mcpServers"]) {
+    $Json | Add-Member -NotePropertyName mcpServers -NotePropertyValue ([PSCustomObject]@{}) -Force
+}
+$Json.mcpServers | Add-Member -NotePropertyName iqpipe -NotePropertyValue ([PSCustomObject]@{ url = $McpUrl }) -Force
+
+$Json | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+
+Write-Host ""
+Write-Host "IQPipe connected to Claude Desktop." -ForegroundColor Green
+Write-Host "  Restart Claude Desktop and ask: 'Show my live feed'"
+Write-Host ""
+`;
+
+    res.set("Content-Type", "text/plain");
+    return res.send(script);
+  } catch (err) {
+    console.error("[mcp/setup-script]", err);
+    res.status(500).json({ error: "Failed to generate setup script" });
+  }
+});
+
 export default router;

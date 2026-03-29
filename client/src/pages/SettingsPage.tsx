@@ -478,8 +478,8 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
             {/* Pricing Plan */}
             <PricingPlanSection currentPlan={workspace.plan} />
 
-            {/* AI Agent Access */}
-            <AiAgentAccessPanel apiKey={workspace.publicApiKey ?? ""} />
+            {/* AI Agent Access / Claude Connect */}
+            <ClaudeConnectPanel apiKey={workspace.publicApiKey ?? ""} />
 
             {/* Data & privacy */}
             <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
@@ -838,61 +838,251 @@ function PushNotificationsPanel() {
 
 // ─── AI Agent Access Panel ────────────────────────────────────────────────────
 
-function AiAgentAccessPanel({ apiKey }: { apiKey: string }) {
-  const [copied, setCopied] = useState(false);
+function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
+  const MCP_URL    = "https://iqpipe.vercel.app/mcp";
+  const fullUrl    = apiKey ? `${MCP_URL}?key=${apiKey}` : "";
+  const CLAUDE_AI_INTEGRATIONS = "https://claude.ai/settings/integrations";
 
-  const copyKey = () => {
-    if (!apiKey) return;
-    navigator.clipboard.writeText(apiKey).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const [tab, setTab]           = useState<"web" | "desktop">("web");
+  const [platform, setPlatform] = useState<"windows" | "mac">("windows");
+  const [copied, setCopied]     = useState<string | null>(null);
+  const [running, setRunning]   = useState(false);
+  const [scriptDone, setScriptDone] = useState(false);
+  const [scriptErr, setScriptErr]   = useState<string | null>(null);
+
+  const copy = (text: string, id: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
     });
   };
 
+  const runSetup = async () => {
+    if (!apiKey) return;
+    setRunning(true);
+    setScriptErr(null);
+    setScriptDone(false);
+    try {
+      const token = localStorage.getItem("iqpipe_token");
+      const res = await fetch(
+        `${API_BASE_URL}/api/mcp/setup-script?platform=${platform}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const script = await res.text();
+
+      // Download the script so the user can run it
+      const blob = new Blob([script], { type: "text/plain" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = platform === "windows" ? "iqpipe-claude-setup.ps1" : "iqpipe-claude-setup.sh";
+      a.click();
+      URL.revokeObjectURL(url);
+      setScriptDone(true);
+    } catch {
+      setScriptErr("Failed to download setup script.");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const setupCommand = platform === "windows"
+    ? `irm "${MCP_URL.replace("https://", "https://")}/api/mcp/setup-script?platform=windows" -Headers @{Authorization="Bearer ${apiKey}"} | iex`
+    : `curl -sH "Authorization: Bearer ${apiKey}" "${API_BASE_URL}/api/mcp/setup-script?platform=mac" | bash`;
+
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+    <section className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5">
+      {/* Header */}
       <div className="flex items-center gap-2 mb-1">
         <Bot size={14} className="text-indigo-400" />
-        <h2 className="text-sm font-semibold text-slate-100">AI Agent Access (MCP)</h2>
+        <h2 className="text-sm font-semibold text-slate-100">Connect to Claude</h2>
+        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">MCP</span>
       </div>
       <p className="text-xs text-slate-400 mb-4">
-        Give Claude or any MCP-compatible AI agent read-only access to your IQPipe workspace — live feed, contacts, workflows, and funnel.
+        Connect Claude to your IQPipe workspace in one step — no config files, no JSON editing. Claude can then diagnose GTM issues, check workflow health, search contacts, and fix problems directly in conversation.
       </p>
 
-      {/* API Key display */}
-      <div className="mb-4">
-        <label className="text-[11px] text-slate-500 mb-1.5 block">Your workspace API key</label>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 min-w-0 truncate px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-300 font-mono">
+      {/* Platform tabs */}
+      <div className="flex gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800 mb-4">
+        {(["web", "desktop"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              tab === t
+                ? "bg-indigo-600 text-white shadow"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            {t === "web" ? "Claude.ai (web)" : "Claude Desktop"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Claude.ai web tab ── */}
+      {tab === "web" && (
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0 mt-0.5">1</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-200 mb-1">Open Claude.ai Integrations</p>
+              <a
+                href={CLAUDE_AI_INTEGRATIONS}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium border border-indigo-500/20 bg-indigo-500/10 hover:bg-indigo-500/15 px-2.5 py-1 rounded-lg transition-all"
+              >
+                Open Settings → Integrations ↗
+              </a>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0 mt-0.5">2</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-200 mb-1.5">Add MCP Server — paste this URL</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-indigo-300 font-mono">
+                  {fullUrl || "Generate your API key first"}
+                </code>
+                <button
+                  onClick={() => copy(fullUrl, "url")}
+                  disabled={!fullUrl}
+                  className="shrink-0 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-40"
+                >
+                  {copied === "url" ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-600 mt-1">Your API key is embedded — no separate auth header needed.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0 mt-0.5">3</div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-200">Ask Claude anything</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">"Show my live feed" · "Why did HubSpot go quiet?" · "Which workflow closes fastest?"</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Claude Desktop tab ── */}
+      {tab === "desktop" && (
+        <div className="space-y-3">
+          {/* OS picker */}
+          <div className="flex gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800">
+            {(["windows", "mac"] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPlatform(p)}
+                className={`flex-1 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                  platform === p ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                {p === "windows" ? "Windows" : "macOS / Linux"}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0 mt-0.5">1</div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-200 mb-1.5">
+                {platform === "windows" ? "Run in PowerShell" : "Run in Terminal"}
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[10px] text-emerald-300 font-mono">
+                  {apiKey ? setupCommand : "Loading..."}
+                </code>
+                <button
+                  onClick={() => copy(setupCommand, "cmd")}
+                  disabled={!apiKey}
+                  className="shrink-0 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-40"
+                >
+                  {copied === "cmd" ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-600 mt-1">
+                Or{" "}
+                <button
+                  onClick={runSetup}
+                  disabled={running || !apiKey}
+                  className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 disabled:opacity-40"
+                >
+                  {running ? "Downloading..." : "download the setup script"}
+                </button>{" "}
+                and run it manually.
+              </p>
+              {scriptDone && (
+                <p className="text-[10px] text-emerald-400 mt-1">Script downloaded. Run it, then restart Claude Desktop.</p>
+              )}
+              {scriptErr && (
+                <p className="text-[10px] text-rose-400 mt-1">{scriptErr}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0 mt-0.5">2</div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-200">Restart Claude Desktop</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">IQPipe will appear in Claude's tool list automatically.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0 mt-0.5">3</div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-200">Ask Claude anything</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">"Show my live feed" · "Why did HubSpot go quiet?" · "Connect my Apollo account"</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* What you can do */}
+      <div className="mt-4 pt-4 border-t border-slate-800">
+        <p className="text-[10px] text-slate-500 mb-2 font-semibold uppercase tracking-wider">What Claude can do once connected</p>
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            "Monitor tool health",
+            "Diagnose issues",
+            "Apply fixes",
+            "Search contacts",
+            "Compare workflows",
+            "Connect apps",
+            "Track funnel",
+            "Watch recovery",
+          ].map(label => (
+            <span key={label} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400">
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* API key (collapsed, for reference) */}
+      <details className="mt-3 group">
+        <summary className="text-[10px] text-slate-600 cursor-pointer hover:text-slate-400 list-none flex items-center gap-1">
+          <span className="group-open:hidden">▶</span>
+          <span className="hidden group-open:inline">▼</span>
+          Show raw API key
+        </summary>
+        <div className="mt-2 flex items-center gap-2">
+          <code className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-slate-400 font-mono">
             {apiKey || "—"}
           </code>
           <button
-            onClick={copyKey}
+            onClick={() => copy(apiKey, "rawkey")}
             disabled={!apiKey}
-            title="Copy API key"
-            className="shrink-0 p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="shrink-0 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-40"
           >
-            {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+            {copied === "rawkey" ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
           </button>
         </div>
-        <p className="text-[11px] text-slate-600 mt-1.5">
-          Treat this like a password — anyone with this key can read your workspace data.
-        </p>
-      </div>
-
-      {/* Quick setup */}
-      <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-3 text-[11px] text-slate-400 space-y-2">
-        <p className="font-semibold text-slate-300 text-xs">Claude Desktop quick setup</p>
-        <ol className="list-decimal list-inside space-y-1 text-slate-500">
-          <li>Build the MCP server: <code className="text-slate-400">packages/mcp/</code> in the IQPipe repo</li>
-          <li>Open Claude Desktop → Settings → Developer → Edit Config</li>
-          <li>Add <code className="text-slate-400">iqpipe</code> server with your key and API URL</li>
-          <li>Restart Claude Desktop — ask it to <em>"show my live feed"</em></li>
-        </ol>
-        <p className="text-slate-600 pt-1">
-          Available tools: <span className="text-slate-500">get_live_feed · get_funnel · list_workflows · get_workflow_health · search_contacts</span>
-        </p>
-      </div>
+      </details>
     </section>
   );
 }
