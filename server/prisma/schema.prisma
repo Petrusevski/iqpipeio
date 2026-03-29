@@ -52,6 +52,8 @@ model Workspace {
   dataAnonymization   Boolean @default(false)
   dataRetentionMonths Int     @default(12)
   isDemo              Boolean @default(false)
+  eventCountMonth     Int       @default(0)
+  eventCountResetAt   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

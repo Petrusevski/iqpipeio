@@ -20,6 +20,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../db";
 import { resolveIqLead, recordTouchpoint, channelForTool } from "../utils/identity";
 import { decrypt } from "../utils/encryption";
+import { checkAndIncrementQuota, quotaExceededResponse } from "../utils/quota";
 
 const router = Router();
 
@@ -133,6 +134,12 @@ router.post("/", async (req: Request, res: Response) => {
     return res.status(400).json({
       error: "contact must include at least one of: email, anonymousId, linkedin, phone",
     });
+  }
+
+  // ── Quota check ───────────────────────────────────────────────────────────
+  const quota = await checkAndIncrementQuota(workspace.id);
+  if (!quota.allowed) {
+    return res.status(429).json(quotaExceededResponse());
   }
 
   // ── Parse contact name ────────────────────────────────────────────────────

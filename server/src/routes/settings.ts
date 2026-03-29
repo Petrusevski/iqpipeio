@@ -6,6 +6,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
 import { isFreeEmailDomain, getEmailDomain } from "../utils/corporateEmail";
+import { PLAN_LIMITS } from "../utils/quota";
 
 
 const router = Router();
@@ -451,6 +452,52 @@ router.delete("/invite/:id", async (req, res) => {
     return res.json({ ok: true });
   } catch (err: any) {
     return res.status(500).json({ error: "Failed to cancel invite" });
+  }
+});
+
+// ── GET /api/settings/usage ───────────────────────────────────────────────────
+
+router.get("/usage", async (req, res) => {
+  try {
+    const membership = await getCurrentMembership(req as AuthenticatedRequest);
+    const ws = membership.workspace;
+
+    const limit   = PLAN_LIMITS[ws.plan] ?? 500;
+    const wsAny   = ws as any;
+    const count   = wsAny.eventCountMonth  ?? 0;
+    const resetAt = wsAny.eventCountResetAt ?? null;
+    const pct     = limit > 0 ? Math.round((count / limit) * 100) : 0;
+
+    // Count contacts tracked (IqLeads not erased)
+    const contactCount = await prisma.iqLead.count({
+      where: { workspaceId: ws.id, erasedAt: null },
+    });
+
+    // Count active automations (n8n + Make workflows that are active)
+    const [n8nActive, makeActive] = await Promise.all([
+      prisma.n8nWorkflowMeta.count({ where: { workspaceId: ws.id, active: true } }),
+      prisma.makeScenarioMeta.count({ where: { workspaceId: ws.id, active: true } }),
+    ]);
+
+    // Data stored estimate: ~2KB per touchpoint
+    const touchpointCount = await prisma.touchpoint.count({ where: { workspaceId: ws.id } });
+    const estimatedStorageMB = Math.round((touchpointCount * 2) / 1024);
+
+    const planMonths: Record<string, number> = {
+      trial: 3, free: 3, starter: 3, growth: 12, agency: 36,
+    };
+    const retentionMonths = planMonths[ws.plan] ?? ws.dataRetentionMonths;
+
+    return res.json({
+      plan: ws.plan,
+      events: { count, limit, pct, resetAt },
+      contacts: contactCount,
+      activeAutomations: n8nActive + makeActive,
+      estimatedStorageMB,
+      retentionMonths,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to load usage" });
   }
 });
 

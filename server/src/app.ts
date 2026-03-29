@@ -50,6 +50,7 @@ import mcpServerRouter      from "./routes/mcpServer";
 import eventsRouter         from "./routes/events";
 import customEventTypesRouter from "./routes/customEventTypes";
 import sourceMappingsRouter from "./routes/sourceMappings";
+import { eventsRateLimit, webhookRateLimit } from "./middleware/workspaceRateLimit";
 
 const app = express();
 
@@ -161,7 +162,7 @@ app.use("/api/vault", vaultRoutes);
 // experiments route disabled — A/B testing removed
 // app.use("/api/experiments", experimentsRouter);
 app.use("/api/profile", profileRouter);
-app.use("/api/webhooks", webhooksRouter);
+app.use("/api/webhooks", webhookRateLimit, webhooksRouter);
 app.use("/api/icp", icpRouter);
 app.use("/api/invoices", invoicesRouter);
 app.use("/api/attribution", attributionRouter);
@@ -182,10 +183,10 @@ app.use("/api/workflow-score", workflowScoreRouter);
 app.use("/api/checkout",        checkoutRouter);
 app.use("/api/admin",          adminRouter);
 app.use("/api/workflow-mirror", workflowMirrorRouter);
-app.use("/api/app-webhooks",    appWebhooksRouter);
+app.use("/api/app-webhooks",    webhookRateLimit, appWebhooksRouter);
 app.use("/api/report-studio",   reportStudioRouter);
 app.use("/api/mcp",             mcpApiRouter);
-app.use("/api/events",          eventsRouter);
+app.use("/api/events",          eventsRateLimit, eventsRouter);
 app.use("/api/custom-event-types", customEventTypesRouter);
 app.use("/api/source-mappings", sourceMappingsRouter);
 

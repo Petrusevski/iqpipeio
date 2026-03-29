@@ -1317,7 +1317,7 @@ export default function LiveFeedPage() {
 
       {/* ── Event History Modal ── */}
       {historyOpen && (
-        <div className="absolute inset-0 z-50 flex flex-col bg-slate-950/95 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 backdrop-blur-sm">
           {/* Modal header */}
           <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-800">
             <div className="flex items-center gap-3">

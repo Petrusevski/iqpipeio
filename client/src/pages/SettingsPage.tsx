@@ -13,6 +13,7 @@ import { API_BASE_URL } from "../../config";
 import PlansModal, { PLANS, PLAN_LABELS } from "../components/PlansModal";
 import CustomEventTypesPanel from "../components/CustomEventTypesPanel";
 import SourceMappingsPanel from "../components/SourceMappingsPanel";
+import UsageDashboardPanel from "../components/UsageDashboardPanel";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -428,6 +429,9 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
 
           {/* ── Right column ── */}
           <div className="space-y-6">
+
+            {/* Usage dashboard */}
+            <UsageDashboardPanel />
 
             {/* Pricing Plan */}
             <PricingPlanSection currentPlan={workspace.plan} />

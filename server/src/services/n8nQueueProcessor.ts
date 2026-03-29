@@ -17,6 +17,7 @@
 
 import { prisma } from "../db";
 import { resolveIqLead, recordTouchpoint } from "../utils/identity";
+import { checkAndIncrementQuota } from "../utils/quota";
 
 const BATCH_SIZE     = 50;    // events claimed per tick
 const CONCURRENCY    = 5;     // events processed in parallel within a batch
@@ -148,6 +149,16 @@ async function processQueuedEvent(event: any): Promise<void> {
  */
 async function processOne(event: any): Promise<void> {
   try {
+    // Quota guard — soft-block if workspace is over monthly limit
+    const quota = await checkAndIncrementQuota(event.workspaceId);
+    if (!quota.allowed) {
+      await prisma.n8nQueuedEvent.update({
+        where: { id: event.id },
+        data:  { status: "failed", lastError: "QUOTA_EXCEEDED", processedAt: new Date() },
+      });
+      return;
+    }
+
     await processQueuedEvent(event);
 
     await prisma.n8nQueuedEvent.update({

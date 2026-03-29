@@ -16,9 +16,60 @@ import { syncAllN8nConnections, pollAllN8nExecutions } from "./n8nClient";
 import { syncAllMakeConnections } from "./makeClient";
 import { startAnomalyDetector } from "./anomalyDetector";
 import { prisma } from "../db";
+import { PLAN_LIMITS } from "../utils/quota";
 
-const POLL_INTERVAL_MS     = 2 * 60 * 60 * 1000; // 2 hours  — workflow metadata sync
-const EXEC_POLL_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes — execution event poll
+const POLL_INTERVAL_MS      = 2 * 60 * 60 * 1000;  // 2 hours  — workflow metadata sync
+const EXEC_POLL_INTERVAL_MS = 5 * 60 * 1000;       // 5 minutes — execution event poll
+const RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours — nightly retention pruning
+
+/**
+ * Nightly data-retention pruning.
+ * Deletes Touchpoint + Activity rows older than each workspace's retention window.
+ *   trial / free  → 3 months  (90 days)
+ *   starter       → 3 months  (schema default = 12 — overridden per plan)
+ *   growth        → 12 months
+ *   agency        → 36 months
+ */
+async function runRetentionPruning(): Promise<void> {
+  try {
+    const workspaces = await prisma.workspace.findMany({
+      select: { id: true, plan: true, dataRetentionMonths: true },
+    });
+
+    let totalTouchpoints = 0;
+    let totalActivities  = 0;
+
+    for (const ws of workspaces) {
+      // Enforce plan-based minimums regardless of stored setting
+      const planMonths: Record<string, number> = {
+        trial: 3, free: 3, starter: 3, growth: 12, agency: 36,
+      };
+      const months  = Math.min(ws.dataRetentionMonths, planMonths[ws.plan] ?? ws.dataRetentionMonths);
+      const cutoff  = new Date(Date.now() - months * 30 * 24 * 60 * 60 * 1000);
+
+      const [tp, ac] = await Promise.all([
+        prisma.touchpoint.deleteMany({
+          where: { workspaceId: ws.id, recordedAt: { lt: cutoff } },
+        }),
+        prisma.activity.deleteMany({
+          where: { workspaceId: ws.id, createdAt: { lt: cutoff } },
+        }),
+      ]);
+
+      totalTouchpoints += tp.count;
+      totalActivities  += ac.count;
+    }
+
+    if (totalTouchpoints + totalActivities > 0) {
+      console.log(
+        `[syncPoller] Retention pruning: removed ${totalTouchpoints} touchpoints, ` +
+        `${totalActivities} activities across ${workspaces.length} workspaces`
+      );
+    }
+  } catch (err: any) {
+    console.error("[syncPoller] retention pruning error:", err.message);
+  }
+}
 
 async function purgeStaleIdempotencyRecords(): Promise<void> {
   try {
@@ -69,4 +120,12 @@ export function startSyncPoller(): void {
       pollAllN8nExecutions().catch(console.error);
     }, EXEC_POLL_INTERVAL_MS);
   }, 30_000);
+
+  // Nightly retention pruning — delay first run by 60s, then every 24h
+  setTimeout(() => {
+    runRetentionPruning().catch(console.error);
+    setInterval(() => {
+      runRetentionPruning().catch(console.error);
+    }, RETENTION_INTERVAL_MS);
+  }, 60_000);
 }
