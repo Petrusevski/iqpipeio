@@ -83,6 +83,7 @@ model Notification {
   title     String
   body      String
   severity  String    @default("info") // "info" | "warning" | "error"
+  metadata  String?   // JSON: structured payload for actionable notifications
   isRead    Boolean   @default(false)
   createdAt DateTime  @default(now())
   readAt    DateTime?

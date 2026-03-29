@@ -8,11 +8,14 @@ import {
   Menu,
   BookOpen,
   Sparkles,
+  PlusCircle,
+  MinusCircle,
 } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { SETUP_KEY } from "./SetupWizard";
 import { API_BASE_URL } from "../../config";
 import PlansModal, { PLAN_LABELS } from "./PlansModal";
+import AppRetainModal from "./AppRetainModal";
 
 const API_BASE = API_BASE_URL;
 
@@ -21,20 +24,31 @@ interface TopbarProps {
   onOpenSetup?: () => void;
 }
 
+type NotificationMeta = {
+  appKey?:       string;
+  workflowName?: string;
+  platform?:     string;
+  retainOption?: boolean;
+  retained?:     boolean;
+};
+
 type Notification = {
-  id: string;
-  title: string;
-  body: string;
+  id:       string;
+  type?:    string;
+  title:    string;
+  body:     string;
   severity: "info" | "warning" | "error" | string;
-  isRead: boolean;
+  metadata?: string | null;
+  isRead:   boolean;
   createdAt: string;
 };
 
 export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [notifOpen,   setNotifOpen]   = useState(false);
-  const [showPlans,   setShowPlans]   = useState(false);
-  const [currentPlan, setCurrentPlan] = useState<string>("trial");
+  const [profileOpen,  setProfileOpen]  = useState(false);
+  const [notifOpen,    setNotifOpen]    = useState(false);
+  const [showPlans,    setShowPlans]    = useState(false);
+  const [currentPlan,  setCurrentPlan]  = useState<string>("trial");
+  const [retainNotif,  setRetainNotif]  = useState<Notification | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef   = useRef<HTMLDivElement>(null);
   const navigate   = useNavigate();
@@ -214,46 +228,79 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
               )}
 
               <div className="divide-y divide-slate-800/50">
-                {notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className={
-                      "px-4 py-3 transition-colors hover:bg-slate-800/50 " +
-                      (n.isRead ? "bg-slate-900 opacity-70" : "bg-slate-900/30")
-                    }
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-medium ${n.isRead ? 'text-slate-400' : 'text-slate-200'}`}>
-                              {n.title}
-                            </span>
-                            {n.severity === "warning" && (
-                              <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                Warning
-                              </span>
-                            )}
-                            {n.severity === "error" && (
-                              <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                Alert
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-500 whitespace-nowrap ml-2">
-                            {formatTime(n.createdAt)}
-                          </span>
+                {notifications.map((n) => {
+                  const meta: NotificationMeta = (() => {
+                    try { return JSON.parse(n.metadata ?? "{}"); } catch { return {}; }
+                  })();
+                  const isAppRemoved = n.type === "app_removed";
+                  const isAppAdded   = n.type === "app_added";
+                  const alreadyRetained = meta.retained;
+
+                  return (
+                    <div
+                      key={n.id}
+                      className={
+                        "px-4 py-3 transition-colors hover:bg-slate-800/50 " +
+                        (n.isRead ? "bg-slate-900 opacity-70" : "bg-slate-900/30")
+                      }
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Type icon */}
+                        <div className="shrink-0 mt-0.5">
+                          {isAppAdded   && <PlusCircle  size={13} className="text-emerald-400" />}
+                          {isAppRemoved && <MinusCircle size={13} className="text-amber-400" />}
                         </div>
-                        <p className="text-slate-400 leading-relaxed">
-                          {n.body}
-                        </p>
+
+                        <div className="flex-1 space-y-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`font-medium text-[11px] ${n.isRead ? "text-slate-400" : "text-slate-200"}`}>
+                                {n.title}
+                              </span>
+                              {n.severity === "warning" && !isAppRemoved && (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Warning</span>
+                              )}
+                              {n.severity === "error" && (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Alert</span>
+                              )}
+                              {isAppAdded && (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Added</span>
+                              )}
+                              {isAppRemoved && !alreadyRetained && (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Removed</span>
+                              )}
+                              {isAppRemoved && alreadyRetained && (
+                                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Retained</span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-500 whitespace-nowrap shrink-0">
+                              {formatTime(n.createdAt)}
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            {n.body}
+                          </p>
+
+                          {/* Keep Connected CTA */}
+                          {isAppRemoved && !alreadyRetained && meta.appKey && (
+                            <button
+                              onClick={() => { setNotifOpen(false); setRetainNotif(n); }}
+                              className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 hover:border-indigo-500/40 px-2.5 py-1 rounded-lg transition-all"
+                            >
+                              <PlusCircle size={11} />
+                              Keep <span className="capitalize">{meta.appKey}</span> connected →
+                            </button>
+                          )}
+                        </div>
+
+                        {!n.isRead && (
+                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 mt-2 shrink-0" />
+                        )}
                       </div>
-                      {!n.isRead && (
-                         <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 mt-2 shrink-0" />
-                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -340,6 +387,30 @@ export default function Topbar({ onMenuClick, onOpenSetup }: TopbarProps) {
       {showPlans && (
         <PlansModal currentPlan={currentPlan} onClose={() => setShowPlans(false)} />
       )}
+    </AnimatePresence>
+
+    <AnimatePresence>
+      {retainNotif && (() => {
+        let meta: NotificationMeta = {};
+        try { meta = JSON.parse(retainNotif.metadata ?? "{}"); } catch { /* ignore */ }
+        return meta.appKey ? (
+          <AppRetainModal
+            notificationId={retainNotif.id}
+            meta={{ appKey: meta.appKey!, workflowName: meta.workflowName ?? "", platform: meta.platform ?? "n8n", retainOption: true }}
+            onClose={() => setRetainNotif(null)}
+            onRetained={() => {
+              // Mark the notification as retained in local state
+              setNotifications(prev =>
+                prev.map(n => n.id === retainNotif.id
+                  ? { ...n, isRead: true, metadata: JSON.stringify({ ...meta, retained: true }) }
+                  : n
+                )
+              );
+              setRetainNotif(null);
+            }}
+          />
+        ) : null;
+      })()}
     </AnimatePresence>
     </>
   );

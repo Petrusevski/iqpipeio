@@ -12,6 +12,7 @@ import axios from "axios";
 import { createHash } from "crypto";
 import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
+import { createNotification } from "./notificationService";
 import { normalizeEventType } from "../utils/eventTaxonomy";
 
 // ── Node → App mapping ────────────────────────────────────────────────────────
@@ -298,6 +299,38 @@ export async function syncN8nConnection(
         const { apps, nodeTypes } = parseWorkflowApps(nodes);
         const triggerType = classifyTrigger(nodes);
         const tags = (wf.tags ?? []).map((t: any) => t.name ?? t).filter(Boolean);
+
+        // ── App-change detection ─────────────────────────────────────────────
+        const existing = await prisma.n8nWorkflowMeta.findUnique({
+          where:  { workspaceId_n8nId: { workspaceId, n8nId: wf.id } },
+          select: { appsUsed: true },
+        });
+        if (existing) {
+          const oldApps: string[] = JSON.parse(existing.appsUsed || "[]");
+          const added   = apps.filter((a) => !oldApps.includes(a));
+          const removed = oldApps.filter((a) => !apps.includes(a));
+
+          for (const app of added) {
+            createNotification({
+              workspaceId, type: "app_added",
+              title:    `New app connected: ${app}`,
+              body:     `${app} was added to the n8n workflow "${wf.name}". IQPipe will start tracking its events automatically.`,
+              severity: "info",
+              metadata: JSON.stringify({ workflowId: wf.id, workflowName: wf.name, appKey: app, platform: "n8n" }),
+            }).catch(console.error);
+          }
+
+          for (const app of removed) {
+            createNotification({
+              workspaceId, type: "app_removed",
+              title:    `${app} removed from "${wf.name}"`,
+              body:     `${app} is no longer part of this workflow. You can keep it connected directly in IQPipe to continue receiving its events.`,
+              severity: "warning",
+              metadata: JSON.stringify({ workflowId: wf.id, workflowName: wf.name, appKey: app, platform: "n8n", retainOption: true }),
+            }).catch(console.error);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         await prisma.n8nWorkflowMeta.upsert({
           where:  { workspaceId_n8nId: { workspaceId, n8nId: wf.id } },

@@ -13,6 +13,7 @@
 
 import axios from "axios";
 import { prisma } from "../db";
+import { createNotification } from "./notificationService";
 import { decrypt } from "../utils/encryption";
 
 // ── Module → App display name mapping ────────────────────────────────────────
@@ -246,6 +247,38 @@ export async function syncMakeConnection(
         const flow = await fetchScenarioFlow(apiKey, conn.region, String(sc.id));
         const { apps, moduleTypes } = extractAppsFromBlueprint(flow);
         const triggerType = classifyTrigger(flow);
+
+        // ── App-change detection ─────────────────────────────────────────────
+        const existingMeta = await prisma.makeScenarioMeta.findUnique({
+          where:  { workspaceId_makeId: { workspaceId, makeId: String(sc.id) } },
+          select: { appsUsed: true },
+        });
+        if (existingMeta) {
+          const oldApps: string[] = JSON.parse(existingMeta.appsUsed || "[]");
+          const added   = apps.filter((a) => !oldApps.includes(a));
+          const removed = oldApps.filter((a) => !apps.includes(a));
+
+          for (const app of added) {
+            createNotification({
+              workspaceId, type: "app_added",
+              title:    `New app connected: ${app}`,
+              body:     `${app} was added to the Make.com scenario "${sc.name}". IQPipe will start tracking its events automatically.`,
+              severity: "info",
+              metadata: JSON.stringify({ workflowId: String(sc.id), workflowName: sc.name, appKey: app, platform: "make" }),
+            }).catch(console.error);
+          }
+
+          for (const app of removed) {
+            createNotification({
+              workspaceId, type: "app_removed",
+              title:    `${app} removed from "${sc.name}"`,
+              body:     `${app} is no longer part of this Make.com scenario. You can keep it connected directly in IQPipe to continue receiving its events.`,
+              severity: "warning",
+              metadata: JSON.stringify({ workflowId: String(sc.id), workflowName: sc.name, appKey: app, platform: "make", retainOption: true }),
+            }).catch(console.error);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
 
         await prisma.makeScenarioMeta.upsert({
           where:  { workspaceId_makeId: { workspaceId, makeId: String(sc.id) } },

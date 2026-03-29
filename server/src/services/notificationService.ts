@@ -10,6 +10,8 @@ interface CreateNotificationParams {
   title: string;
   body: string;
   severity?: NotificationSeverity;
+  /** JSON-serialized structured payload for actionable notifications */
+  metadata?: string | null;
 }
 
 /**
@@ -17,16 +19,17 @@ interface CreateNotificationParams {
  * whenever something useful happens (workflow, integration, etc.).
  */
 export async function createNotification(params: CreateNotificationParams) {
-  const { workspaceId, userId, type, title, body, severity } = params;
+  const { workspaceId, userId, type, title, body, severity, metadata } = params;
 
   return prisma.notification.create({
     data: {
       workspaceId,
-      userId: userId ?? null,
+      userId:   userId ?? null,
       type,
       title,
       body,
       severity: severity ?? "info",
+      metadata: metadata ?? null,
     },
   });
 }
