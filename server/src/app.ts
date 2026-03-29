@@ -47,6 +47,9 @@ import appWebhooksRouter    from "./routes/appWebhooks";
 import reportStudioRouter   from "./routes/reportStudio";
 import mcpApiRouter         from "./routes/mcpApi";
 import mcpServerRouter      from "./routes/mcpServer";
+import eventsRouter         from "./routes/events";
+import customEventTypesRouter from "./routes/customEventTypes";
+import sourceMappingsRouter from "./routes/sourceMappings";
 
 const app = express();
 
@@ -182,6 +185,9 @@ app.use("/api/workflow-mirror", workflowMirrorRouter);
 app.use("/api/app-webhooks",    appWebhooksRouter);
 app.use("/api/report-studio",   reportStudioRouter);
 app.use("/api/mcp",             mcpApiRouter);
+app.use("/api/events",          eventsRouter);
+app.use("/api/custom-event-types", customEventTypesRouter);
+app.use("/api/source-mappings", sourceMappingsRouter);
 
 // MCP server — must allow any origin so Claude.ai and other MCP clients can reach it
 app.use("/mcp", cors({

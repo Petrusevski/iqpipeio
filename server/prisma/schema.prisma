@@ -71,6 +71,8 @@ model Workspace {
   experiments         Experiment[]
   iqLeads             IqLead[]
   invites             WorkspaceInvite[]
+  customEventTypes    CustomEventType[]
+  sourceMappings      SourceMapping[]
 }
 
 model Notification {
@@ -385,6 +387,20 @@ model IqLead {
   company     String?
   title       String?
 
+  // Anonymous identity (web visitors, pre-identification)
+  anonymousId    String?   // session_id or custom anon ID — plain for lookup
+  stitchedFromId String?   // IqLead.id of the anonymous record this was merged from
+
+  // GDPR consent tracking (per Art. 6 GDPR lawful basis)
+  consentBasis      String?   // "legitimate_interest" | "consent" | "contract" | "vital_interests" | "public_task" | "legal_obligation"
+  consentTimestamp  DateTime?
+  consentVersion    String?   // e.g. "privacy-policy-v2.1"
+  consentSource     String?   // which tool/source captured consent
+
+  // Right to erasure (Art. 17 GDPR)
+  erasureRequestedAt DateTime?
+  erasedAt           DateTime?
+
   firstSeenAt DateTime  @default(now())
   lastSeenAt  DateTime  @updatedAt
 
@@ -394,6 +410,7 @@ model IqLead {
   @@index([workspaceId, emailHash])
   @@index([workspaceId, linkedinHash])
   @@index([workspaceId, phoneHash])
+  @@index([workspaceId, anonymousId])
 }
 
 model Touchpoint {
@@ -412,8 +429,9 @@ model Touchpoint {
   meta        String?  // JSON blob: campaign, sequence, deal name, etc.
   workflowId     String?  // n8n workflowId if this event came via n8n
   stepId         String?  // n8n stepId if this event came via n8n
-  sourceType     String   @default("webhook")  // "direct_api" | "webhook" | "n8n_workflow"
+  sourceType     String   @default("webhook")  // "direct_api" | "webhook" | "n8n_workflow" | "generic_api"
   sourcePriority Int      @default(2)           // 1=direct_api, 2=webhook, 3=n8n_workflow
+  consentBasis   String?  // per-event GDPR consent basis (overrides lead-level if set)
   recordedAt  DateTime @default(now())
 
   @@index([workspaceId, iqLeadId])
@@ -749,4 +767,42 @@ model PublicReport {
 
   @@index([workspaceId])
   @@index([token])
+}
+
+// ── Custom Event Types ────────────────────────────────────────────────────────
+// Workspaces on Growth/Agency can define their own event taxonomy for
+// non-standard sources (web visits, internal DBs, custom APIs).
+
+model CustomEventType {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  key         String    // e.g. "page_viewed" — used in API calls
+  label       String    // e.g. "Page Viewed" — shown in UI
+  channel     String    @default("custom")  // "web" | "email" | "crm" | "custom" etc.
+  category    String    @default("signal")  // "signal" | "outcome"
+  description String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId])
+}
+
+// ── Source Mappings ───────────────────────────────────────────────────────────
+// When IQPipe encounters unknown n8n/Make nodes, users can map them to a named
+// source. Saved mappings are applied to all future events from that node type.
+
+model SourceMapping {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  nodeType    String    // e.g. "n8n-nodes-base.httpRequest" | "n8n-nodes-base.postgres"
+  platform    String    @default("n8n")    // "n8n" | "make" | "custom"
+  appKey      String    // user-defined slug e.g. "internal-crm"
+  appLabel    String    // user-facing name e.g. "Internal CRM"
+  channel     String    @default("custom") // channel to assign events from this source
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, platform, nodeType])
+  @@index([workspaceId])
 }

@@ -6,11 +6,13 @@ import {
   Clock, AlertTriangle, X,
   Receipt, Download, Loader2, ChevronDown,
   Sparkles, Trash2, RefreshCw, Bot, Copy, Check,
-  CheckCircle2, Lock, ShieldCheck, Zap,
+  CheckCircle2, Lock, ShieldCheck, Zap, Plus, Tag, GitMerge,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
 import PlansModal, { PLANS, PLAN_LABELS } from "../components/PlansModal";
+import CustomEventTypesPanel from "../components/CustomEventTypesPanel";
+import SourceMappingsPanel from "../components/SourceMappingsPanel";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -484,15 +486,20 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
                   {saving ? "Saving…" : "Save privacy settings"}
                 </button>
 
-                <button
-                  onClick={() => window.alert("To request a workspace export or deletion, contact privacy@iqpipe.io")}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-rose-500/30 text-[11px] text-rose-300 hover:bg-rose-500/10 transition-colors"
+                <a
+                  href="mailto:privacy@iqpipe.io?subject=Data%20Export%20%2F%20Deletion%20Request"
+                  className="w-full block text-center px-3 py-2 rounded-lg bg-slate-900 border border-rose-500/30 text-[11px] text-rose-300 hover:bg-rose-500/10 transition-colors"
                 >
-                  Request export / deletion
-                </button>
+                  Request export / deletion → privacy@iqpipe.io
+                </a>
               </div>
             </section>
 
+            {/* Custom Event Types — Priority 4 */}
+            <CustomEventTypesPanel plan={workspace.plan} />
+
+            {/* Source Mappings — Priority 2 */}
+            <SourceMappingsPanel />
 
             {/* Demo data */}
             <DemoDataPanel />

@@ -107,32 +107,67 @@ const MEANINGFUL = new Set([
 
 // ── Core: resolve or mint IqLead ──────────────────────────────────────────────
 
+export interface ConsentInfo {
+  basis?:     string;   // "legitimate_interest" | "consent" | "contract" | ...
+  timestamp?: Date;
+  version?:   string;
+  source?:    string;
+}
+
 export async function resolveIqLead(
   workspaceId: string,
-  identifiers: { email?: string | null; linkedin?: string | null; phone?: string | null },
+  identifiers: {
+    email?:       string | null;
+    linkedin?:    string | null;
+    phone?:       string | null;
+    anonymousId?: string | null;  // session_id / visitor ID for pre-identification
+  },
   metadata: { firstName?: string; lastName?: string; company?: string | null; title?: string | null },
+  consent?: ConsentInfo,
 ): Promise<string> {
-  const { email, linkedin, phone } = identifiers;
+  const { email, linkedin, phone, anonymousId } = identifiers;
 
   const emailHash    = email    ? hashEmail(email)       : null;
   const linkedinHash = linkedin ? hashLinkedin(linkedin) : null;
   const phoneHash    = phone    ? hashPhone(phone)       : null;
 
-  // If we have no identifiers at all, mint a throwaway ID
+  const consentPatch = consent?.basis ? {
+    consentBasis:     consent.basis,
+    consentTimestamp: consent.timestamp ?? new Date(),
+    consentVersion:   consent.version   ?? null,
+    consentSource:    consent.source    ?? null,
+  } : {};
+
+  // ── Anonymous-only event (no PII identifiers) ─────────────────────────────
   if (!emailHash && !linkedinHash && !phoneHash) {
+    // If anonymousId provided, look for an existing anonymous record first
+    if (anonymousId) {
+      const anonExisting = await prisma.iqLead.findFirst({
+        where: { workspaceId, anonymousId },
+      });
+      if (anonExisting) {
+        if (Object.keys(consentPatch).length) {
+          await prisma.iqLead.update({ where: { id: anonExisting.id }, data: consentPatch });
+        }
+        return anonExisting.id;
+      }
+    }
+
     const id = mintId();
     await prisma.iqLead.create({
       data: {
         id, workspaceId,
+        anonymousId: anonymousId ?? null,
         displayName: toDisplayName(metadata.firstName || "", metadata.lastName || ""),
         company: metadata.company || null,
-        title: metadata.title || null,
+        title:   metadata.title   || null,
+        ...consentPatch,
       },
     });
     return id;
   }
 
-  // Look up by any matching hash
+  // ── Look up by any matching hash ──────────────────────────────────────────
   const orClauses: any[] = [];
   if (emailHash)    orClauses.push({ emailHash });
   if (linkedinHash) orClauses.push({ linkedinHash });
@@ -143,13 +178,28 @@ export async function resolveIqLead(
   });
 
   if (existing) {
-    // Merge in any new identifiers we've just learned
-    const patch: Record<string, any> = {};
-    if (emailHash    && !existing.emailHash)    { patch.emailHash = emailHash;    patch.emailEnc = encrypt(email!.toLowerCase().trim()); }
+    const patch: Record<string, any> = { ...consentPatch };
+    if (emailHash    && !existing.emailHash)    { patch.emailHash = emailHash;       patch.emailEnc    = encrypt(email!.toLowerCase().trim()); }
     if (linkedinHash && !existing.linkedinHash) { patch.linkedinHash = linkedinHash; patch.linkedinEnc = encrypt(linkedin!); }
-    if (phoneHash    && !existing.phoneHash)    { patch.phoneHash = phoneHash;    patch.phoneEnc = encrypt(phone!.replace(/\D/g, "")); }
+    if (phoneHash    && !existing.phoneHash)    { patch.phoneHash = phoneHash;       patch.phoneEnc    = encrypt(phone!.replace(/\D/g, "")); }
     if (metadata.company && !existing.company)  patch.company = metadata.company;
     if (metadata.title   && !existing.title)    patch.title   = metadata.title;
+
+    // Stitch: if there's an anonymous record with the same anonymousId, merge it
+    if (anonymousId && !existing.anonymousId) {
+      const anonRecord = await prisma.iqLead.findFirst({
+        where: { workspaceId, anonymousId },
+      });
+      if (anonRecord && anonRecord.id !== existing.id) {
+        // Re-parent all touchpoints and outcomes from the anonymous record
+        await prisma.touchpoint.updateMany({ where: { iqLeadId: anonRecord.id }, data: { iqLeadId: existing.id } });
+        await prisma.outcome.updateMany({ where: { iqLeadId: anonRecord.id }, data: { iqLeadId: existing.id } });
+        // Mark the anonymous record as stitched, then delete it
+        await prisma.iqLead.delete({ where: { id: anonRecord.id } }).catch(() => {});
+        patch.stitchedFromId = anonRecord.id;
+      }
+      patch.anonymousId = anonymousId;
+    }
 
     if (Object.keys(patch).length) {
       await prisma.iqLead.update({ where: { id: existing.id }, data: patch });
@@ -157,7 +207,29 @@ export async function resolveIqLead(
     return existing.id;
   }
 
-  // Mint new IqLead
+  // ── Mint new IqLead ───────────────────────────────────────────────────────
+  // Before minting, check if there's an anonymous record we can promote instead
+  let stitchedFromId: string | null = null;
+  if (anonymousId) {
+    const anonRecord = await prisma.iqLead.findFirst({ where: { workspaceId, anonymousId } });
+    if (anonRecord) {
+      // Promote: add hashes to the existing anonymous record
+      await prisma.iqLead.update({
+        where: { id: anonRecord.id },
+        data: {
+          emailHash,    emailEnc:    email    ? encrypt(email.toLowerCase().trim())   : null,
+          linkedinHash, linkedinEnc: linkedin ? encrypt(linkedin)                     : null,
+          phoneHash,    phoneEnc:    phone    ? encrypt(phone.replace(/\D/g, ""))     : null,
+          displayName: toDisplayName(metadata.firstName || "", metadata.lastName || ""),
+          company: metadata.company || anonRecord.company || null,
+          title:   metadata.title   || anonRecord.title   || null,
+          ...consentPatch,
+        },
+      });
+      return anonRecord.id;
+    }
+  }
+
   const id = mintId();
   await prisma.iqLead.create({
     data: {
@@ -165,9 +237,12 @@ export async function resolveIqLead(
       emailHash,    emailEnc:    email    ? encrypt(email.toLowerCase().trim())   : null,
       linkedinHash, linkedinEnc: linkedin ? encrypt(linkedin)                     : null,
       phoneHash,    phoneEnc:    phone    ? encrypt(phone.replace(/\D/g, ""))     : null,
+      anonymousId:  anonymousId ?? null,
+      stitchedFromId,
       displayName: toDisplayName(metadata.firstName || "", metadata.lastName || ""),
       company: metadata.company || null,
       title:   metadata.title   || null,
+      ...consentPatch,
     },
   });
   return id;
@@ -187,6 +262,7 @@ export async function recordTouchpoint(
   sourcePriority: number = 2,
   workflowId?: string | null,
   stepId?: string | null,
+  consentBasis?: string | null,
 ): Promise<string | null> {
   const channel = channelForTool(tool.toLowerCase());
 
@@ -236,8 +312,9 @@ export async function recordTouchpoint(
       meta: JSON.stringify(meta),
       sourceType,
       sourcePriority,
-      workflowId: workflowId || null,
-      stepId: stepId || null,
+      workflowId:   workflowId   || null,
+      stepId:       stepId       || null,
+      consentBasis: consentBasis || null,
     },
   });
 
