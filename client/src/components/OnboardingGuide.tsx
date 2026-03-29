@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export const GUIDE_KEY = "iqpipe_guide_done_v2"; // comma-separated completed keys
+export const GUIDE_KEY_PREFIX = "iqpipe_guide_v2_";
+export function getGuideKey(workspaceId: string) { return `${GUIDE_KEY_PREFIX}${workspaceId}`; }
 
 export interface GuideStep {
   key:         string;
@@ -102,10 +103,10 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
 ];
 
-/** Returns the Set of completed step keys from localStorage. */
-export function getCompletedSteps(): Set<string> {
+/** Returns the Set of completed step keys from localStorage, scoped to a workspace. */
+export function getCompletedSteps(workspaceId: string): Set<string> {
   try {
-    const raw = localStorage.getItem(GUIDE_KEY) ?? "";
+    const raw = localStorage.getItem(getGuideKey(workspaceId)) ?? "";
     return new Set(raw.split(",").filter(Boolean));
   } catch {
     return new Set();
@@ -113,10 +114,10 @@ export function getCompletedSteps(): Set<string> {
 }
 
 /** Marks a step as done. Returns the updated completed set. */
-export function markStepDone(key: string): Set<string> {
-  const done = getCompletedSteps();
+export function markStepDone(key: string, workspaceId: string): Set<string> {
+  const done = getCompletedSteps(workspaceId);
   done.add(key);
-  localStorage.setItem(GUIDE_KEY, Array.from(done).join(","));
+  localStorage.setItem(getGuideKey(workspaceId), Array.from(done).join(","));
   return done;
 }
 
@@ -129,3 +130,4 @@ export function getNextStep(done: Set<string>): GuideStep | null {
 export function isGuideComplete(done: Set<string>): boolean {
   return GUIDE_STEPS.every(s => done.has(s.key));
 }
+

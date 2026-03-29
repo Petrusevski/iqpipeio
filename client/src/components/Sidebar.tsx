@@ -21,6 +21,7 @@ import {
   getNextStep,
 } from "./OnboardingGuide";
 
+
 const navGroups = [
   {
     title: "Observe",
@@ -53,14 +54,15 @@ const navGroups = [
 export default function Sidebar() {
   const navigate = useNavigate();
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
+  const [workspaceId,   setWorkspaceId]   = useState<string | null>(null);
   const [currentPlan,  setCurrentPlan]   = useState<string>("trial");
   const [showPlans,    setShowPlans]     = useState(false);
 
-  // Guide state
-  const [completedSteps, setCompletedSteps] = useState<Set<string>>(() => getCompletedSteps());
+  // Guide state — starts empty; loaded once workspaceId is known
+  const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [activeIntro, setActiveIntro]       = useState<string | null>(null);
 
-  const nextStep = getNextStep(completedSteps);
+  const nextStep = workspaceId ? getNextStep(completedSteps) : null;
 
   useEffect(() => {
     const token = localStorage.getItem("iqpipe_token");
@@ -72,9 +74,16 @@ export default function Sidebar() {
       .then((d) => {
         if (d?.name) setWorkspaceName(d.name);
         if (d?.plan) setCurrentPlan(d.plan);
+        if (d?.id)   setWorkspaceId(d.id);
       })
       .catch(() => {});
   }, []);
+
+  // Load guide state once we know which workspace this user belongs to
+  useEffect(() => {
+    if (!workspaceId) return;
+    setCompletedSteps(getCompletedSteps(workspaceId));
+  }, [workspaceId]);
 
   const handleNavClick = useCallback((path: string) => {
     const step = GUIDE_STEPS.find(s => s.path === path);
@@ -85,10 +94,11 @@ export default function Sidebar() {
   }, [nextStep]);
 
   const handleIntroDone = useCallback((key: string) => {
-    const updated = markStepDone(key);
+    if (!workspaceId) return;
+    const updated = markStepDone(key, workspaceId);
     setCompletedSteps(new Set(updated));
     setActiveIntro(null);
-  }, []);
+  }, [workspaceId]);
 
   const isPulsing = (path: string) => nextStep?.path === path;
 
