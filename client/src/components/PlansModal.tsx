@@ -121,40 +121,53 @@ export default function PlansModal({ currentPlan, onClose }: PlansModalProps) {
         className="relative z-10 w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-800">
-          <div>
-            <h2 className="text-base font-bold text-white">
-              {isTrial ? "Choose a plan" : "Manage your plan"}
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {isTrial
-                ? "Activate immediately. Cancel any time."
-                : `Current plan: ${PLAN_LABELS[currentPlan] ?? currentPlan}. Switch plans below.`}
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            {/* Billing toggle */}
-            <div className="flex items-center gap-2 text-xs">
-              <span className={!isYearly ? "text-slate-100" : "text-slate-500"}>Monthly</span>
-              <button
-                onClick={() => setIsYearly(!isYearly)}
-                className="w-10 h-5 bg-slate-700 rounded-full relative p-0.5 transition-colors hover:bg-slate-600"
-              >
-                <motion.div
-                  animate={{ x: isYearly ? 20 : 0 }}
-                  className="w-4 h-4 bg-indigo-500 rounded-full shadow"
-                />
-              </button>
-              <span className={isYearly ? "text-slate-100" : "text-slate-500"}>
-                Yearly <span className="text-emerald-400 font-semibold">−20%</span>
-              </span>
+        <div className="px-6 pt-6 pb-5 border-b border-slate-800">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-white">
+                {isTrial ? "Choose a plan" : "Manage your plan"}
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {isTrial
+                  ? "Activate immediately. Cancel any time."
+                  : `Current plan: ${PLAN_LABELS[currentPlan] ?? currentPlan}. Switch plans below.`}
+              </p>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors shrink-0"
             >
               <X size={16} />
             </button>
+          </div>
+
+          {/* Billing toggle — prominent pill */}
+          <div className="flex justify-center">
+            <div className="flex items-center bg-slate-800 rounded-full p-1 gap-1">
+              <button
+                onClick={() => setIsYearly(false)}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  !isYearly
+                    ? "bg-slate-100 text-slate-900 shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setIsYearly(true)}
+                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  isYearly
+                    ? "bg-slate-100 text-slate-900 shadow"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                Yearly
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isYearly ? "bg-emerald-500 text-white" : "bg-emerald-500/20 text-emerald-400"}`}>
+                  −20%
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -194,9 +207,18 @@ export default function PlansModal({ currentPlan, onClose }: PlansModalProps) {
 
                 <div className="text-sm font-bold text-white mb-1">{plan.name}</div>
 
-                <div className="flex items-end gap-1 mb-4">
-                  <span className="text-3xl font-bold text-slate-50">${price}</span>
-                  <span className="text-slate-400 text-xs mb-1">/mo</span>
+                <div className="mb-4">
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl font-bold text-slate-50">${price}</span>
+                    <span className="text-slate-400 text-xs mb-1">/mo</span>
+                  </div>
+                  {isYearly ? (
+                    <p className="text-[11px] text-emerald-400 mt-0.5">
+                      ${price * 12}/yr · saves ${(plan.monthlyPrice - plan.yearlyPrice) * 12}/yr
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-600 mt-0.5">billed monthly</p>
+                  )}
                 </div>
 
                 <div className="space-y-2 mb-5 flex-1">
