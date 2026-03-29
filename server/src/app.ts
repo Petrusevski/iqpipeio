@@ -184,6 +184,15 @@ app.use("/api/workflow-mirror", workflowMirrorRouter);
 app.use("/api/app-webhooks",    appWebhooksRouter);
 app.use("/api/report-studio",   reportStudioRouter);
 app.use("/api/mcp",             mcpApiRouter);
+
+// MCP server — must allow any origin so Claude.ai and other MCP clients can reach it
+app.use("/mcp", cors({
+  origin: "*",
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Mcp-Session-Id"],
+  exposedHeaders: ["Mcp-Session-Id"],
+}));
+app.options("/mcp", (_req, res) => res.status(200).end()); // preflight
 app.use("/mcp",                 mcpServerRouter);
 
 export default app;
