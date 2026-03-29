@@ -24,16 +24,22 @@ const NODE_APP_MAP: Record<string, string> = {
   hubspot: "HubSpot", pipedrive: "Pipedrive", salesforce: "Salesforce",
   zohocrm: "Zoho CRM", freshsales: "Freshsales", copper: "Copper",
   attio: "Attio", close: "Close CRM",
+  microsoftDynamicsCrm: "Microsoft Dynamics", sugarcrm: "SugarCRM",
+  nimble: "Nimble", nutshell: "Nutshell", capsulecrm: "Capsule CRM",
 
   // Sales engagement
   apollo: "Apollo", outreach: "Outreach", salesloft: "Salesloft",
   instantly: "Instantly", lemlist: "Lemlist", smartlead: "Smartlead",
   reply: "Reply.io", klenty: "Klenty", mixmax: "Mixmax",
   woodpecker: "Woodpecker", mailshake: "Mailshake", quickmail: "QuickMail",
+  yesware: "Yesware", groove: "Groove", gong: "Gong",
+  chorus: "Chorus", amplemarket: "Amplemarket", skylead: "Skylead",
+  overloop: "Overloop", sendspark: "Sendspark",
 
   // LinkedIn automation
   heyreach: "HeyReach", expandi: "Expandi", dripify: "Dripify",
-  waalaxy: "Waalaxy",
+  waalaxy: "Waalaxy", linkedHelper: "LinkedHelper", meetalfred: "MeetAlfred",
+  zopto: "Zopto", octopuscrm: "Octopus CRM",
 
   // Email providers
   gmail: "Gmail", sendgrid: "SendGrid", mailchimp: "Mailchimp",
@@ -46,6 +52,9 @@ const NODE_APP_MAP: Record<string, string> = {
   zoominfo: "ZoomInfo", lusha: "Lusha", cognism: "Cognism",
   snov: "Snov.io", rocketReach: "RocketReach",
   phantombuster: "PhantomBuster", pdl: "People Data Labs",
+  apollo_enrich: "Apollo", kaspr: "Kaspr", dropcontact: "Dropcontact",
+  leadmagic: "LeadMagic", datagma: "Datagma", surfe: "Surfe",
+  harmonic: "Harmonic", coresignal: "Coresignal",
 
   // Productivity / docs
   googleSheets: "Google Sheets", googleDrive: "Google Drive",
@@ -75,7 +84,7 @@ const NODE_APP_MAP: Record<string, string> = {
   stripe: "Stripe", chargebee: "Chargebee", paddle: "Paddle",
   quickbooks: "QuickBooks", xero: "Xero", recurly: "Recurly",
 
-  // Forms / surveys
+  // Forms / surveys — lead capture
   typeform: "Typeform", jotform: "JotForm", surveymonkey: "SurveyMonkey",
   tally: "Tally", formstack: "Formstack",
 
@@ -96,14 +105,17 @@ const NODE_APP_MAP: Record<string, string> = {
 
   // Scheduling / calendar
   calendly: "Calendly", cal: "Cal.com", savvycal: "SavvyCal",
+  chili_piper: "Chili Piper", oncehub: "OnceHub",
 
-  // Phone / SMS
+  // Phone / SMS / video calling
   twilio: "Twilio", vonage: "Vonage", aircall: "Aircall",
+  ringcentral: "RingCentral", dialpad: "Dialpad", openphone: "OpenPhone",
 
-  // Marketing
+  // Marketing automation
   mailerlite: "MailerLite", activecampaign: "ActiveCampaign",
   klaviyo: "Klaviyo", drip: "Drip", convertkit: "ConvertKit",
-  hubspotMarketing: "HubSpot",
+  hubspotMarketing: "HubSpot", customerio: "Customer.io",
+  marketo: "Marketo", pardot: "Salesforce Pardot", eloqua: "Oracle Eloqua",
 
   // Automation infra
   httpRequest: "HTTP Request", webhook: "Webhook",
@@ -459,18 +471,79 @@ function extractContactFromJson(json: Record<string, any>): ContactFields | null
 // App-class hints: when we can't infer from the node name alone, use the app
 // category as an additional context string fed into normalizeEventType.
 const APP_CLASS_HINT: Record<string, string> = {
-  HeyReach: "linkedin sent", Expandi: "linkedin sent", Dripify: "linkedin sent", Waalaxy: "linkedin sent",
-  Instantly: "email sent", Lemlist: "email sent", Smartlead: "email sent", Mailshake: "email sent",
-  QuickMail: "email sent", Woodpecker: "email sent", "Reply.io": "email sent", Klenty: "email sent",
-  Mixmax: "email sent", Outreach: "email sent", Salesloft: "email sent",
-  Clay: "contact enriched", Clearbit: "contact enriched", ZoomInfo: "contact enriched",
-  "Hunter.io": "contact enriched", Lusha: "contact enriched", Cognism: "contact enriched",
-  PhantomBuster: "contact sourced", "People Data Labs": "contact enriched",
-  "Snov.io": "contact enriched", RocketReach: "contact enriched",
+  // LinkedIn automation — all treated as outbound linkedin touches
+  HeyReach: "linkedin sent", Expandi: "linkedin sent", Dripify: "linkedin sent",
+  Waalaxy: "linkedin sent", LinkedHelper: "linkedin sent", MeetAlfred: "linkedin sent",
+  Zopto: "linkedin sent", "Octopus CRM": "linkedin sent",
+
+  // Sales engagement — outbound email sequences
+  Instantly: "email sent", Lemlist: "email sent", Smartlead: "email sent",
+  Mailshake: "email sent", QuickMail: "email sent", Woodpecker: "email sent",
+  "Reply.io": "email sent", Klenty: "email sent", Mixmax: "email sent",
+  Outreach: "email sent", Salesloft: "email sent", Yesware: "email sent",
+  Groove: "email sent", Amplemarket: "email sent", Skylead: "email sent",
+  Overloop: "email sent", Sendspark: "email sent",
+
+  // Conversation intelligence — call / meeting recorded
+  Gong: "call recorded", Chorus: "call recorded",
+
+  // CRM — contact/deal updated in system of record
   HubSpot: "contact updated", Pipedrive: "contact updated", Salesforce: "contact updated",
   Attio: "contact updated", "Close CRM": "contact updated", Freshsales: "contact updated",
-  "Zoho CRM": "contact updated",
-  Stripe: "payment received", Chargebee: "subscription created", Paddle: "payment received",
+  "Zoho CRM": "contact updated", Apollo: "contact updated",
+  "Microsoft Dynamics": "contact updated", SugarCRM: "contact updated",
+  Nimble: "contact updated", Nutshell: "contact updated", "Capsule CRM": "contact updated",
+
+  // Data enrichment — profile data appended
+  Clay: "contact enriched", Clearbit: "contact enriched", ZoomInfo: "contact enriched",
+  "Hunter.io": "contact enriched", Lusha: "contact enriched", Cognism: "contact enriched",
+  "Snov.io": "contact enriched", RocketReach: "contact enriched",
+  "People Data Labs": "contact enriched", Kaspr: "contact enriched",
+  Dropcontact: "contact enriched", LeadMagic: "contact enriched",
+  Datagma: "contact enriched", Surfe: "contact enriched",
+  Harmonic: "contact enriched", Coresignal: "contact enriched",
+  PhantomBuster: "contact sourced",
+
+  // Forms / surveys — inbound lead submitted form
+  Typeform: "form submitted", JotForm: "form submitted", SurveyMonkey: "form submitted",
+  Tally: "form submitted", Formstack: "form submitted",
+
+  // Scheduling — meeting booked
+  Calendly: "meeting booked", "Cal.com": "meeting booked", SavvyCal: "meeting booked",
+  "Chili Piper": "meeting booked", OnceHub: "meeting booked",
+
+  // Phone / SMS / calling
+  Twilio: "sms sent", Aircall: "call recorded", RingCentral: "call recorded",
+  Dialpad: "call recorded", OpenPhone: "call recorded",
+
+  // Marketing automation — campaign / sequence enrolled
+  "Customer.io": "email sent", Marketo: "email sent",
+  "Salesforce Pardot": "email sent", "Oracle Eloqua": "email sent",
+  MailerLite: "email sent", ActiveCampaign: "email sent",
+  Klaviyo: "email sent", ConvertKit: "email sent",
+
+  // Billing / subscriptions / invoicing
+  Stripe: "payment received", Chargebee: "subscription created",
+  Paddle: "payment received", Recurly: "subscription created",
+  QuickBooks: "invoice created", Xero: "invoice created",
+
+  // CRM — additional
+  Copper: "contact updated",
+
+  // Email providers — outbound email via provider
+  Gmail: "email sent", Mailchimp: "email sent", Drip: "email sent",
+
+  // Phone / SMS — additional
+  Vonage: "sms sent",
+
+  // Customer support — ticket / conversation opened
+  Intercom: "chat started", Drift: "chat started",
+  Zendesk: "support ticket created", Freshdesk: "support ticket created",
+  "Help Scout": "support ticket created",
+
+  // Product analytics — event tracked
+  Segment: "event tracked", Mixpanel: "event tracked",
+  Amplitude: "event tracked", PostHog: "event tracked",
 };
 
 /**
