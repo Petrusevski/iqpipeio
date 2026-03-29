@@ -479,7 +479,11 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
             <PricingPlanSection currentPlan={workspace.plan} />
 
             {/* AI Agent Access / Claude Connect */}
-            <ClaudeConnectPanel apiKey={workspace.publicApiKey ?? ""} plan={workspace.plan ?? "trial"} />
+            {(workspace.plan === "growth" || workspace.plan === "agency") ? (
+              <ClaudeConnectPanel apiKey={workspace.publicApiKey ?? ""} />
+            ) : (
+              <McpUpgradeCta />
+            )}
 
             {/* Data & privacy */}
             <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
@@ -838,11 +842,43 @@ function PushNotificationsPanel() {
 
 // ─── AI Agent Access Panel ────────────────────────────────────────────────────
 
-function ClaudeConnectPanel({ apiKey, plan }: { apiKey: string; plan: string }) {
+function McpUpgradeCta() {
+  const [showPlans, setShowPlans] = useState(false);
+  return (
+    <>
+      <section className="rounded-2xl border border-slate-700 bg-slate-900/60 p-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-8 w-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+            <Bot size={15} className="text-indigo-400" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-sm font-semibold text-slate-200">Claude AI Agent</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">MCP</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                <Lock size={8} /> Growth+
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 truncate">Let Claude diagnose issues, apply fixes, and monitor your stack.</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowPlans(true)}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all"
+        >
+          <Zap size={11} />
+          Upgrade for MCP
+        </button>
+      </section>
+      {showPlans && <PlansModal currentPlan="trial" onClose={() => setShowPlans(false)} />}
+    </>
+  );
+}
+
+function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
   const MCP_URL    = "https://iqpipe.vercel.app/mcp";
   const fullUrl    = apiKey ? `${MCP_URL}?key=${apiKey}` : "";
   const CLAUDE_AI_INTEGRATIONS = "https://claude.ai/settings/integrations";
-  const hasMcpAccess = plan === "growth" || plan === "agency";
 
   const [tab, setTab]           = useState<"web" | "desktop">("web");
   const [platform, setPlatform] = useState<"windows" | "mac">("windows");
@@ -893,54 +929,19 @@ function ClaudeConnectPanel({ apiKey, plan }: { apiKey: string; plan: string }) 
     : `curl -sH "Authorization: Bearer ${apiKey}" "${API_BASE_URL}/api/mcp/setup-script?platform=mac" | bash`;
 
   return (
-    <section className={`rounded-2xl border p-5 ${hasMcpAccess ? "border-indigo-500/20 bg-indigo-500/5" : "border-slate-700 bg-slate-900/60"}`}>
+    <section className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5">
       {/* Header */}
       <div className="flex items-center gap-2 mb-1">
-        <Bot size={14} className={hasMcpAccess ? "text-indigo-400" : "text-slate-500"} />
+        <Bot size={14} className="text-indigo-400" />
         <h2 className="text-sm font-semibold text-slate-100">Connect to Claude</h2>
         <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">MCP</span>
-        {!hasMcpAccess && (
-          <span className="ml-auto text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
-            <Lock size={9} /> Growth+
-          </span>
-        )}
       </div>
       <p className="text-xs text-slate-400 mb-4">
         Connect Claude to your IQPipe workspace in one step — no config files, no JSON editing. Claude can then diagnose GTM issues, check workflow health, search contacts, and fix problems directly in conversation.
       </p>
 
-      {/* Upgrade wall for trial / starter */}
-      {!hasMcpAccess && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 flex flex-col gap-3">
-          <div className="flex items-start gap-3">
-            <Lock size={16} className="text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-semibold text-slate-200 mb-0.5">Available on Growth &amp; Agency</p>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                The Claude AI Agent (MCP) is included in Growth and Agency plans. Upgrade to let Claude autonomously monitor your stack, diagnose GTM issues, and apply fixes in conversation.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mb-1">
-            {["Monitor tool health", "Diagnose issues", "Apply fixes", "Search contacts", "Compare workflows", "Track funnel", "Watch recovery"].map(f => (
-              <span key={f} className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-500">{f}</span>
-            ))}
-          </div>
-          <button
-            onClick={() => {
-              // Trigger PlansModal by navigating — SettingsPage already has it accessible via PricingPlanSection
-              document.getElementById("pricing-plan-section")?.scrollIntoView({ behavior: "smooth" });
-            }}
-            className="self-start inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all"
-          >
-            <Zap size={11} />
-            Upgrade to Growth
-          </button>
-        </div>
-      )}
-
-      {/* Setup tabs — only shown on Growth / Agency */}
-      {hasMcpAccess && <>
+      {/* Platform tabs */}
+      <>
 
       {/* Platform tabs */}
       <div className="flex gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800 mb-4">
@@ -1123,7 +1124,7 @@ function ClaudeConnectPanel({ apiKey, plan }: { apiKey: string; plan: string }) 
         </div>
       </details>
 
-      </>} {/* end hasMcpAccess */}
+      </>
     </section>
   );
 }
