@@ -100,11 +100,11 @@ const PRICING_TIERS = [
 const FAQS = [
   {
     q: "Do I need a credit card to start?",
-    a: "No. You get a full 30-day free trial on any plan with zero payment details required. On day 30, we'll ask you to add a card only if you want to continue. No gotchas.",
+    a: "No. You get a full 14-day free trial on any plan with zero payment details required. On day 14, we'll ask you to add a card only if you want to continue. No gotchas.",
   },
   {
-    q: "What happens on day 30?",
-    a: "You'll get an email reminder on day 28. On day 30, we ask for a payment method to continue. If you choose not to upgrade, data ingestion pauses but your data stays exportable for another 30 days.",
+    q: "What happens on day 14?",
+    a: "You'll get an email reminder on day 12. On day 14, we ask for a payment method to continue. If you choose not to upgrade, data ingestion pauses but your data stays exportable for another 30 days.",
   },
   {
     q: "How is payment processed securely?",
@@ -207,7 +207,7 @@ export default function PricingPage() {
             transition={{ delay: 0.1 }}
             className="text-lg text-slate-400 max-w-xl mx-auto mb-3"
           >
-            30-day free trial on every plan. Card only required on day 30 if you choose to continue.
+            14-day free trial on every plan. Card only required on day 14 if you choose to continue.
           </motion.p>
 
           {/* Billing Toggle */}
@@ -403,7 +403,7 @@ export default function PricingPage() {
         {/* ── Final CTA ── */}
         <section className="py-20 text-center border-t border-slate-900">
           <h2 className="text-2xl font-bold mb-3">Stop guessing where revenue comes from.</h2>
-          <p className="text-slate-400 text-sm mb-8">30 days free. No card needed. Cancel anytime.</p>
+          <p className="text-slate-400 text-sm mb-8">14 days free. No card needed. Cancel anytime.</p>
           <a
             href="/signup"
             className="inline-flex items-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-full font-semibold text-base hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-500/20"

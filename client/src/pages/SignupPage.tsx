@@ -178,10 +178,10 @@ export default function SignupPage({ onSignupSuccess }: SignupPageProps) {
               <div className="text-center mb-10">
                 <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 mb-5 text-xs font-medium text-emerald-300">
                   <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  30-day free trial · No credit card required
+                  14-day free trial · No credit card required
                 </div>
                 <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Choose your plan</h1>
-                <p className="text-slate-400 text-sm">Card only required on day 30 if you choose to continue.</p>
+                <p className="text-slate-400 text-sm">Card only required on day 14 if you choose to continue.</p>
               </div>
 
               <div className="grid md:grid-cols-3 gap-4">
@@ -232,7 +232,7 @@ export default function SignupPage({ onSignupSuccess }: SignupPageProps) {
               </div>
 
               <p className="text-center text-[11px] text-slate-600 mt-6">
-                All plans start with a 30-day free trial. Yearly billing saves ~20%.{" "}
+                All plans start with a 14-day free trial. Yearly billing saves ~20%.{" "}
                 <a href="/pricing" className="text-indigo-500 hover:text-indigo-400 underline">See full comparison</a>
               </p>
             </motion.div>
@@ -270,7 +270,7 @@ export default function SignupPage({ onSignupSuccess }: SignupPageProps) {
                 <img src="/logo.png" alt="iqpipe" className="h-16 w-16 object-contain mx-auto mb-3 drop-shadow-lg" />
                 <h2 className="text-2xl font-bold text-white tracking-tight">Create your account</h2>
                 <p className="text-xs text-slate-400 mt-1.5">
-                  30-day free trial · No credit card required
+                  14-day free trial · No credit card required
                 </p>
               </div>
 

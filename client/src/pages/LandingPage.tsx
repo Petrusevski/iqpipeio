@@ -671,7 +671,7 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 <a href="/signup?plan=starter" className="mt-7 block w-full rounded-xl border border-slate-700 bg-slate-800 py-3 text-center text-sm font-bold text-white hover:bg-slate-700 transition-colors">
-                  Start 30-day free trial
+                  Start 14-day free trial
                 </a>
               </div>
 
@@ -686,7 +686,7 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 <a href="/signup?plan=growth" className="mt-7 block w-full rounded-xl border border-slate-700 bg-slate-800 py-3 text-center text-sm font-bold text-white hover:bg-slate-700 transition-colors">
-                  Start 30-day free trial
+                  Start 14-day free trial
                 </a>
               </div>
 
@@ -701,7 +701,7 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 <a href="/signup?plan=agency" className="mt-7 block w-full rounded-xl bg-white py-3 text-center text-sm font-bold text-slate-950 hover:bg-slate-100 transition-colors shadow-lg">
-                  Start 30-day free trial
+                  Start 14-day free trial
                 </a>
               </div>
             </div>

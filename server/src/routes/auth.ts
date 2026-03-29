@@ -52,7 +52,7 @@ router.post("/register", async (req, res) => {
           name: `${String(fullName).trim()}'s Workspace`,
           slug,
           plan: "trial",
-          trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
           users: {
             create: { userId: user.id, role: "owner" },
           },

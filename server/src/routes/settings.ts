@@ -48,7 +48,7 @@ async function getCurrentMembership(req: AuthenticatedRequest) {
         companyName: null,
         primaryDomain: null,
         plan: "trial",
-        trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         publicApiKey: `rvn_pk_${crypto.randomBytes(12).toString("hex")}`,
         webhookEndpoint: `https://api.revenuela.com/webhooks/${userId}`,
       },
@@ -89,7 +89,7 @@ router.get("/", async (req, res) => {
         where: { id: workspace.id },
         data: {
           plan: "trial",
-          trialEndsAt: workspace.trialEndsAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          trialEndsAt: workspace.trialEndsAt ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         },
       });
     }
