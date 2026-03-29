@@ -53,7 +53,9 @@ const router = Router();
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
-async function resolveWorkspace(req: Request): Promise<string | null> {
+const MCP_PLANS = new Set(["growth", "agency"]);
+
+async function resolveWorkspace(req: Request): Promise<{ id: string; plan: string } | null> {
   const authHeader = req.headers.authorization ?? "";
   const keyFromHeader = authHeader.startsWith("Bearer ")
     ? authHeader.slice("Bearer ".length).trim()
@@ -65,9 +67,10 @@ async function resolveWorkspace(req: Request): Promise<string | null> {
 
   const workspace = await prisma.workspace.findFirst({
     where:  { publicApiKey: token },
-    select: { id: true },
+    select: { id: true, plan: true },
   });
-  return workspace?.id ?? null;
+  if (!workspace) return null;
+  return { id: workspace.id, plan: workspace.plan };
 }
 
 // ─── Silence thresholds (mirrors signalHealth + mcpApi) ───────────────────────
@@ -1070,12 +1073,23 @@ function createServer(workspaceId: string, baseUrl: string): any {
 
 async function handleMcp(req: Request, res: Response): Promise<void> {
   // Auth
-  const workspaceId = await resolveWorkspace(req);
-  if (!workspaceId) {
+  const workspace = await resolveWorkspace(req);
+  if (!workspace) {
     res.status(401).json({ error: "Invalid or missing API key. Pass Authorization: Bearer rvn_pk_..." });
     return;
   }
 
+  // Plan gate — MCP is Growth and Agency only
+  if (!MCP_PLANS.has(workspace.plan)) {
+    res.status(403).json({
+      error: "Claude AI Agent access requires a Growth or Agency plan. Upgrade at your IQPipe Settings page.",
+      upgradeRequired: true,
+      currentPlan: workspace.plan,
+    });
+    return;
+  }
+
+  const { id: workspaceId } = workspace;
   const baseUrl  = `${req.protocol}://${req.get("host")}`;
   const mcpServer = createServer(workspaceId, baseUrl);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
