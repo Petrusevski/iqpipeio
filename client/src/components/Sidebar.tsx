@@ -58,11 +58,15 @@ export default function Sidebar() {
   const [currentPlan,  setCurrentPlan]   = useState<string>("trial");
   const [showPlans,    setShowPlans]     = useState(false);
 
+  // Guide is only active for users on their first login
+  const storedUser = (() => { try { return JSON.parse(localStorage.getItem("iqpipe_user") ?? "{}"); } catch { return {}; } })();
+  const guideEnabled = storedUser.isNewUser === true;
+
   // Guide state — starts empty; loaded once workspaceId is known
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [activeIntro, setActiveIntro]       = useState<string | null>(null);
 
-  const nextStep = workspaceId ? getNextStep(completedSteps) : null;
+  const nextStep = (guideEnabled && workspaceId) ? getNextStep(completedSteps) : null;
 
   useEffect(() => {
     const token = localStorage.getItem("iqpipe_token");

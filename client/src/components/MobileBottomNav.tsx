@@ -20,13 +20,35 @@ const tabs = [
 
 export default function MobileBottomNav() {
   const navigate = useNavigate();
+
+  // Guide is only active for first-login users
+  const storedUser = (() => { try { return JSON.parse(localStorage.getItem("iqpipe_user") ?? "{}"); } catch { return {}; } })();
+  const guideEnabled = storedUser.isNewUser === true;
+
   const [workspaceId,    setWorkspaceId]    = useState<string | null>(null);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   const [activeIntro,    setActiveIntro]    = useState<string | null>(null);
 
-  const nextStep = workspaceId ? getNextStep(completedSteps) : null;
+  // Track keyboard height so nav stays above keyboard on mobile
+  const [bottomOffset, setBottomOffset] = useState(0);
 
   useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const offset = window.innerHeight - vv.height - vv.offsetTop;
+      setBottomOffset(Math.max(0, offset));
+    };
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!guideEnabled) return;
     const token = localStorage.getItem("iqpipe_token");
     if (!token) return;
     fetch(`${API_BASE_URL}/api/workspaces/primary`, {
@@ -39,17 +61,19 @@ export default function MobileBottomNav() {
         setCompletedSteps(getCompletedSteps(d.id));
       })
       .catch(() => {});
-  }, []);
+  }, [guideEnabled]);
+
+  const nextStep = (guideEnabled && workspaceId) ? getNextStep(completedSteps) : null;
 
   const handleTabClick = useCallback((path: string) => (e: React.MouseEvent) => {
-    if (!workspaceId) return;
+    if (!workspaceId || !guideEnabled) return;
     const step = GUIDE_STEPS.find(s => s.path === path);
     if (step && nextStep?.path === path) {
       e.preventDefault();
       navigate(path);
       setTimeout(() => setActiveIntro(step.key), 120);
     }
-  }, [workspaceId, nextStep, navigate]);
+  }, [workspaceId, guideEnabled, nextStep, navigate]);
 
   const handleIntroDone = useCallback((key: string) => {
     if (!workspaceId) return;
@@ -62,7 +86,10 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur border-t border-slate-800 safe-area-pb">
+      <nav
+        className="md:hidden fixed inset-x-0 z-40 bg-slate-950/95 backdrop-blur border-t border-slate-800 safe-area-pb"
+        style={{ bottom: bottomOffset }}
+      >
         <div className="flex items-stretch h-16">
           {tabs.map(({ label, path, icon: Icon }) => {
             const isPulsing = nextStep?.path === path;

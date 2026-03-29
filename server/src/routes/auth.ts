@@ -66,7 +66,7 @@ router.post("/register", async (req, res) => {
 
     return res.status(201).json({
       token,
-      user: { id: result.user.id, email: result.user.email, fullName: result.user.fullName },
+      user: { id: result.user.id, email: result.user.email, fullName: result.user.fullName, isNewUser: true },
       workspaceId: result.workspace.id,
     });
   } catch (err: any) {
@@ -94,11 +94,17 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
+    // First login detection — set firstLoginAt once, never overwrite
+    const isNewUser = user.firstLoginAt === null;
+    if (isNewUser) {
+      await prisma.user.update({ where: { id: user.id }, data: { firstLoginAt: new Date() } });
+    }
+
     const token = createToken(user);
 
     return res.json({
       token,
-      user: { id: user.id, email: user.email, fullName: user.fullName },
+      user: { id: user.id, email: user.email, fullName: user.fullName, isNewUser },
     });
   } catch (err: any) {
     console.error("Login error:", err.message);
@@ -164,6 +170,7 @@ router.post("/accept-invite", async (req, res) => {
     }
 
     let user = await prisma.user.findUnique({ where: { email } });
+    let isNewUser = false;
 
     if (!user) {
       // New user — fullName + password required
@@ -175,8 +182,9 @@ router.post("/accept-invite", async (req, res) => {
       }
       const passwordHash = await bcrypt.hash(password, 12);
       user = await prisma.user.create({
-        data: { email, fullName: String(fullName).trim(), passwordHash },
+        data: { email, fullName: String(fullName).trim(), passwordHash, firstLoginAt: new Date() },
       });
+      isNewUser = true;
     }
 
     // Add to workspace (idempotent)
@@ -210,7 +218,7 @@ router.post("/accept-invite", async (req, res) => {
     const jwtToken = createToken(user);
     return res.json({
       token: jwtToken,
-      user: { id: user.id, email: user.email, fullName: user.fullName },
+      user: { id: user.id, email: user.email, fullName: user.fullName, isNewUser },
       workspaceId: invite.workspaceId,
       workspaceName: invite.workspace.name,
     });
