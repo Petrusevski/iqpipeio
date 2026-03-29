@@ -321,7 +321,7 @@ export default function PricingPage() {
             className="mt-8 text-xs text-slate-500 flex items-center justify-center gap-2"
           >
             <Lock size={11} className="text-slate-600" />
-            No credit card required to start. Card collected securely via Stripe on day 30 only if you continue.
+            No credit card required to start. Card collected securely via Stripe on day 14 only if you continue.
           </motion.p>
         </section>
 
@@ -350,7 +350,7 @@ export default function PricingPage() {
                   Secure checkout, powered by Stripe
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  iqpipe never stores your card number. When you enter payment details on day 30, they go directly to Stripe over TLS 1.3 — Stripe handles tokenization, PCI DSS Level 1 compliance, and 3D Secure authentication. We only receive a non-reversible customer token.
+                  iqpipe never stores your card number. When you enter payment details on day 14, they go directly to Stripe over TLS 1.3 — Stripe handles tokenization, PCI DSS Level 1 compliance, and 3D Secure authentication. We only receive a non-reversible customer token.
                 </p>
               </div>
               <div className="shrink-0 flex items-center gap-3">
