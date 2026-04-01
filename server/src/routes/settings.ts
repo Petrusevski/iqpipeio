@@ -74,7 +74,7 @@ async function getCurrentMembership(req: AuthenticatedRequest) {
  * Returns workspace + membership-level settings for the current user.
  */
 // Valid plan IDs that correspond to real pricing tiers
-const VALID_PLANS = new Set(["trial", "starter", "growth", "scale"]);
+const VALID_PLANS = new Set(["trial", "free", "starter", "growth", "agency", "scale"]);
 
 router.get("/", async (req, res) => {
   try {
