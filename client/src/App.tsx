@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
 import { IntegrationsProvider } from "./context/IntegrationsContext";
+import { useSessionGuard } from "./hooks/useSessionGuard";
 
 // Admin panel
 import AdminLoginPage      from "./pages/admin/AdminLoginPage";
@@ -47,45 +48,8 @@ import PublicIntegrationsPage  from "./pages/PublicIntegrationsPage";
 import CheckoutSuccessPage     from "./pages/CheckoutSuccessPage";
 import CheckoutCancelPage      from "./pages/CheckoutCancelPage";
 
-function App() {
-  const token = localStorage.getItem("iqpipe_token");
-
-  if (!token) {
-    return (
-      <Routes>
-        <Route path="/"            element={<LandingPage />} />
-        <Route path="/login"       element={<LoginPage />} />
-        <Route path="/signup"      element={<SignupPage />} />
-        <Route path="/pricing"     element={<PricingPage />} />
-        <Route path="/about"       element={<AboutPage />} />
-        <Route path="/contact"     element={<ContactPage />} />
-        <Route path="/blog"        element={<BlogPage />} />
-        <Route path="/privacy"     element={<PrivacyPage />} />
-        <Route path="/terms"       element={<TermsPage />} />
-        <Route path="/demo"         element={<DemoPage />} />
-        <Route path="/how-it-works" element={<Navigate to="/demo" replace />} />
-        <Route path="/gtm-stack"      element={<GTMStackPage />} />
-        <Route path="/careers"        element={<CareersPage />} />
-        <Route path="/integrations"     element={<PublicIntegrationsPage />} />
-        <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
-        <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
-        {/* Admin — always accessible regardless of user auth */}
-        <Route path="/admin36486/login" element={<AdminLoginPage />} />
-        <Route path="/admin36486" element={<AdminGuard><AdminLayout /></AdminGuard>}>
-          <Route index                  element={<AdminDashboardPage />} />
-          <Route path="users"           element={<AdminUsersPage />} />
-          <Route path="workspaces"      element={<AdminWorkspacesPage />} />
-          <Route path="billing"         element={<AdminBillingPage />} />
-          <Route path="activity"        element={<AdminActivityPage />} />
-          <Route path="mailing"         element={<AdminMailingPage />} />
-          <Route path="notify"          element={<AdminNotifyPage />} />
-        </Route>
-
-        <Route path="*"                 element={<Navigate to="/" replace />} />
-      </Routes>
-    );
-  }
-
+function AuthenticatedApp() {
+  useSessionGuard();
   return (
     <IntegrationsProvider>
       <AppLayout>
@@ -126,6 +90,48 @@ function App() {
       </AppLayout>
     </IntegrationsProvider>
   );
+}
+
+function App() {
+  const token = localStorage.getItem("iqpipe_token");
+
+  if (!token) {
+    return (
+      <Routes>
+        <Route path="/"            element={<LandingPage />} />
+        <Route path="/login"       element={<LoginPage />} />
+        <Route path="/signup"      element={<SignupPage />} />
+        <Route path="/pricing"     element={<PricingPage />} />
+        <Route path="/about"       element={<AboutPage />} />
+        <Route path="/contact"     element={<ContactPage />} />
+        <Route path="/blog"        element={<BlogPage />} />
+        <Route path="/privacy"     element={<PrivacyPage />} />
+        <Route path="/terms"       element={<TermsPage />} />
+        <Route path="/demo"         element={<DemoPage />} />
+        <Route path="/how-it-works" element={<Navigate to="/demo" replace />} />
+        <Route path="/gtm-stack"      element={<GTMStackPage />} />
+        <Route path="/careers"        element={<CareersPage />} />
+        <Route path="/integrations"     element={<PublicIntegrationsPage />} />
+        <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+        <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
+        {/* Admin — always accessible regardless of user auth */}
+        <Route path="/admin36486/login" element={<AdminLoginPage />} />
+        <Route path="/admin36486" element={<AdminGuard><AdminLayout /></AdminGuard>}>
+          <Route index                  element={<AdminDashboardPage />} />
+          <Route path="users"           element={<AdminUsersPage />} />
+          <Route path="workspaces"      element={<AdminWorkspacesPage />} />
+          <Route path="billing"         element={<AdminBillingPage />} />
+          <Route path="activity"        element={<AdminActivityPage />} />
+          <Route path="mailing"         element={<AdminMailingPage />} />
+          <Route path="notify"          element={<AdminNotifyPage />} />
+        </Route>
+
+        <Route path="*"                 element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  return <AuthenticatedApp />;
 }
 
 export default App;
