@@ -294,8 +294,8 @@ export default function ContactInspectorPage() {
       headers: { Authorization: `Bearer ${token()}` },
     })
       .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.id) setWorkspaceId(d.id); })
-      .catch(() => {});
+      .then((d) => { if (d?.id) setWorkspaceId(d.id); else setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
   // Load contact browse list

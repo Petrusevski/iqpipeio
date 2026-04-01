@@ -1032,8 +1032,11 @@ export default function LiveFeedPage() {
   useEffect(() => {
     fetch(`${API_BASE_URL}/api/workspaces/primary`, { headers: { Authorization: `Bearer ${token()}` } })
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.id) setWorkspaceId(d.id); })
-      .catch(() => {});
+      .then(d => {
+        if (d?.id) setWorkspaceId(d.id);
+        else setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   const load = useCallback(async (wsId: string) => {
