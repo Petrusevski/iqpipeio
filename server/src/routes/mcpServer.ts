@@ -1092,7 +1092,23 @@ async function handleMcp(req: Request, res: Response): Promise<void> {
   const { id: workspaceId } = workspace;
   const baseUrl  = `${req.protocol}://${req.get("host")}`;
   const mcpServer = createServer(workspaceId, baseUrl);
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+
+  // The MCP SDK unconditionally requires "Accept: application/json, text/event-stream"
+  // on every POST. Claude.ai may send only "application/json". Normalise the header
+  // before passing the request to the transport so the SDK never rejects it with 406.
+  const accept = req.headers["accept"] ?? "";
+  if (!accept.includes("text/event-stream")) {
+    req.headers["accept"] = accept
+      ? `${accept}, text/event-stream`
+      : "application/json, text/event-stream";
+  }
+
+  // enableJsonResponse: true — respond with plain JSON instead of SSE streams.
+  // Required for serverless (Vercel) where long-lived SSE connections are not supported.
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse:  true,
+  });
 
   try {
     await mcpServer.connect(transport);
@@ -1103,8 +1119,11 @@ async function handleMcp(req: Request, res: Response): Promise<void> {
   }
 }
 
+// Only POST is needed for stateless JSON-RPC.
+// Returning 405 for GET tells clients that SSE streams are not supported
+// (serverless environment) and they should use POST-only stateless mode.
 router.post("/", handleMcp);
-router.get("/",  handleMcp);
+router.get("/",  (_req, res) => res.status(405).set("Allow", "POST").json({ error: "Method Not Allowed. Use POST for MCP requests." }));
 router.delete("/", (_req, res) => res.status(200).end());
 
 export default router;
