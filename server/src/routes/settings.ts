@@ -221,8 +221,7 @@ router.put("/", async (req, res) => {
       }
     }
 
-    // Normalize plan on PUT response too
-    const putPlan = VALID_PLANS.has(updatedWorkspace.plan) ? updatedWorkspace.plan : "trial";
+    const putPlan = updatedWorkspace.plan;
 
     // Fetch user name for membership response
     const putUser = await prisma.user.findUnique({
