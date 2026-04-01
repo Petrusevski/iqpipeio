@@ -73,26 +73,12 @@ async function getCurrentMembership(req: AuthenticatedRequest) {
  * GET /api/settings
  * Returns workspace + membership-level settings for the current user.
  */
-// Valid plan IDs that correspond to real pricing tiers
-const VALID_PLANS = new Set(["trial", "free", "starter", "growth", "agency", "scale"]);
-
 router.get("/", async (req, res) => {
   try {
     const membership = await getCurrentMembership(req);
     const { workspace, ...membershipFields } = membership;
 
-    // Normalize legacy "pro" (and any unknown) plan → "trial" and persist the fix
-    let plan = workspace.plan;
-    if (!VALID_PLANS.has(plan)) {
-      plan = "trial";
-      await prisma.workspace.update({
-        where: { id: workspace.id },
-        data: {
-          plan: "trial",
-          trialEndsAt: workspace.trialEndsAt ?? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        },
-      });
-    }
+    const plan = workspace.plan;
 
     // Fetch the user's full name to include in membership
     const user = await prisma.user.findUnique({

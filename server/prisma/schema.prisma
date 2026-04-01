@@ -54,6 +54,8 @@ model Workspace {
   isDemo              Boolean @default(false)
   eventCountMonth     Int       @default(0)
   eventCountResetAt   DateTime?
+  eventCountMinute    Int       @default(0)
+  rateLimitResetAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -434,13 +436,16 @@ model Touchpoint {
   sourceType     String   @default("webhook")  // "direct_api" | "webhook" | "n8n_workflow" | "generic_api"
   sourcePriority Int      @default(2)           // 1=direct_api, 2=webhook, 3=n8n_workflow
   consentBasis   String?  // per-event GDPR consent basis (overrides lead-level if set)
+  externalId     String?  // namespaced idempotency key: "tool:source-id", e.g. "stripe:evt_xxx"
   recordedAt  DateTime @default(now())
 
   @@index([workspaceId, iqLeadId])
   @@index([workspaceId, tool])
   @@index([workspaceId, eventType])
   @@index([workspaceId, recordedAt])
-  // Composite index for the per-day dedup query in recordTouchpoint()
+  // Fast path for externalId-based dedup (used when a natural event ID is available)
+  @@unique([workspaceId, externalId])
+  // Composite index for the timestamp-window dedup fallback in recordTouchpoint()
   // covers: WHERE workspaceId=? AND iqLeadId=? AND tool=? AND eventType=? AND recordedAt>=?
   @@index([workspaceId, iqLeadId, tool, eventType, recordedAt])
 }

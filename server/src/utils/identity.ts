@@ -29,9 +29,15 @@ export function hashEmail(raw: string): string {
 }
 
 export function hashLinkedin(raw: string): string {
-  // Normalize: extract /in/handle or /company/handle, drop query params
-  const m = raw.match(/linkedin\.com\/(in|company)\/([^/?#\s]+)/i);
-  const normalized = m ? `linkedin.com/${m[1].toLowerCase()}/${m[2].toLowerCase()}` : raw.toLowerCase().trim();
+  // Strip protocol, www., and trailing slashes before extracting the handle
+  const cleaned = raw.toLowerCase().trim()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/+$/, "");
+  const m = cleaned.match(/linkedin\.com\/(in|company)\/([^/?#\s]+)/i);
+  const normalized = m
+    ? `linkedin.com/${m[1].toLowerCase()}/${m[2].toLowerCase()}`
+    : cleaned;
   return hmac(normalized);
 }
 
@@ -167,15 +173,44 @@ export async function resolveIqLead(
     return id;
   }
 
-  // ── Look up by any matching hash ──────────────────────────────────────────
-  const orClauses: any[] = [];
-  if (emailHash)    orClauses.push({ emailHash });
-  if (linkedinHash) orClauses.push({ linkedinHash });
-  if (phoneHash)    orClauses.push({ phoneHash });
+  // ── Confidence-scored identity lookup ────────────────────────────────────
+  // Run all three field lookups in parallel, weight each match, pick the
+  // highest-confidence candidate above threshold 0.7.
+  const CONFIDENCE = { email: 1.0, linkedin: 0.85, phone: 0.75 } as const;
+  const THRESHOLD  = 0.7;
 
-  const existing = await prisma.iqLead.findFirst({
-    where: { workspaceId, OR: orClauses },
-  });
+  const [emailMatch, linkedinMatch, phoneMatch] = await Promise.all([
+    emailHash    ? prisma.iqLead.findFirst({ where: { workspaceId, emailHash } })    : null,
+    linkedinHash ? prisma.iqLead.findFirst({ where: { workspaceId, linkedinHash } }) : null,
+    phoneHash    ? prisma.iqLead.findFirst({ where: { workspaceId, phoneHash } })    : null,
+  ]);
+
+  // Accumulate scores per lead id so a lead matching on multiple fields wins
+  const scores = new Map<string, { lead: typeof emailMatch; score: number }>();
+  for (const [match, score] of [
+    [emailMatch,    CONFIDENCE.email]    as const,
+    [linkedinMatch, CONFIDENCE.linkedin] as const,
+    [phoneMatch,    CONFIDENCE.phone]    as const,
+  ]) {
+    if (!match) continue;
+    const current = scores.get(match.id);
+    // Use max rather than sum — a second weaker field is confirmatory, not additive
+    if (!current || score > current.score) {
+      scores.set(match.id, { lead: match, score });
+    }
+  }
+
+  // Pick the highest-scoring candidate above threshold
+  let best: typeof emailMatch = null;
+  let bestScore = 0;
+  for (const { lead, score } of scores.values()) {
+    if (score >= THRESHOLD && score > bestScore) {
+      best = lead;
+      bestScore = score;
+    }
+  }
+
+  const existing = best;
 
   if (existing) {
     const patch: Record<string, any> = { ...consentPatch };
@@ -263,43 +298,71 @@ export async function recordTouchpoint(
   workflowId?: string | null,
   stepId?: string | null,
   consentBasis?: string | null,
+  externalId?: string | null,
 ): Promise<string | null> {
   const channel = channelForTool(tool.toLowerCase());
 
+  // Namespace the caller-supplied ID so "heyreach:12345" and "instantly:12345"
+  // cannot collide in the workspace-scoped unique index.
+  const scopedExternalId = externalId ? `${tool.toLowerCase()}:${externalId}` : null;
+
   // ── Dedup ────────────────────────────────────────────────────────────────
-  // Import/enrichment events: deduplicated all-time per (lead, tool, eventType)
-  //   — a lead is imported once per tool regardless of how many syncs run.
-  // All other events: deduplicated per calendar day
-  //   — prevents duplicate webhook deliveries from recording twice.
-  const isImportEvent = eventType === "lead_imported" || eventType === "lead_enriched";
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-
-  const existing = await prisma.touchpoint.findFirst({
-    where: {
-      workspaceId,
-      iqLeadId,
-      tool: tool.toLowerCase(),
-      eventType,
-      ...(isImportEvent ? {} : { recordedAt: { gte: dayStart } }),
-    },
-    select: { id: true, sourcePriority: true },
-  });
-
-  if (existing) {
-    // Priority upgrade: if incoming source is more authoritative, elevate attribution
-    if (sourcePriority < existing.sourcePriority) {
-      await prisma.touchpoint.update({
-        where: { id: existing.id },
-        data: {
-          sourceType,
-          sourcePriority,
-          ...(workflowId !== undefined ? { workflowId: workflowId || null } : {}),
-          ...(stepId !== undefined ? { stepId: stepId || null } : {}),
-        },
-      });
+  // Fast path: exact match on the natural event ID (n8n execution key,
+  // Stripe event ID, HubSpot event ID, etc.). No time window needed.
+  if (scopedExternalId) {
+    const byId = await prisma.touchpoint.findUnique({
+      where: { workspaceId_externalId: { workspaceId, externalId: scopedExternalId } },
+      select: { id: true, sourcePriority: true },
+    });
+    if (byId) {
+      if (sourcePriority < byId.sourcePriority) {
+        await prisma.touchpoint.update({
+          where: { id: byId.id },
+          data: {
+            sourceType,
+            sourcePriority,
+            ...(workflowId !== undefined ? { workflowId: workflowId || null } : {}),
+            ...(stepId     !== undefined ? { stepId:     stepId     || null } : {}),
+          },
+        });
+      }
+      return byId.id;
     }
-    return existing.id;
+  } else {
+    // Fallback: timestamp-window dedup when no external ID is available.
+    // Import/enrichment events: deduplicated all-time per (lead, tool, eventType)
+    //   — a lead is imported once per tool regardless of how many syncs run.
+    // All other events: deduplicated per calendar day
+    //   — prevents duplicate webhook deliveries from recording twice.
+    const isImportEvent = eventType === "lead_imported" || eventType === "lead_enriched";
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+
+    const existing = await prisma.touchpoint.findFirst({
+      where: {
+        workspaceId,
+        iqLeadId,
+        tool: tool.toLowerCase(),
+        eventType,
+        ...(isImportEvent ? {} : { recordedAt: { gte: dayStart } }),
+      },
+      select: { id: true, sourcePriority: true },
+    });
+
+    if (existing) {
+      if (sourcePriority < existing.sourcePriority) {
+        await prisma.touchpoint.update({
+          where: { id: existing.id },
+          data: {
+            sourceType,
+            sourcePriority,
+            ...(workflowId !== undefined ? { workflowId: workflowId || null } : {}),
+            ...(stepId     !== undefined ? { stepId:     stepId     || null } : {}),
+          },
+        });
+      }
+      return existing.id;
+    }
   }
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -315,6 +378,7 @@ export async function recordTouchpoint(
       workflowId:   workflowId   || null,
       stepId:       stepId       || null,
       consentBasis: consentBasis || null,
+      externalId:   scopedExternalId,
     },
   });
 

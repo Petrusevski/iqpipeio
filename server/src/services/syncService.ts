@@ -635,7 +635,7 @@ export async function syncStripe(workspaceId: string): Promise<{ imported: numbe
           amount: (charge.amount / 100).toFixed(2),
           currency: charge.currency.toUpperCase(),
           via: "sync",
-        }, null, null, "direct_api", 1);
+        }, null, null, "direct_api", 1, null, null, null, charge.id);
 
         imported++;
       }

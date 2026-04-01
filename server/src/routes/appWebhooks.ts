@@ -22,6 +22,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { correlateAppEvent } from "../services/correlationEngine";
 import { APP_CATALOG } from "./workflowMirror";
+import { checkAndIncrementQuota } from "../utils/quota";
 
 const router = Router();
 
@@ -142,6 +143,10 @@ router.post("/:appKey", async (req: Request, res: Response) => {
   }
 
   const eventKey = extractEventKey(appKey, payload);
+
+  // Quota + rate-limit guard — same drop-and-200 semantics as webhooks.ts
+  const quota = await checkAndIncrementQuota(workspaceId);
+  if (!quota.allowed) return res.status(200).json({ received: true }) as any;
 
   // Persist the AppEvent
   const appEvent = await prisma.appEvent.create({

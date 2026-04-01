@@ -30,7 +30,7 @@ const RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours — nightly reten
  *   growth        → 12 months
  *   agency        → 36 months
  */
-async function runRetentionPruning(): Promise<void> {
+export async function runRetentionPruning(): Promise<void> {
   try {
     const workspaces = await prisma.workspace.findMany({
       select: { id: true, plan: true, dataRetentionMonths: true },

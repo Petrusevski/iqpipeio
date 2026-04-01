@@ -22,6 +22,7 @@ import {
   syncApollo, syncHeyReach, syncLemlist, syncInstantly, syncSmartlead,
   syncStripe, syncAllWorkspaces,
 } from "../services/syncService";
+import { runRetentionPruning } from "../services/syncPoller";
 
 const router = Router();
 
@@ -1093,6 +1094,7 @@ router.post("/heyreach/setup-all-webhooks", async (req: Request, res: Response) 
 router.post("/poll", async (_req: Request, res: Response) => {
   try {
     await syncAllWorkspaces();
+    await runRetentionPruning();
     return res.json({ ok: true, ts: new Date().toISOString() });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "./layouts/AppLayout";
 import { IntegrationsProvider } from "./context/IntegrationsContext";
-import { useSessionGuard } from "./hooks/useSessionGuard";
+import { useSessionGuard, SESSION_EXPIRES_KEY } from "./hooks/useSessionGuard";
 
 // Admin panel
 import AdminLoginPage      from "./pages/admin/AdminLoginPage";
@@ -93,7 +93,17 @@ function AuthenticatedApp() {
 }
 
 function App() {
-  const token = localStorage.getItem("iqpipe_token");
+  // Boot-time check: clear a token that expired while the app was closed.
+  // Covers crashes, force-quit, and mobile kills where beforeunload never fires.
+  let token = localStorage.getItem("iqpipe_token");
+  if (token) {
+    const expires = Number(localStorage.getItem(SESSION_EXPIRES_KEY) ?? 0);
+    if (expires && expires < Date.now()) {
+      localStorage.removeItem("iqpipe_token");
+      localStorage.removeItem(SESSION_EXPIRES_KEY);
+      token = null;
+    }
+  }
 
   if (!token) {
     return (

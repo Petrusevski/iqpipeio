@@ -75,12 +75,14 @@ async function processQueuedEvent(event: any): Promise<void> {
       externalId:     event.externalId,
       queuedEventId:  event.id,
     },
-    null,                  // experimentId
-    null,                  // stackVariant
-    "n8n_workflow",        // sourceType
-    3,                     // sourcePriority (lowest)
-    event.workflowId,      // workflowId for attribution
-    event.stepId ?? null,  // stepId for attribution
+    null,                    // experimentId
+    null,                    // stackVariant
+    "n8n_workflow",          // sourceType
+    3,                       // sourcePriority (lowest)
+    event.workflowId,        // workflowId for attribution
+    event.stepId ?? null,    // stepId for attribution
+    null,                    // consentBasis
+    event.idempotencyKey,    // externalId — stable exec:ws:execId:node:item hash
   );
 
   // Backward-compat: write Activity record so the existing Live Feed + UI show this event
@@ -149,8 +151,9 @@ async function processQueuedEvent(event: any): Promise<void> {
  */
 async function processOne(event: any): Promise<void> {
   try {
-    // Quota guard — soft-block if workspace is over monthly limit
-    const quota = await checkAndIncrementQuota(event.workspaceId);
+    // Quota guard — monthly limit only; skip per-minute window because the
+    // queue processor has its own concurrency controls and processes asynchronously.
+    const quota = await checkAndIncrementQuota(event.workspaceId, { skipMinuteLimit: true });
     if (!quota.allowed) {
       await prisma.n8nQueuedEvent.update({
         where: { id: event.id },

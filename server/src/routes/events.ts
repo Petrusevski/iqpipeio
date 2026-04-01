@@ -20,7 +20,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../db";
 import { resolveIqLead, recordTouchpoint, channelForTool } from "../utils/identity";
 import { decrypt } from "../utils/encryption";
-import { checkAndIncrementQuota, quotaExceededResponse } from "../utils/quota";
+import { checkAndIncrementQuota, quotaExceededResponse, rateLimitExceededResponse, WorkspaceQuotaFields } from "../utils/quota";
 
 const router = Router();
 
@@ -28,9 +28,17 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
-/** Resolves workspace from either JWT Bearer token or public API key. */
-async function resolveWorkspaceFromRequest(req: Request): Promise<{ id: string; plan: string } | null> {
+/** Resolves workspace from either JWT Bearer token or public API key.
+ *  Returns all fields needed for quota + rate-limit checking so the
+ *  downstream checkAndIncrementQuota call can skip a second DB read. */
+async function resolveWorkspaceFromRequest(req: Request): Promise<WorkspaceQuotaFields | null> {
   const auth = req.headers.authorization ?? "";
+
+  const QUOTA_SELECT = {
+    id: true, plan: true,
+    eventCountMonth: true, eventCountResetAt: true,
+    eventCountMinute: true, rateLimitResetAt: true,
+  } as const;
 
   // Option A: JWT Bearer (user is authenticated via the app)
   if (auth.startsWith("Bearer ")) {
@@ -39,10 +47,10 @@ async function resolveWorkspaceFromRequest(req: Request): Promise<{ id: string; 
       const payload = jwt.verify(token, JWT_SECRET) as { sub: string };
       const membership = await prisma.workspaceUser.findFirst({
         where: { userId: payload.sub },
-        include: { workspace: { select: { id: true, plan: true } } },
+        include: { workspace: { select: QUOTA_SELECT } },
         orderBy: { createdAt: "asc" },
       });
-      return membership ? { id: membership.workspace.id, plan: membership.workspace.plan } : null;
+      return membership ? membership.workspace : null;
     } catch { /* fall through to API key check */ }
   }
 
@@ -54,7 +62,7 @@ async function resolveWorkspaceFromRequest(req: Request): Promise<{ id: string; 
   if (apiKey) {
     const ws = await prisma.workspace.findFirst({
       where: { publicApiKey: apiKey },
-      select: { id: true, plan: true },
+      select: QUOTA_SELECT,
     });
     return ws ?? null;
   }
@@ -106,6 +114,7 @@ router.post("/", async (req: Request, res: Response) => {
     timestamp,
     workflowId,
     stepId,
+    externalId,
     meta = {},
   } = req.body || {};
 
@@ -136,10 +145,12 @@ router.post("/", async (req: Request, res: Response) => {
     });
   }
 
-  // ── Quota check ───────────────────────────────────────────────────────────
-  const quota = await checkAndIncrementQuota(workspace.id);
+  // ── Quota + rate-limit check (workspace data already fetched above — no second read) ──
+  const quota = await checkAndIncrementQuota(workspace.id, { prefetched: workspace });
   if (!quota.allowed) {
-    return res.status(429).json(quotaExceededResponse());
+    return res.status(429).json(
+      quota.rateLimited ? rateLimitExceededResponse() : quotaExceededResponse(),
+    );
   }
 
   // ── Parse contact name ────────────────────────────────────────────────────
@@ -213,6 +224,7 @@ router.post("/", async (req: Request, res: Response) => {
     workflowId ?? null,
     stepId     ?? null,
     consent.basis,
+    externalId  ?? null,
   );
 
   // ── Backward-compat Activity record for Live Feed ─────────────────────────

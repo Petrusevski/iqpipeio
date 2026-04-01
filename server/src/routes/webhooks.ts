@@ -44,6 +44,7 @@ import { decrypt } from "../utils/encryption";
 import { normalizeEventType } from "../utils/eventTaxonomy";
 import { resolveIqLead, recordTouchpoint } from "../utils/identity";
 import { assertNotBillingKey } from "../utils/stripeKeyGuard";
+import { checkAndIncrementQuota, quotaExceededResponse, rateLimitExceededResponse } from "../utils/quota";
 
 const router = Router();
 
@@ -75,6 +76,13 @@ async function recordEvent(
   meta: Record<string, any> = {},
   opts: { experimentId?: string | null; stackVariant?: string | null; sourceType?: string } = {},
 ): Promise<boolean> {
+  // ── 0. Quota + rate-limit guard ───────────────────────────────────────────
+  // Webhook receivers must return 200 quickly to prevent retries from the
+  // sending tool. Return false (drop event) when blocked; the caller still
+  // responds 200 to the sender.
+  const quota = await checkAndIncrementQuota(workspaceId);
+  if (!quota.allowed) return false;
+
   const { firstName, lastName, email, linkedin, phone, company, title } = contact;
 
   // ── 1. Privacy-first identity resolution ─────────────────────────────────
@@ -94,6 +102,11 @@ async function recordEvent(
     opts.experimentId,
     opts.stackVariant,
     opts.sourceType,
+    undefined, // sourcePriority — use default
+    undefined, // workflowId
+    undefined, // stepId
+    undefined, // consentBasis
+    externalId || null,
   );
 
   // ── 3. Backward-compat: maintain Contact + Lead + Activity for existing UI ─

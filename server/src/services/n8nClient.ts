@@ -598,12 +598,214 @@ function extractEventTypeFromJson(json: Record<string, any>): string | null {
 }
 
 /**
+ * Detect a canonical event type from the structural shape of a payload.
+ *
+ * Named fields like `replyMessage`, `StageName`, or `invitee` are part of each
+ * tool's published data model — they are more reliable than node-name guessing
+ * because they don't require the user to rename anything in their workflow.
+ *
+ * App-specific checks run first (highest precision), followed by cross-tool
+ * generic patterns that recognise common field shapes regardless of the sender.
+ *
+ * Returns null if no structural signature matches.
+ */
+function detectByStructure(json: Record<string, any>, appName: string): string | null {
+  // ── App-specific signatures ───────────────────────────────────────────────
+  switch (appName) {
+
+    // LinkedIn automation tools share a common webhook shape
+    case "HeyReach":
+    case "Skylead":
+    case "Expandi":
+    case "Dripify":
+    case "Waalaxy":
+    case "LinkedHelper":
+    case "MeetAlfred": {
+      if (json.replyMessage || json.isReplied === true || json.hasReplied === true)
+        return "reply_received";
+      if (json.connectionAccepted === true || json.isConnected === true
+          || String(json.connectionStatus ?? "").toLowerCase() === "accepted")
+        return "connection_accepted";
+      if (json.messageText || json.messageContent || json.messageSent)
+        return "message_sent";
+      break;
+    }
+
+    case "Salesforce": {
+      // Opportunity stage — the canonical Salesforce field name
+      const stage = json.StageName ?? json.stageName;
+      if (typeof stage === "string") {
+        const s = stage.toLowerCase();
+        if (s.includes("won"))  return "deal_won";
+        if (s.includes("lost")) return "deal_lost";
+        return "deal_created";
+      }
+      if (json.IsWon === true)  return "deal_won";
+      if (json.IsClosed === true && json.IsWon === false) return "deal_lost";
+      if (json.OpportunityId || json.Opportunity)  return "deal_created";
+      if (json.TaskSubtype === "Call" || json.ActivityType === "call") return "call_completed";
+      break;
+    }
+
+    case "HubSpot": {
+      const emailStatus = json.hs_email_status ?? json.properties?.hs_email_status;
+      if (typeof emailStatus === "string") {
+        switch (emailStatus.toUpperCase()) {
+          case "REPLIED":      return "reply_received";
+          case "OPENED":       return "email_opened";
+          case "SENT":         return "email_sent";
+          case "BOUNCED":
+          case "HARD_BOUNCED": return "email_bounced";
+        }
+      }
+      if (json.hs_meeting_start_time || json.hs_meeting_outcome
+          || json.properties?.hs_meeting_outcome)
+        return "meeting_booked";
+      const dealStage = json.dealstage ?? json.properties?.dealstage;
+      if (typeof dealStage === "string") {
+        const s = dealStage.toLowerCase();
+        if (s.includes("closedwon")  || s.includes("closed_won"))  return "deal_won";
+        if (s.includes("closedlost") || s.includes("closed_lost")) return "deal_lost";
+        return "deal_created";
+      }
+      break;
+    }
+
+    case "Pipedrive": {
+      const status = String(json.status ?? json.deal?.status ?? "").toLowerCase();
+      if (status === "won")  return "deal_won";
+      if (status === "lost") return "deal_lost";
+      if (json.deal || (json.id && json.stage_id != null)) return "deal_created";
+      break;
+    }
+
+    case "Calendly":
+    case "Cal.com":
+    case "SavvyCal":
+    case "Chili Piper":
+    case "OnceHub": {
+      if (json.cancellation || json.event?.cancellation) return "meeting_cancelled";
+      if (json.invitee || json.scheduled_event || json.booking || json.attendee)
+        return "meeting_booked";
+      break;
+    }
+
+    case "Stripe": {
+      // Subscription lifecycle
+      if (json.object === "subscription" || json.subscription) {
+        const sub = json.object === "subscription" ? json : json.subscription;
+        const s = String(sub?.status ?? "").toLowerCase();
+        if (s === "canceled" || s === "cancelled" || json.cancel_at_period_end === true)
+          return "subscription_cancelled";
+        if (s === "active" || s === "trialing") return "subscription_created";
+        return "subscription_created";
+      }
+      // Payment / charge
+      if (json.object === "charge" || json.object === "payment_intent"
+          || (json.amount != null && json.currency)) {
+        const s = String(json.status ?? "").toLowerCase();
+        if (s === "succeeded" || json.paid === true) return "payment_received";
+        if (s === "failed")                          return "payment_failed";
+      }
+      break;
+    }
+
+    case "Chargebee":
+    case "Recurly": {
+      if (json.subscription?.status === "cancelled" || json.subscription?.status === "canceled")
+        return "subscription_cancelled";
+      if (json.subscription?.status === "active") return "subscription_created";
+      if (json.invoice?.status === "paid")         return "payment_received";
+      break;
+    }
+
+    case "Instantly":
+    case "Smartlead": {
+      if (json.reply_text || json.reply_body || json.replyText || json.replyBody)
+        return "reply_received";
+      if (json.opened_at || json.openedAt || json.email_opened === true)
+        return "email_opened";
+      if (json.bounced === true || json.is_bounced === true || json.bounce_type)
+        return "email_bounced";
+      break;
+    }
+
+    case "Lemlist": {
+      if (json.replyText || json.reply) return "reply_received";
+      if (json.isInterested === true)   return "interested_reply";
+      if (json.openedAt  || json.opened)  return "email_opened";
+      if (json.clickedAt || json.clicked) return "link_clicked";
+      break;
+    }
+
+    case "Apollo": {
+      if (json.contact?.replied_at || json.replied_at) return "reply_received";
+      if (json.contact?.opened_at  || json.opened_at)  return "email_opened";
+      if (json.emailer_campaign_id || json.sequence_id) return "sequence_started";
+      break;
+    }
+
+    case "Outreach":
+    case "Salesloft": {
+      if (json.prospect?.replied || json.replied === true)   return "reply_received";
+      if (json.prospect?.bounced || json.bounced === true)   return "email_bounced";
+      if (json.prospect?.opened  || json.opened  === true)  return "email_opened";
+      if (json.meeting || json.booking)                      return "meeting_booked";
+      break;
+    }
+
+    case "Clay": {
+      if (json.clay_run_id || json.enrichment || json.enriched_data || json.clay_table_row)
+        return "contact_enriched";
+      break;
+    }
+  }
+
+  // ── Generic structural patterns (cross-tool) ──────────────────────────────
+  // These fire when no app-specific check matched and the payload shape alone
+  // is unambiguous enough to identify the event.
+
+  // Deal stage field — present only in CRM tools with Opportunity/Deal objects
+  const stageName = json.StageName ?? json.stageName ?? json.stage_name ?? json.deal_stage;
+  if (typeof stageName === "string" && stageName.length) {
+    const s = stageName.toLowerCase();
+    if (s.includes("won"))  return "deal_won";
+    if (s.includes("lost")) return "deal_lost";
+    return "deal_created";
+  }
+
+  // Reply signals — field names that unambiguously carry reply content
+  if (json.replyMessage || json.reply_message || json.replyText || json.reply_text)
+    return "reply_received";
+  if (json.isReplied === true || json.hasReplied === true || json.replied === true)
+    return "reply_received";
+
+  // Connection accepted — LinkedIn automation tools
+  if (json.connectionAccepted === true || json.connection_accepted === true)
+    return "connection_accepted";
+
+  // Meeting booked — scheduling tool invitee+event shape
+  if (json.invitee && (json.event_type || json.event || json.scheduled_event))
+    return "meeting_booked";
+  if (json.scheduled_event?.start_time || json.booking?.start_time)
+    return "meeting_booked";
+
+  // Payment completed — requires both amount and confirmed-success signal
+  if ((json.amount != null || json.amount_paid != null) && json.currency
+      && (json.paid === true || String(json.status ?? "").toLowerCase() === "succeeded"))
+    return "payment_received";
+
+  return null;
+}
+
+/**
  * Infer a canonical iqpipe event type.
  * Resolution order (highest → lowest priority):
- *   1. Payload field  — event_type / eventType / event_name / action / type etc.
- *   2. Node name      — parsed and keyword-matched via normalizeEventType
- *   3. App class hint — category-level fallback (e.g. all HeyReach → linkedin_sent)
- *   4. Hard default   — email_sent
+ *   1. Payload field       — event_type / eventType / event_name / action / type etc.
+ *   2. Node name           — parsed and keyword-matched via normalizeEventType
+ *   3. Structural signature — known payload shapes (StageName, replyMessage, invitee…)
+ *   4. App class hint      — category-level fallback (e.g. all HeyReach → linkedin_sent)
+ *   5. Hard default        — email_sent
  */
 function inferEventType(nodeName: string, appName: string, json?: Record<string, any>): string {
   // 1. Payload field — most accurate, straight from the tool's event payload
@@ -616,11 +818,17 @@ function inferEventType(nodeName: string, appName: string, json?: Record<string,
   const fromNode = normalizeEventType(nodeName, appName);
   if (fromNode !== "event" && fromNode !== "contacted") return fromNode;
 
-  // 3. App-class hint — category-level last resort
+  // 3. Structural signature — shape of the payload identifies the event
+  if (json) {
+    const fromStructure = detectByStructure(json, appName);
+    if (fromStructure) return fromStructure;
+  }
+
+  // 4. App-class hint — category-level last resort
   const hint = APP_CLASS_HINT[appName];
   if (hint) return normalizeEventType(hint);
 
-  // 4. Hard default
+  // 5. Hard default
   return "email_sent";
 }
 

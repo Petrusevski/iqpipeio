@@ -1,15 +1,22 @@
 /**
- * quota.ts — Per-workspace event quota management
+ * quota.ts — Per-workspace event quota + per-minute rate limit management
  *
- * Plans and limits:
+ * Monthly quota limits:
  *   trial   →    500 events/month
  *   free    →    500 events/month
  *   starter →  10,000 events/month
  *   growth  →  50,000 events/month
  *   agency  → 500,000 events/month
  *
- * At 80%: warning notification (sent once per calendar month)
- * At 100%: events are soft-blocked and flagged as quota_exceeded
+ * Per-minute rate limits (workspace-wide, all ingestion routes):
+ *   trial / free →  60 events/min
+ *   starter      → 120 events/min
+ *   growth       → 300 events/min
+ *   agency       → 600 events/min
+ *
+ * Both counters live in the Workspace table alongside the existing
+ * eventCountMonth / eventCountResetAt columns, using the same reset pattern.
+ * checkAndIncrementQuota() reads and writes both in a single DB round-trip.
  */
 
 import { prisma } from "../db";
@@ -23,79 +30,144 @@ export const PLAN_LIMITS: Record<string, number> = {
   agency:  500_000,
 };
 
+export const MINUTE_LIMITS: Record<string, number> = {
+  trial:   60,
+  free:    60,
+  starter: 120,
+  growth:  300,
+  agency:  600,
+};
+
 export function getEventLimit(plan: string): number {
   return PLAN_LIMITS[plan] ?? 500;
 }
 
-/** Returns true if the workspace is over quota this month. Increments the counter. */
-export async function checkAndIncrementQuota(workspaceId: string): Promise<{
-  allowed: boolean;
-  count: number;
-  limit: number;
-  pct: number;
+export function getMinuteLimit(plan: string): number {
+  return MINUTE_LIMITS[plan] ?? 60;
+}
+
+/** Shape returned by resolveWorkspaceFromRequest — pass as `prefetched` to skip a second DB read. */
+export interface WorkspaceQuotaFields {
+  id:                 string;
+  plan:               string;
+  eventCountMonth:    number;
+  eventCountResetAt:  Date | null;
+  eventCountMinute:   number;
+  rateLimitResetAt:   Date | null;
+}
+
+/**
+ * Check both the per-minute rate limit and the monthly quota for a workspace.
+ * Increments both counters in a single UPDATE if the request is allowed.
+ *
+ * @param workspaceId  The workspace to check.
+ * @param opts.prefetched   Pre-fetched workspace row — avoids a second DB read when the
+ *                          route handler has already loaded the workspace for auth.
+ * @param opts.skipMinuteLimit  Pass true for background processors (e.g. n8n queue)
+ *                              that have their own concurrency controls.
+ */
+export async function checkAndIncrementQuota(
+  workspaceId: string,
+  opts?: { prefetched?: WorkspaceQuotaFields; skipMinuteLimit?: boolean },
+): Promise<{
+  allowed:     boolean;
+  rateLimited: boolean; // true when the minute window is exceeded (not the monthly quota)
+  count:       number;
+  limit:       number;
+  pct:         number;
 }> {
-  const ws = await prisma.workspace.findUnique({
-    where: { id: workspaceId },
-    select: { plan: true, eventCountMonth: true, eventCountResetAt: true },
+  const ws: WorkspaceQuotaFields | null = opts?.prefetched ?? await prisma.workspace.findUnique({
+    where:  { id: workspaceId },
+    select: {
+      id: true, plan: true,
+      eventCountMonth: true, eventCountResetAt: true,
+      eventCountMinute: true, rateLimitResetAt: true,
+    },
   });
-  if (!ws) return { allowed: false, count: 0, limit: 0, pct: 100 };
 
-  const limit = getEventLimit(ws.plan);
-  const now   = new Date();
+  if (!ws) return { allowed: false, rateLimited: false, count: 0, limit: 0, pct: 100 };
 
-  // Reset counter on 1st of month
-  const needsReset =
+  const monthLimit  = getEventLimit(ws.plan);
+  const minuteLimit = getMinuteLimit(ws.plan);
+  const now         = new Date();
+  const nowMs       = now.getTime();
+
+  // ── Monthly reset: first event of a new calendar month resets the counter ─
+  const needsMonthReset =
     !ws.eventCountResetAt ||
-    ws.eventCountResetAt.getUTCMonth() !== now.getUTCMonth() ||
+    ws.eventCountResetAt.getUTCMonth()    !== now.getUTCMonth() ||
     ws.eventCountResetAt.getUTCFullYear() !== now.getUTCFullYear();
 
-  if (needsReset) {
-    await prisma.workspace.update({
-      where: { id: workspaceId },
-      data: { eventCountMonth: 1, eventCountResetAt: now },
-    });
-    return { allowed: true, count: 1, limit, pct: Math.round((1 / limit) * 100) };
+  // ── Minute window: reset when > 60 s has elapsed since the window opened ──
+  const windowExpired =
+    !ws.rateLimitResetAt ||
+    nowMs - ws.rateLimitResetAt.getTime() >= 60_000;
+
+  // ── Gate checks (no DB write if blocked) ─────────────────────────────────
+  if (!needsMonthReset && ws.eventCountMonth >= monthLimit) {
+    return { allowed: false, rateLimited: false, count: ws.eventCountMonth, limit: monthLimit, pct: 100 };
+  }
+  if (!opts?.skipMinuteLimit && !windowExpired && ws.eventCountMinute >= minuteLimit) {
+    return {
+      allowed:     false,
+      rateLimited: true,
+      count:       ws.eventCountMonth,
+      limit:       monthLimit,
+      pct:         Math.round((ws.eventCountMonth / monthLimit) * 100),
+    };
   }
 
-  const prev  = ws.eventCountMonth;
-  const count = prev + 1;
+  // ── Compute new counter values ────────────────────────────────────────────
+  const newMonthCount  = needsMonthReset ? 1 : ws.eventCountMonth  + 1;
+  const newMinuteCount = windowExpired   ? 1 : ws.eventCountMinute + 1;
 
-  if (prev >= limit) {
-    // Already at cap — don't increment further, return denied
-    return { allowed: false, count: prev, limit, pct: 100 };
-  }
-
-  // Increment
+  // ── Single UPDATE for both counters ──────────────────────────────────────
   await prisma.workspace.update({
     where: { id: workspaceId },
-    data: { eventCountMonth: count },
+    data: {
+      eventCountMonth:  newMonthCount,
+      ...(needsMonthReset ? { eventCountResetAt: now } : {}),
+      ...(opts?.skipMinuteLimit ? {} : {
+        eventCountMinute: newMinuteCount,
+        ...(windowExpired ? { rateLimitResetAt: now } : {}),
+      }),
+    },
   });
 
-  const pct = Math.round((count / limit) * 100);
+  const pct  = Math.round((newMonthCount / monthLimit) * 100);
+  const prev = needsMonthReset ? 0 : ws.eventCountMonth;
 
-  // Send 80% warning — but only once per month
-  // We detect "just crossed 80%" by checking prev was below and now is at/above
-  const threshold80 = Math.floor(limit * 0.8);
-  if (prev < threshold80 && count >= threshold80) {
+  // 80% warning — fired once per calendar month (only when threshold is crossed)
+  const threshold80 = Math.floor(monthLimit * 0.8);
+  if (prev < threshold80 && newMonthCount >= threshold80) {
     createNotification({
       workspaceId,
       type:     "quota_warning",
       title:    "You've used 80% of your monthly event quota",
-      body:     `Your workspace has processed ${count.toLocaleString()} of ${limit.toLocaleString()} events this month. ` +
+      body:     `Your workspace has processed ${newMonthCount.toLocaleString()} of ${monthLimit.toLocaleString()} events this month. ` +
                 `Upgrade your plan to avoid disruption when you hit 100%.`,
       severity: "warning",
-      metadata: JSON.stringify({ count, limit, pct: 80 }),
+      metadata: JSON.stringify({ count: newMonthCount, limit: monthLimit, pct: 80 }),
     }).catch(() => {});
   }
 
-  return { allowed: true, count, limit, pct };
+  return { allowed: true, rateLimited: false, count: newMonthCount, limit: monthLimit, pct };
 }
 
-/** Soft-block response payload — returned when quota is exceeded. */
+/** Soft-block response payload — returned when the monthly quota is exceeded. */
 export function quotaExceededResponse() {
   return {
     error:   "Monthly event quota exceeded.",
     code:    "QUOTA_EXCEEDED",
     message: "Upgrade your plan to continue processing events. Existing data is safe.",
+  };
+}
+
+/** Rate-limit response payload — returned when the per-minute window is full. */
+export function rateLimitExceededResponse() {
+  return {
+    error:            "Too many events from this workspace. Slow down your automation triggers.",
+    code:             "RATE_LIMITED",
+    retryAfterSeconds: 60,
   };
 }
