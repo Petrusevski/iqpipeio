@@ -10,7 +10,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../db";
 import { requireAuth, AuthenticatedRequest } from "../middleware/auth";
-import { detectFieldsSync } from "../utils/fieldDetector";
+import { detectFieldsSync, detectAndLearnWithReport, Detection, CanonicalContactField } from "../utils/fieldDetector";
 
 const router = Router();
 
@@ -45,36 +45,115 @@ router.get("/", requireAuth, async (req: AuthenticatedRequest, res: Response) =>
 });
 
 // ─── POST /api/field-mappings/preview ────────────────────────────────────────
-// Runs auto-detection on a sample payload without writing to DB.
-// Body: { payload: Record<string, any>, source?: string }
+// Runs detection on a sample payload without writing to DB.
+// Returns a full explainability report: best detections, reasons, skipped fields.
+//
+// Body: { payload: Record<string, any>, source?: string, verbose?: boolean }
+//   source   — optional tool slug; if provided, also applies stored/manual mappings
+//   verbose  — if true, includes allDetections (every raw candidate) for debugging
+//
+// Default response (verbose=false): lightweight, safe for UI display.
+// verbose=true: adds allDetections for full debugging.
 
 router.post("/preview", requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { payload } = req.body || {};
+    const membership = await prisma.workspaceUser.findFirst({
+      where: { userId: req.user!.id },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!membership) return res.status(404).json({ error: "No workspace found." });
+
+    const { payload, source, verbose } = req.body || {};
     if (!payload || typeof payload !== "object") {
       return res.status(400).json({ error: "payload is required (object)" });
     }
 
-    const detections = detectFieldsSync(payload);
+    const sourceKey = source ? String(source) : "_preview";
 
-    // Group by canonicalField, pick best confidence per field
-    const best: Record<string, { rawPath: string; value: string; confidence: number; method: string }> = {};
-    for (const d of detections) {
-      const existing = best[d.canonicalField];
+    if (source) {
+      // Full pipeline with stored mappings — uses detectAndLearnWithReport but
+      // passes a fake workspaceId read path; we don't persist (source != real slug).
+      // We isolate by calling detectAndLearnWithReport on the real workspace but
+      // passing the source so stored mappings load correctly.
+      const { contact, report } = await detectAndLearnWithReport(
+        membership.workspaceId,
+        sourceKey,
+        payload,
+        {},
+      );
+
+      return res.json({
+        source:      sourceKey,
+        threshold:   0.70,
+        appliedCount: report.appliedCount,
+        appliedFields: report.appliedFields,
+        skippedDetections: report.skippedDetections,
+        ...(verbose ? { allDetections: report.allDetections } : {}),
+        // Convenience: the enriched contact object that would be produced
+        resolvedContact: contact,
+      });
+    }
+
+    // No source — pure auto-detection (no stored mappings, no DB write)
+    const allDetections = detectFieldsSync(payload);
+
+    // Select best per canonical field with full reason tracking
+    const bestMap  = new Map<CanonicalContactField, Detection>();
+    const lostMap: Detection[] = [];
+    for (const d of allDetections) {
+      const existing = bestMap.get(d.canonicalField);
       if (!existing || d.confidence > existing.confidence) {
-        best[d.canonicalField] = {
-          rawPath:   d.rawPath,
-          value:     d.value,
-          confidence: d.confidence,
-          method:    d.detectionMethod,
-        };
+        if (existing) lostMap.push(existing);
+        bestMap.set(d.canonicalField, d);
+      } else {
+        lostMap.push(d);
       }
     }
 
+    const THRESHOLD = 0.70;
+    const applied   = Array.from(bestMap.values()).filter(d => d.confidence >= THRESHOLD);
+    const skipped   = [
+      ...Array.from(bestMap.values())
+        .filter(d => d.confidence < THRESHOLD)
+        .map(d => ({
+          rawPath:        d.rawPath,
+          canonicalField: d.canonicalField,
+          value:          d.value,
+          confidence:     d.confidence,
+          reason:         d.reason + ` (confidence ${(d.confidence * 100).toFixed(0)}% is below threshold ${(THRESHOLD * 100).toFixed(0)}%)`,
+          skippedBecause: "below_threshold" as const,
+        })),
+      ...lostMap.map(d => ({
+        rawPath:        d.rawPath,
+        canonicalField: d.canonicalField,
+        value:          d.value,
+        confidence:     d.confidence,
+        reason:         d.reason,
+        skippedBecause: "lost_to_higher_confidence" as const,
+      })),
+    ];
+
     return res.json({
-      detected: best,
-      allDetections: detections,
-      threshold: 0.70,
+      source:      null,
+      threshold:   THRESHOLD,
+      appliedCount: applied.length,
+      appliedFields: applied.map(d => ({
+        canonicalField:  d.canonicalField,
+        rawPath:         d.rawPath,
+        value:           d.value,
+        confidence:      d.confidence,
+        detectionMethod: d.detectionMethod,
+        reason:          d.reason,
+        fromStore:       false,
+      })),
+      skippedDetections: skipped,
+      ...(verbose ? { allDetections } : {}),
+      resolvedContact: Object.fromEntries(
+        applied.map(d => {
+          const key = d.canonicalField.replace("contact.", "");
+          return [key, d.value];
+        }),
+      ),
     });
   } catch (err: any) {
     console.error("[fieldMappings/preview]", err.message);
