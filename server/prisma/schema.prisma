@@ -844,3 +844,63 @@ model FieldMapping {
   @@index([workspaceId, source])
   @@index([workspaceId, canonicalField])
 }
+
+// ── Knowledge Base ─────────────────────────────────────────────────────────────
+// Global curated articles (guides, playbooks, troubleshooting, reference).
+// Not workspace-scoped — same content for all workspaces.
+// Behavior (searches, views, votes) is tracked per-workspace for learning.
+
+model KbArticle {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  summary         String    // one-sentence quick answer (for list views)
+  body            String    // markdown — full deep-dive content
+  category        String    // "guide" | "playbook" | "troubleshooting" | "reference" | "concept"
+  tags            String    // JSON string[] e.g. ["schema-drift","n8n","identity"]
+  useCase         String    // JSON string[] e.g. ["lead_enrichment","gtm_workflow"]
+  platform        String    // JSON string[] e.g. ["n8n","make","any"]
+  difficulty      String    @default("beginner") // "beginner" | "intermediate" | "advanced"
+  viewCount       Int       @default(0)
+  helpfulCount    Int       @default(0)
+  notHelpfulCount Int       @default(0)
+  featured        Boolean   @default(false)
+  published       Boolean   @default(true)
+  relatedSlugs    String    @default("[]") // JSON string[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  feedback        KbArticleFeedback[]
+
+  @@index([category])
+  @@index([featured])
+}
+
+// Tracks every search query for learning (surface gaps, improve ranking).
+model KbSearchEvent {
+  id               String    @id @default(cuid())
+  workspaceId      String?   // null = unauthenticated
+  query            String
+  resultsCount     Int
+  clickedArticleId String?   // article the user clicked (null = no click)
+  resolved         Boolean   @default(false) // user marked as helpful or clicked
+  createdAt        DateTime  @default(now())
+
+  @@index([workspaceId])
+  @@index([query])
+  @@index([createdAt])
+}
+
+// Per-article helpful/not-helpful votes, optional comment.
+model KbArticleFeedback {
+  id          String     @id @default(cuid())
+  article     KbArticle  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId   String
+  workspaceId String?
+  helpful     Boolean
+  comment     String?
+  createdAt   DateTime   @default(now())
+
+  @@index([articleId])
+  @@index([workspaceId])
+}
