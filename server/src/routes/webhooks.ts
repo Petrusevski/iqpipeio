@@ -45,6 +45,7 @@ import { normalizeEventType } from "../utils/eventTaxonomy";
 import { resolveIqLead, recordTouchpoint } from "../utils/identity";
 import { assertNotBillingKey } from "../utils/stripeKeyGuard";
 import { checkAndIncrementQuota, quotaExceededResponse, rateLimitExceededResponse } from "../utils/quota";
+import { detectAndLearn } from "../utils/fieldDetector";
 
 const router = Router();
 
@@ -83,7 +84,23 @@ async function recordEvent(
   const quota = await checkAndIncrementQuota(workspaceId);
   if (!quota.allowed) return false;
 
-  const { firstName, lastName, email, linkedin, phone, company, title } = contact;
+  let { firstName, lastName, email, linkedin, phone, company, title } = contact;
+
+  // ── 0b. Fuzzy field detection: fill gaps from raw meta payload ────────────
+  // If the provider-specific extraction left identity fields empty, scan meta
+  // (the raw payload) for pattern-matching fields and apply learned mappings.
+  if ((!email && !linkedin && !phone) && Object.keys(meta).length > 0) {
+    const enriched = await detectAndLearn(workspaceId, source, meta, {
+      email, phone, linkedin, firstName, lastName, company, title,
+    });
+    if (!email    && enriched.email)    email    = enriched.email    ?? null;
+    if (!phone    && enriched.phone)    phone    = enriched.phone    ?? null;
+    if (!linkedin && enriched.linkedin) linkedin = enriched.linkedin ?? null;
+    if (!firstName && enriched.firstName) firstName = enriched.firstName;
+    if (!lastName  && enriched.lastName)  lastName  = enriched.lastName;
+    if (!company  && enriched.company)  company  = enriched.company  ?? null;
+    if (!title    && enriched.title)    title    = enriched.title    ?? null;
+  }
 
   // ── 1. Privacy-first identity resolution ─────────────────────────────────
   const iqLeadId = await resolveIqLead(

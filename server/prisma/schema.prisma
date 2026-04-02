@@ -77,6 +77,7 @@ model Workspace {
   invites             WorkspaceInvite[]
   customEventTypes    CustomEventType[]
   sourceMappings      SourceMapping[]
+  fieldMappings       FieldMapping[]
 }
 
 model Notification {
@@ -815,4 +816,31 @@ model SourceMapping {
 
   @@unique([workspaceId, platform, nodeType])
   @@index([workspaceId])
+}
+
+// ── Field Mappings ────────────────────────────────────────────────────────────
+// Stores learned and manually-overridden mappings from raw payload paths to
+// IQPipe's canonical contact schema fields (e.g. "data.email_addr" → "contact.email").
+// Powers the schema-resilient event normalization layer in fieldDetector.ts.
+
+model FieldMapping {
+  id              String    @id @default(cuid())
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId     String
+  source          String    // tool slug e.g. "clay", "instantly", "hubspot"
+  rawPath         String    // dot-path in original payload e.g. "data.contact.email_address"
+  canonicalField  String    // "contact.email" | "contact.phone" | "contact.linkedin" | etc.
+  confidence      Float     // 0.0 – 1.0
+  detectionMethod String    // "value_pattern" | "field_name" | "combined" | "manual"
+  isOverride      Boolean   @default(false) // manually set by workspace user
+  isRejected      Boolean   @default(false) // user marked this mapping as wrong
+  overriddenBy    String?   // userId if isOverride = true
+  useCount        Int       @default(0)     // times this mapping was used
+  lastSeenAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([workspaceId, source, rawPath])
+  @@index([workspaceId, source])
+  @@index([workspaceId, canonicalField])
 }

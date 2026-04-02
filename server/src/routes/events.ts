@@ -21,6 +21,7 @@ import { prisma } from "../db";
 import { resolveIqLead, recordTouchpoint, channelForTool } from "../utils/identity";
 import { decrypt } from "../utils/encryption";
 import { checkAndIncrementQuota, quotaExceededResponse, rateLimitExceededResponse, WorkspaceQuotaFields } from "../utils/quota";
+import { detectAndLearn } from "../utils/fieldDetector";
 
 const router = Router();
 
@@ -160,6 +161,31 @@ router.post("/", async (req: Request, res: Response) => {
     const parts = String(contact.name).trim().split(/\s+/);
     firstName = parts[0] || "";
     lastName  = parts.slice(1).join(" ") || "";
+  }
+
+  // ── Fuzzy field detection: fill gaps if contact fields are sparse ─────────
+  // Scans the full request body for fields that pattern-match canonical contact
+  // fields (email, phone, LinkedIn URL, name, company, title). Only fills in
+  // fields that are empty — existing values are never overwritten.
+  {
+    const enriched = await detectAndLearn(workspace.id, source, req.body, {
+      email:       contact.email       || null,
+      phone:       contact.phone       || null,
+      linkedin:    contact.linkedin    || null,
+      firstName:   firstName           || undefined,
+      lastName:    lastName            || undefined,
+      company:     contact.company     || null,
+      title:       contact.title       || null,
+      anonymousId: contact.anonymousId || null,
+    });
+    if (!contact.email    && enriched.email)       contact.email    = enriched.email;
+    if (!contact.phone    && enriched.phone)       contact.phone    = enriched.phone;
+    if (!contact.linkedin && enriched.linkedin)    contact.linkedin = enriched.linkedin;
+    if (!firstName        && enriched.firstName)   firstName        = enriched.firstName;
+    if (!lastName         && enriched.lastName)    lastName         = enriched.lastName;
+    if (!contact.company  && enriched.company)     contact.company  = enriched.company;
+    if (!contact.title    && enriched.title)       contact.title    = enriched.title;
+    if (!contact.anonymousId && enriched.anonymousId) contact.anonymousId = enriched.anonymousId;
   }
 
   // ── Resolve or create IqLead (with GDPR consent + anonymous stitching) ────
