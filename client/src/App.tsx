@@ -30,6 +30,7 @@ import AutomationsPage        from "./pages/AutomationsPage";
 import IntegrationsPage     from "./pages/IntegrationsPage";
 import SettingsPage         from "./pages/SettingsPage";
 import WorkflowComparePage  from "./pages/WorkflowComparePage";
+import KnowledgeBasePage    from "./pages/KnowledgeBasePage";
 
 // Public pages
 import LandingPage   from "./pages/LandingPage";
@@ -63,8 +64,9 @@ function AuthenticatedApp() {
           <Route path="/automations"       element={<AutomationsPage />} />
           <Route path="/automation-health" element={<AutomationHealthPage />} />
           <Route path="/compare"       element={<WorkflowComparePage />} />
-          <Route path="/integrations"  element={<IntegrationsPage />} />
-          <Route path="/settings"      element={<SettingsPage />} />
+          <Route path="/integrations"     element={<IntegrationsPage />} />
+          <Route path="/settings"         element={<SettingsPage />} />
+          <Route path="/knowledge-base"   element={<KnowledgeBasePage />} />
           <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
           <Route path="/login"         element={<Navigate to="/feed" replace />} />

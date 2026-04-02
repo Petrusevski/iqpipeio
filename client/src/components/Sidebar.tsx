@@ -9,6 +9,7 @@ import {
   Workflow,
   BarChart3,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
@@ -46,7 +47,8 @@ const navGroups = [
   {
     title: "Setup",
     items: [
-      { label: "Settings",          path: "/settings",         icon: Settings },
+      { label: "Settings",          path: "/settings",         icon: Settings  },
+      { label: "Knowledge Base",    path: "/knowledge-base",   icon: BookOpen  },
     ],
   },
 ];
