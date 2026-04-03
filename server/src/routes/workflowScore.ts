@@ -291,10 +291,18 @@ interface ScoredWorkflow {
   lastEventAt: string | null;
 }
 
+interface PillarWeights {
+  reliability:  number;
+  throughput:   number;
+  connectivity: number;
+  criticality:  number;
+}
+
 function scoreWorkflows(
   metrics: WorkflowMetrics[],
   acv: number,
   currency: string,
+  weights: PillarWeights = PILLAR_WEIGHTS,
 ): ScoredWorkflow[] {
   if (metrics.length === 0) return [];
 
@@ -343,10 +351,10 @@ function scoreWorkflows(
 
     // ── Weighted Alpha Score (0–100) ─────────────────────────────────────────
     const alpha = Math.round(
-      reliabilityRaw  * PILLAR_WEIGHTS.reliability   * 100 +
-      throughputRaw   * PILLAR_WEIGHTS.throughput    * 100 +
-      connectRaw      * PILLAR_WEIGHTS.connectivity  * 100 +
-      critNorm        * PILLAR_WEIGHTS.criticality   * 100,
+      reliabilityRaw  * weights.reliability   * 100 +
+      throughputRaw   * weights.throughput    * 100 +
+      connectRaw      * weights.connectivity  * 100 +
+      critNorm        * weights.criticality   * 100,
     );
 
     // ── Leakage calculation ──────────────────────────────────────────────────
@@ -431,6 +439,19 @@ router.get("/", async (req: Request, res: Response) => {
   const platform = (req.query.platform as string) || "all";
   const acv      = Math.max(1, parseFloat((req.query.acv as string) || "5000") || 5000);
 
+  // Optional custom pillar weights — normalized to sum to 1.0
+  const wr = parseFloat((req.query.w_reliability  as string) || "0") || 0;
+  const wt = parseFloat((req.query.w_throughput   as string) || "0") || 0;
+  const wc = parseFloat((req.query.w_connectivity as string) || "0") || 0;
+  const wk = parseFloat((req.query.w_criticality  as string) || "0") || 0;
+  const wSum = wr + wt + wc + wk;
+  const effectiveWeights: PillarWeights = wSum > 0 ? {
+    reliability:  wr / wSum,
+    throughput:   wt / wSum,
+    connectivity: wc / wSum,
+    criticality:  wk / wSum,
+  } : { ...PILLAR_WEIGHTS };
+
   // ids can be passed as ?ids[]=a&ids[]=b or ?ids=a,b
   let ids: string[] = [];
   const rawIds = req.query.ids;
@@ -480,14 +501,14 @@ router.get("/", async (req: Request, res: Response) => {
     const allMetrics = [...n8nMetrics, ...makeMetrics];
     if (allMetrics.length === 0) {
       return res.json({
-        scoring_model: buildModelManifest(acv, currency),
+        scoring_model: buildModelManifest(acv, currency, effectiveWeights),
         workflows: [],
         winner: null,
         comparison: null,
       });
     }
 
-    const scored = scoreWorkflows(allMetrics, acv, currency);
+    const scored = scoreWorkflows(allMetrics, acv, currency, effectiveWeights);
 
     // Winner = highest Alpha Score (ties broken by reliability)
     const winner = [...scored].sort((a, b) =>
@@ -501,7 +522,7 @@ router.get("/", async (req: Request, res: Response) => {
       scored.reduce((best, w) => w.pillars[pillar] > best.pillars[pillar] ? w : best);
 
     return res.json({
-      scoring_model: buildModelManifest(acv, currency),
+      scoring_model: buildModelManifest(acv, currency, effectiveWeights),
       workflows: scored,
       winner: winner
         ? { id: winner.id, name: winner.name, platform: winner.platform, alphaScore: winner.alphaScore, grade: winner.grade }
@@ -521,11 +542,11 @@ router.get("/", async (req: Request, res: Response) => {
 
 // ─── Model manifest (self-describing JSON) ────────────────────────────────────
 
-function buildModelManifest(acv: number, currency: string) {
+function buildModelManifest(acv: number, currency: string, weights: PillarWeights = PILLAR_WEIGHTS) {
   return {
     version: "1.0",
     description: "GTM Alpha Score — weighted composite of 4 GTM performance pillars",
-    weights: PILLAR_WEIGHTS,
+    weights,
     business_criticality_weights: CRITICALITY_WEIGHTS,
     leakage_config: {
       acv,

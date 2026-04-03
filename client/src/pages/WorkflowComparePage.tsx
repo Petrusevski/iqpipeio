@@ -13,13 +13,15 @@ import {
   Trophy, TrendingUp, RefreshCw, ChevronDown,
   Bot, Layers, AlertTriangle, CheckCircle2,
   BarChart3, Zap, ShieldCheck,
-  Network, Star, ArrowUpRight, Info, Download, FileSpreadsheet, X,
+  Network, Star, ArrowUpRight, Info, Download, FileSpreadsheet, X, SlidersHorizontal, RotateCcw,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type Period = "7d" | "30d" | "90d" | "all";
+
+const DEFAULT_WEIGHTS = { reliability: 30, throughput: 25, connectivity: 20, criticality: 25 };
 
 const PERIOD_LABELS: Record<Period, string> = {
   "7d": "Last 7 days", "30d": "Last 30 days",
@@ -243,6 +245,8 @@ export default function WorkflowComparePage() {
 
   const [period,         setPeriod]         = useState<Period>("30d");
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
+  const [weights,        setWeights]        = useState({ ...DEFAULT_WEIGHTS });
+  const [showWeights,    setShowWeights]    = useState(false);
   const [wsId,         setWsId]         = useState<string | null>(null);
   const [loadingWs,    setLoadingWs]    = useState(true);
   const [loadingN8n,   setLoadingN8n]   = useState(false);
@@ -349,10 +353,14 @@ export default function WorkflowComparePage() {
     // Use platform=all so the backend resolves n8n and make IDs from their
     // respective tables — works for single-platform and mixed selections
     const params = new URLSearchParams({
-      workspaceId: wsId,
+      workspaceId:    wsId,
       period,
-      acv:         "1",
-      platform:    "all",
+      acv:            "1",
+      platform:       "all",
+      w_reliability:  String(weights.reliability),
+      w_throughput:   String(weights.throughput),
+      w_connectivity: String(weights.connectivity),
+      w_criticality:  String(weights.criticality),
     });
     selPlatformIds.forEach(id => params.append("ids[]", id));
 
@@ -365,7 +373,7 @@ export default function WorkflowComparePage() {
       .catch(e => { if (e.name !== "AbortError") console.error("[workflow-score]", e); })
       .finally(() => setLoadingScore(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsId, selected, period]);
+  }, [wsId, selected, period, weights]);
 
   // ── Selection handlers ───────────────────────────────────────────────────────
   function toggleSelect(internalId: string) {
@@ -813,18 +821,102 @@ export default function WorkflowComparePage() {
           </div>
         </div>
 
-        {/* ── Scoring model pills ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {PILLAR_META.map(p => (
-            <div key={p.key} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800">
-              <p.icon size={14} className="text-indigo-400 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-white truncate">{p.label}</p>
-                <p className="text-[10px] text-slate-600">{p.weight} weight</p>
+        {/* ── Scoring model pills + weight editor ── */}
+        {(() => {
+          const weightTotal = weights.reliability + weights.throughput + weights.connectivity + weights.criticality;
+          const isCustom    = JSON.stringify(weights) !== JSON.stringify(DEFAULT_WEIGHTS);
+          const effectivePct = (key: keyof typeof weights) =>
+            weightTotal > 0 ? Math.round((weights[key] / weightTotal) * 100) : 0;
+
+          return (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {PILLAR_META.map(p => (
+                  <div key={p.key} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-colors ${isCustom ? "bg-indigo-500/5 border-indigo-500/20" : "bg-slate-900 border-slate-800"}`}>
+                    <p.icon size={14} className="text-indigo-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold text-white truncate">{p.label}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {effectivePct(p.key as keyof typeof weights)}% weight
+                        {isCustom && <span className="ml-1 text-indigo-400">(custom)</span>}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
+
+              {/* Customize toggle */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowWeights(v => !v)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                    showWeights
+                      ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-300"
+                      : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
+                  }`}
+                >
+                  <SlidersHorizontal size={11} />
+                  Customize Weights
+                  {isCustom && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 ml-0.5" />}
+                </button>
+                {isCustom && (
+                  <button
+                    onClick={() => setWeights({ ...DEFAULT_WEIGHTS })}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    <RotateCcw size={10} /> Reset
+                  </button>
+                )}
+              </div>
+
+              {/* Weight sliders */}
+              {showWeights && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-semibold text-slate-400">Pillar Weights</p>
+                    <p className={`text-xs tabular-nums font-medium ${weightTotal === 100 ? "text-emerald-400" : "text-amber-400"}`}>
+                      Total: {weightTotal} {weightTotal !== 100 && <span className="text-slate-600">(normalized to 100% on compare)</span>}
+                    </p>
+                  </div>
+                  {PILLAR_META.map(p => {
+                    const key = p.key as keyof typeof weights;
+                    return (
+                      <div key={p.key} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <p.icon size={11} className="text-slate-500" />
+                            <span className="text-xs text-slate-300">{p.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-slate-600 tabular-nums">
+                              {effectivePct(key)}% effective
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={weights[key]}
+                              onChange={e => setWeights(prev => ({ ...prev, [key]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                              className="w-14 px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white text-right tabular-nums focus:outline-none focus:border-indigo-500/50"
+                            />
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={weights[key]}
+                          onChange={e => setWeights(prev => ({ ...prev, [key]: parseInt(e.target.value) }))}
+                          className="w-full accent-indigo-500 h-1.5"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         {/* ── No connection empty state ── */}
         {noConnection && (
@@ -1116,14 +1208,19 @@ export default function WorkflowComparePage() {
                           </tr>
 
                           {/* ── Pillar rows ── */}
-                          {PILLAR_META.map((pillar, rowIdx) => (
+                          {PILLAR_META.map((pillar, rowIdx) => {
+                            const effectiveW = scoreData?.scoring_model?.weights?.[pillar.key];
+                            const effectivePctLabel = effectiveW !== undefined
+                              ? `${Math.round(effectiveW * 100)}%`
+                              : pillar.weight;
+                            return (
                             <tr key={pillar.key} className={rowIdx % 2 === 0 ? "bg-slate-900/20" : ""}>
                               <td className="px-5 py-3.5">
                                 <div className="flex items-center gap-2">
                                   <pillar.icon size={13} className="text-slate-500 shrink-0" />
                                   <div>
                                     <p className="text-xs font-medium text-slate-300">{pillar.label}</p>
-                                    <p className="text-[10px] text-slate-600">{pillar.weight}</p>
+                                    <p className="text-[10px] text-slate-600">{effectivePctLabel}</p>
                                   </div>
                                 </div>
                               </td>
@@ -1142,7 +1239,7 @@ export default function WorkflowComparePage() {
                                 );
                               })}
                             </tr>
-                          ))}
+                          ); })}
 
                           {/* ── Reliability detail ── */}
                           <tr className="bg-slate-900/30">
