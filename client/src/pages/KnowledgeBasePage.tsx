@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   BookOpen, Search, X, ChevronRight, ArrowLeft,
   ThumbsUp, ThumbsDown, RefreshCw, Lightbulb,
@@ -357,6 +358,7 @@ function ArticleDetail({
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function KnowledgeBasePage() {
+  const location = useLocation();
   const [query,         setQuery]         = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [articles,      setArticles]      = useState<Article[]>([]);
@@ -387,6 +389,9 @@ export default function KnowledgeBasePage() {
   }, []);
 
   useEffect(() => { loadArticles(activeCategory); }, [activeCategory, loadArticles]);
+
+  // Reset to list view whenever the user navigates to this page (including same-path re-clicks)
+  useEffect(() => { setOpenArticle(null); }, [location.key]);
 
   // ── Search with debounce ───────────────────────────────────────────────────
   useEffect(() => {

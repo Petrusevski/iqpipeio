@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   Zap,
   Search,
@@ -55,6 +55,7 @@ const navGroups = [
 
 export default function Sidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [workspaceId,   setWorkspaceId]   = useState<string | null>(null);
   const [currentPlan,  setCurrentPlan]   = useState<string>("trial");
@@ -92,12 +93,16 @@ export default function Sidebar() {
   }, [workspaceId]);
 
   const handleNavClick = useCallback((path: string) => {
+    // If already on this path, force a new navigation so pages can reset to their first screen
+    if (location.pathname === path) {
+      navigate(path, { replace: true });
+    }
     const step = GUIDE_STEPS.find(s => s.path === path);
     if (step && nextStep?.path === path) {
       // Small delay so navigation completes before modal renders
       setTimeout(() => setActiveIntro(step.key), 120);
     }
-  }, [nextStep]);
+  }, [nextStep, location.pathname, navigate]);
 
   const handleIntroDone = useCallback((key: string) => {
     if (!workspaceId) return;
