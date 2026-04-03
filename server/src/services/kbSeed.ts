@@ -787,32 +787,33 @@ Use the built-in **Error Handler** module with a **Resume** directive. Set a 60-
 
 export async function ensureKbSeeded(): Promise<void> {
   try {
-    const count = await prisma.kbArticle.count();
-    if (count > 0) return; // already seeded
+    // Upsert every article by slug so new articles are always added,
+    // and existing articles are updated if content has changed.
+    console.log("[kbSeed] Syncing knowledge base articles...");
 
-    console.log("[kbSeed] Seeding knowledge base articles...");
+    let added = 0;
+    for (const a of ARTICLES) {
+      const data = {
+        title:        a.title,
+        summary:      a.summary,
+        body:         a.body,
+        category:     a.category,
+        tags:         JSON.stringify(a.tags),
+        useCase:      JSON.stringify(a.useCase),
+        platform:     JSON.stringify(a.platform),
+        difficulty:   a.difficulty,
+        featured:     a.featured,
+        relatedSlugs: JSON.stringify(a.relatedSlugs),
+      };
+      const result = await prisma.kbArticle.upsert({
+        where:  { slug: a.slug },
+        update: data,
+        create: { slug: a.slug, ...data },
+      });
+      if (result) added++;
+    }
 
-    await prisma.$transaction(
-      ARTICLES.map(a =>
-        prisma.kbArticle.create({
-          data: {
-            slug:         a.slug,
-            title:        a.title,
-            summary:      a.summary,
-            body:         a.body,
-            category:     a.category,
-            tags:         JSON.stringify(a.tags),
-            useCase:      JSON.stringify(a.useCase),
-            platform:     JSON.stringify(a.platform),
-            difficulty:   a.difficulty,
-            featured:     a.featured,
-            relatedSlugs: JSON.stringify(a.relatedSlugs),
-          },
-        })
-      )
-    );
-
-    console.log(`[kbSeed] Seeded ${ARTICLES.length} articles.`);
+    console.log(`[kbSeed] Synced ${added} articles.`);
   } catch (err: any) {
     // Never crash server startup because of seed failure
     console.error("[kbSeed] Seed failed:", err.message);
