@@ -247,10 +247,12 @@ function ArticleDetail({
   article,
   onBack,
   onFeedback,
+  onOpen,
 }: {
   article: Article;
   onBack:  () => void;
   onFeedback: (slug: string, helpful: boolean) => void;
+  onOpen: (slug: string) => void;
 }) {
   const [voted, setVoted] = useState<"helpful" | "not_helpful" | null>(null);
 
@@ -335,11 +337,15 @@ function ArticleDetail({
           <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Related articles</h4>
           <div className="space-y-2">
             {article.related.map(rel => (
-              <div key={rel.slug} className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 group">
+              <button
+                key={rel.slug}
+                onClick={() => onOpen(rel.slug)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-indigo-500/30 hover:bg-slate-900/80 transition-all group text-left"
+              >
                 <BookOpen size={13} className="text-slate-600 shrink-0" />
                 <span className="text-sm text-slate-400 group-hover:text-slate-200 transition-colors flex-1">{rel.title}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded border ${CATEGORY_COLORS[rel.category] ?? ""}`}>{rel.category}</span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -468,6 +474,7 @@ export default function KnowledgeBasePage() {
             article={openArticle}
             onBack={() => setOpenArticle(null)}
             onFeedback={submitFeedback}
+            onOpen={openArticleBySlug}
           />
         </div>
       </div>
