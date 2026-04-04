@@ -15,12 +15,14 @@ import { startN8nQueueProcessor } from "./n8nQueueProcessor";
 import { syncAllN8nConnections, pollAllN8nExecutions } from "./n8nClient";
 import { syncAllMakeConnections } from "./makeClient";
 import { startAnomalyDetector } from "./anomalyDetector";
+import { runFullBackfill } from "./activitySummarizer";
 import { prisma } from "../db";
 import { PLAN_LIMITS } from "../utils/quota";
 
 const POLL_INTERVAL_MS      = 2 * 60 * 60 * 1000;  // 2 hours  — workflow metadata sync
 const EXEC_POLL_INTERVAL_MS = 5 * 60 * 1000;       // 5 minutes — execution event poll
 const RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours — nightly retention pruning
+const SUMMARIZER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours  — activity summary refresh
 
 /**
  * Nightly data-retention pruning.
@@ -128,4 +130,14 @@ export function startSyncPoller(): void {
       runRetentionPruning().catch(console.error);
     }, RETENTION_INTERVAL_MS);
   }, 60_000);
+
+  // Activity summary backfill — delay first run by 90s (let queue processor boot),
+  // then refresh every 6 hours. Incremental updates from recordTouchpoint() keep
+  // the table current between runs; this catches any gaps.
+  setTimeout(() => {
+    runFullBackfill().catch(console.error);
+    setInterval(() => {
+      runFullBackfill().catch(console.error);
+    }, SUMMARIZER_INTERVAL_MS);
+  }, 90_000);
 }

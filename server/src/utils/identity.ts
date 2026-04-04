@@ -15,6 +15,7 @@
 import crypto from "crypto";
 import { encrypt } from "./encryption";
 import { prisma } from "../db";
+import { computeSummaryForLead } from "../services/activitySummarizer";
 
 // ── Hashing ──────────────────────────────────────────────────────────────────
 
@@ -385,6 +386,27 @@ export async function recordTouchpoint(
   if (OUTCOME_EVENT_TYPES.has(eventType)) {
     await runAttribution(workspaceId, iqLeadId, tool, eventType, meta, experimentId, stackVariant, workflowId, stepId);
   }
+
+  // Incrementally refresh the LeadActivitySummary for this lead.
+  // Fire-and-forget — never blocks the event ingestion path.
+  computeSummaryForLead(workspaceId, iqLeadId).catch(err =>
+    console.error("[activitySummarizer] incremental update failed:", err.message),
+  );
+
+  // If this is an enrichment event, update IqLead.lastEnrichedAt in-place
+  // so the enrichment freshness worker has a O(1) field to query.
+  if (eventType === "lead_enriched") {
+    prisma.iqLead.update({
+      where: { id: iqLeadId },
+      data: {
+        lastEnrichedAt:   new Date(),
+        enrichmentSource: tool.toLowerCase(),
+      },
+    }).catch(err =>
+      console.error("[activitySummarizer] lastEnrichedAt update failed:", err.message),
+    );
+  }
+
   return tp.id;
 }
 
