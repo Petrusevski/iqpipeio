@@ -16,13 +16,16 @@ import { syncAllN8nConnections, pollAllN8nExecutions } from "./n8nClient";
 import { syncAllMakeConnections } from "./makeClient";
 import { startAnomalyDetector } from "./anomalyDetector";
 import { runFullBackfill } from "./activitySummarizer";
+import { runSilentLeadScan, runEnrichmentFreshnessCheck } from "./pipelineWorkers";
 import { prisma } from "../db";
 import { PLAN_LIMITS } from "../utils/quota";
 
-const POLL_INTERVAL_MS      = 2 * 60 * 60 * 1000;  // 2 hours  — workflow metadata sync
-const EXEC_POLL_INTERVAL_MS = 5 * 60 * 1000;       // 5 minutes — execution event poll
-const RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours — nightly retention pruning
-const SUMMARIZER_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours  — activity summary refresh
+const POLL_INTERVAL_MS        = 2 * 60 * 60 * 1000;  // 2 hours  — workflow metadata sync
+const EXEC_POLL_INTERVAL_MS   = 5 * 60 * 1000;        // 5 minutes — execution event poll
+const RETENTION_INTERVAL_MS   = 24 * 60 * 60 * 1000;  // 24 hours — nightly retention pruning
+const SUMMARIZER_INTERVAL_MS  = 6 * 60 * 60 * 1000;   // 6 hours  — activity summary refresh
+const SILENT_SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000;   // 6 hours  — silent pipeline scan
+const FRESHNESS_INTERVAL_MS   = 24 * 60 * 60 * 1000;  // 24 hours — enrichment freshness check
 
 /**
  * Nightly data-retention pruning.
@@ -140,4 +143,22 @@ export function startSyncPoller(): void {
       runFullBackfill().catch(console.error);
     }, SUMMARIZER_INTERVAL_MS);
   }, 90_000);
+
+  // Silent pipeline scanner — delay first run by 2 min (after backfill starts),
+  // then every 6 hours. Alerts workspace when leads cross the 7-day no-outreach threshold.
+  setTimeout(() => {
+    runSilentLeadScan().catch(console.error);
+    setInterval(() => {
+      runSilentLeadScan().catch(console.error);
+    }, SILENT_SCAN_INTERVAL_MS);
+  }, 2 * 60_000);
+
+  // Enrichment freshness worker — delay first run by 3 min, then every 24 hours.
+  // Alerts workspace when active leads cross the 90-day enrichment staleness threshold.
+  setTimeout(() => {
+    runEnrichmentFreshnessCheck().catch(console.error);
+    setInterval(() => {
+      runEnrichmentFreshnessCheck().catch(console.error);
+    }, FRESHNESS_INTERVAL_MS);
+  }, 3 * 60_000);
 }
