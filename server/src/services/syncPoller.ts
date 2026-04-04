@@ -17,6 +17,7 @@ import { syncAllMakeConnections } from "./makeClient";
 import { startAnomalyDetector } from "./anomalyDetector";
 import { runFullBackfill } from "./activitySummarizer";
 import { runSilentLeadScan, runEnrichmentFreshnessCheck } from "./pipelineWorkers";
+import { startDeferredJobRunner } from "./deferredJobRunner";
 import { prisma } from "../db";
 import { PLAN_LIMITS } from "../utils/quota";
 
@@ -108,6 +109,9 @@ export function startSyncPoller(): void {
 
   // Start GTM anomaly detector (Phase 1 — runs every 30 min)
   startAnomalyDetector();
+
+  // Start deferred job runner (polls every 2 min for due jobs)
+  startDeferredJobRunner();
 
   // Run full API poll immediately on startup
   runCycle().catch(console.error);

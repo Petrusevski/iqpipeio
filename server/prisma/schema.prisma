@@ -850,6 +850,27 @@ model FieldMapping {
   @@index([workspaceId, canonicalField])
 }
 
+// ── Deferred Jobs ─────────────────────────────────────────────────────────────
+// Lightweight polling-based job queue. Replaces setTimeout() for deferred
+// checks that must survive server restarts (e.g. 4-hour at-risk alerts).
+// Polled every 2 minutes by deferredJobRunner.ts in syncPoller.
+
+model DeferredJob {
+  id          String    @id @default(cuid())
+  workspaceId String
+  type        String    // "at_risk_check" | future job types
+  payload     String    // JSON: job-specific data (iqLeadId, etc.)
+  runAt       DateTime  // earliest execution time
+  status      String    @default("pending") // "pending" | "done" | "skipped" | "failed"
+  attempts    Int       @default(0)
+  result      String?   // JSON: outcome written after execution
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([status, runAt])           // primary poll index
+  @@index([workspaceId, type, status])
+}
+
 // ── Pipeline Intelligence ─────────────────────────────────────────────────────
 // Materialized read model computed by the activitySummarizer worker.
 // One row per IqLead. Updated incrementally on every Touchpoint write

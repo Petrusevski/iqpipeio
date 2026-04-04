@@ -16,6 +16,7 @@ import crypto from "crypto";
 import { encrypt } from "./encryption";
 import { prisma } from "../db";
 import { computeSummaryForLead } from "../services/activitySummarizer";
+import { scheduleAtRiskCheck } from "../services/deferredJobRunner";
 
 // ── Hashing ──────────────────────────────────────────────────────────────────
 
@@ -392,6 +393,14 @@ export async function recordTouchpoint(
   computeSummaryForLead(workspaceId, iqLeadId).catch(err =>
     console.error("[activitySummarizer] incremental update failed:", err.message),
   );
+
+  // Schedule a 4-hour at-risk check when a lead is first imported.
+  // The job persists in DeferredJob table and survives server restarts.
+  if (eventType === "lead_imported") {
+    scheduleAtRiskCheck(workspaceId, iqLeadId, tp.recordedAt).catch(err =>
+      console.error("[deferredJobRunner] scheduleAtRiskCheck failed:", err.message),
+    );
+  }
 
   // If this is an enrichment event, update IqLead.lastEnrichedAt in-place
   // so the enrichment freshness worker has a O(1) field to query.
