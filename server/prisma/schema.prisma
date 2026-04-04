@@ -406,11 +406,16 @@ model IqLead {
   erasureRequestedAt DateTime?
   erasedAt           DateTime?
 
+  // Enrichment tracking — set on every lead_enriched Touchpoint write
+  lastEnrichedAt   DateTime?
+  enrichmentSource String?   // "clay" | "clearbit" | "apollo" | "zoominfo" | "pdl" | etc.
+
   firstSeenAt DateTime  @default(now())
   lastSeenAt  DateTime  @updatedAt
 
-  touchpoints Touchpoint[]
-  outcomes    Outcome[]
+  touchpoints      Touchpoint[]
+  outcomes         Outcome[]
+  activitySummary  LeadActivitySummary?
 
   @@index([workspaceId, emailHash])
   @@index([workspaceId, linkedinHash])
@@ -843,6 +848,64 @@ model FieldMapping {
   @@unique([workspaceId, source, rawPath])
   @@index([workspaceId, source])
   @@index([workspaceId, canonicalField])
+}
+
+// ── Pipeline Intelligence ─────────────────────────────────────────────────────
+// Materialized read model computed by the activitySummarizer worker.
+// One row per IqLead. Updated incrementally on every Touchpoint write
+// and by a full-refresh background job every 6 hours.
+// Replaces on-the-fly table scans in workflowHealth.ts.
+
+model LeadActivitySummary {
+  id          String   @id @default(cuid())
+  workspaceId String
+  iqLeadId    String   @unique
+  iqLead      IqLead   @relation(fields: [iqLeadId], references: [id], onDelete: Cascade)
+
+  // ── Import timing ──────────────────────────────────────────────────────────
+  importedAt  DateTime?   // = first lead_imported Touchpoint.recordedAt
+
+  // ── Signal-to-Action Latency ───────────────────────────────────────────────
+  // Time between importedAt and the first intentional outreach Touchpoint.
+  firstOutreachAt DateTime?
+  latencyHours    Float?      // null = no outreach yet
+  latencyBucket   String?     // "sub4h" | "4to24h" | "1to3d" | "3to7d" | "over7d"
+
+  // ── Cross-Tool Contact Frequency ───────────────────────────────────────────
+  touchCount7d       Int    @default(0)   // outreach-only events, rolling 7-day window
+  touchCount30d      Int    @default(0)
+  touchCountAllTime  Int    @default(0)
+  lastOutreachAt     DateTime?            // most recent outreach Touchpoint
+  frequencyBucket    String?              // "0" | "1-2" | "3-5" | "6-9" | "10+"
+  touchBreakdown7d   String?              // JSON: { "heyreach": 8, "instantly": 3 }
+
+  // ── Funnel Stage (sequential waterfall) ───────────────────────────────────
+  // Only advances forward. A lead cannot be "engaged" without first being "contacted".
+  // Values: imported | enriched | contacted | engaged | replied | meeting | won
+  funnelStage         String   @default("imported")
+  funnelStageUpdatedAt DateTime?
+
+  // ── Enrichment Freshness ──────────────────────────────────────────────────
+  lastEnrichedAt    DateTime?
+  enrichmentAgeDays Float?      // (now - lastEnrichedAt) in days; null = never enriched
+  enrichmentBucket  String?     // "fresh" | "aging" | "stale" | "very_stale" | "never"
+  // fresh < 30d | aging 30–90d | stale 90–180d | very_stale > 180d
+
+  // ── Silent Pipeline Flag ──────────────────────────────────────────────────
+  // true when importedAt > 7 days ago AND touchCountAllTime = 0
+  isSilent        Boolean  @default(false)
+  silentSince     DateTime?  // when the 7-day threshold was crossed with no outreach
+
+  // ── Worker metadata ───────────────────────────────────────────────────────
+  computedAt  DateTime  @default(now()) @updatedAt
+
+  @@index([workspaceId, latencyBucket])
+  @@index([workspaceId, frequencyBucket])
+  @@index([workspaceId, funnelStage])
+  @@index([workspaceId, enrichmentBucket])
+  @@index([workspaceId, isSilent])
+  @@index([workspaceId, lastOutreachAt])
+  @@index([workspaceId, importedAt])
 }
 
 // ── Knowledge Base ─────────────────────────────────────────────────────────────
