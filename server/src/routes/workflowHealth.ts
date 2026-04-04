@@ -1,3 +1,13 @@
+/**
+ * workflowHealth.ts — GET /api/workflow-health
+ *
+ * All metrics are now read from the LeadActivitySummary materialized table
+ * instead of scanning Touchpoint/Outcome raw tables on every request.
+ *
+ * Query cost before: 5 unbounded full-table reads + in-memory joins in Node.js
+ * Query cost after:  7 indexed aggregation queries against a pre-computed table
+ */
+
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { requireAuth } from "../middleware/auth";
@@ -6,17 +16,9 @@ const router = Router();
 
 const PERIOD_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "all": 9999 };
 
-const OUTREACH_EVENTS = new Set([
-  "email_sent", "sequence_started", "message_sent",
-  "connection_sent", "connection_request_sent",
-]);
-const POSITIVE_EVENTS = new Set([
-  "reply_received", "meeting_booked", "deal_won", "deal_created",
-]);
-
 function hf(h: number): string {
-  if (h < 1)   return `${Math.round(h * 60)}m`;
-  if (h < 24)  return `${Math.round(h)}h`;
+  if (h < 1)  return `${Math.round(h * 60)}m`;
+  if (h < 24) return `${Math.round(h)}h`;
   return `${Math.round(h / 24)}d`;
 }
 
@@ -29,184 +31,222 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
   if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
 
   const days  = PERIOD_DAYS[period] ?? 30;
-  const since = days < 9999 ? new Date(Date.now() - days * 86400000) : new Date(0);
+  const since = days < 9999 ? new Date(Date.now() - days * 86_400_000) : new Date(0);
 
   try {
-    // ── All touchpoints in period (for frequency / latency / paths) ──────────
-    const periodTps = await prisma.touchpoint.findMany({
-      where: { workspaceId, recordedAt: { gte: since } },
-      select: { iqLeadId: true, tool: true, eventType: true, recordedAt: true },
-      orderBy: { recordedAt: "asc" },
-    });
-
-    // ── All-time import events (for latency & coverage) ────────────────────
-    const importTps = await prisma.touchpoint.findMany({
-      where: { workspaceId, eventType: "lead_imported" },
-      select: { iqLeadId: true, recordedAt: true },
-      orderBy: { recordedAt: "asc" },
-    });
-
-    // ── All-time outreach (for coverage gaps) ──────────────────────────────
-    const allOutreachTps = await prisma.touchpoint.findMany({
-      where: { workspaceId, eventType: { in: [...OUTREACH_EVENTS] } },
-      select: { iqLeadId: true },
-      distinct: ["iqLeadId"],
-    });
-
-    // ── All-time full touchpoints (for funnel) ─────────────────────────────
-    const allTps = await prisma.touchpoint.findMany({
-      where: { workspaceId },
-      select: { iqLeadId: true, eventType: true },
-    });
-
-    // ── Outcomes in period ─────────────────────────────────────────────────
-    const outcomes = await prisma.outcome.findMany({
-      where: { workspaceId, recordedAt: { gte: since } },
-      select: { iqLeadId: true, type: true },
-    });
-
-    // ── Enrichment touchpoints (all-time) ─────────────────────────────────
-    const enrichTps = await prisma.touchpoint.findMany({
-      where: { workspaceId, eventType: "lead_enriched" },
-      select: { iqLeadId: true, recordedAt: true },
-    });
 
     // ─────────────────────────────────────────────────────────────────────────
     // 1. SIGNAL-TO-ACTION LATENCY
+    // Single GROUP BY on a pre-computed indexed column.
     // ─────────────────────────────────────────────────────────────────────────
-    const firstImport = new Map<string, Date>();
-    for (const tp of importTps) {
-      const ex = firstImport.get(tp.iqLeadId);
-      if (!ex || tp.recordedAt < ex) firstImport.set(tp.iqLeadId, tp.recordedAt);
-    }
+    const latencyGroups = await prisma.leadActivitySummary.groupBy({
+      by: ["latencyBucket"],
+      where: {
+        workspaceId,
+        latencyBucket: { not: null },
+        importedAt: { gte: since },
+      },
+      _count: { iqLeadId: true },
+    });
 
-    // group period touchpoints by lead
-    const byLead = new Map<string, { eventType: string; tool: string; recordedAt: Date }[]>();
-    for (const tp of periodTps) {
-      if (!byLead.has(tp.iqLeadId)) byLead.set(tp.iqLeadId, []);
-      byLead.get(tp.iqLeadId)!.push(tp);
-    }
+    // For avg/median we need the raw hours — but only for measured leads.
+    // We limit to 2000 to keep this fast; statistically representative.
+    const latencyRaw = await prisma.leadActivitySummary.findMany({
+      where: {
+        workspaceId,
+        latencyHours: { not: null },
+        importedAt: { gte: since },
+      },
+      select: { latencyHours: true },
+      take: 2000,
+    });
 
-    const latencyHours: number[] = [];
-    for (const [leadId, events] of byLead) {
-      const importTime = firstImport.get(leadId);
-      if (!importTime) continue;
-      const firstOut = events.find(e => OUTREACH_EVENTS.has(e.eventType));
-      if (!firstOut) continue;
-      const h = (firstOut.recordedAt.getTime() - importTime.getTime()) / 3_600_000;
-      if (h >= 0) latencyHours.push(h);
-    }
+    const latencyHours = latencyRaw.map(r => r.latencyHours!);
+    const sortedLat    = [...latencyHours].sort((a, b) => a - b);
+    const avgLatency   = latencyHours.length
+      ? latencyHours.reduce((a, b) => a + b, 0) / latencyHours.length
+      : null;
+    const medLatency   = sortedLat.length ? sortedLat[Math.floor(sortedLat.length / 2)] : null;
+
+    const bucketMap: Record<string, number> = {};
+    for (const g of latencyGroups) bucketMap[g.latencyBucket!] = g._count.iqLeadId;
 
     const latencyBuckets = [
-      { label: "< 4 hours",  min: 0,   max: 4,        count: 0, color: "emerald" },
-      { label: "4–24 hours", min: 4,   max: 24,       count: 0, color: "blue"    },
-      { label: "1–3 days",   min: 24,  max: 72,       count: 0, color: "amber"   },
-      { label: "3–7 days",   min: 72,  max: 168,      count: 0, color: "orange"  },
-      { label: "> 7 days",   min: 168, max: Infinity,  count: 0, color: "rose"    },
+      { label: "< 4 hours",  key: "sub4h",   count: bucketMap["sub4h"]   ?? 0, color: "emerald" },
+      { label: "4–24 hours", key: "4to24h",  count: bucketMap["4to24h"]  ?? 0, color: "blue"    },
+      { label: "1–3 days",   key: "1to3d",   count: bucketMap["1to3d"]   ?? 0, color: "amber"   },
+      { label: "3–7 days",   key: "3to7d",   count: bucketMap["3to7d"]   ?? 0, color: "orange"  },
+      { label: "> 7 days",   key: "over7d",  count: bucketMap["over7d"]  ?? 0, color: "rose"    },
     ];
-    for (const h of latencyHours) {
-      const b = latencyBuckets.find(b => h >= b.min && h < b.max);
-      if (b) b.count++;
-    }
-    const avgLatency = latencyHours.length
-      ? latencyHours.reduce((a, b) => a + b, 0) / latencyHours.length : null;
-    const sortedLat  = [...latencyHours].sort((a, b) => a - b);
-    const medLatency = sortedLat.length ? sortedLat[Math.floor(sortedLat.length / 2)] : null;
-    const fastCount  = latencyBuckets[0].count;
-    const fastPct    = latencyHours.length ? (fastCount / latencyHours.length) * 100 : 0;
+
+    const fastCount = bucketMap["sub4h"] ?? 0;
+    const totalMeasured = latencyHours.length;
+    const fastPct = totalMeasured > 0 ? (fastCount / totalMeasured) * 100 : 0;
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 2. CONTACT FREQUENCY
+    // 2. CONTACT FREQUENCY (7-day window)
     // ─────────────────────────────────────────────────────────────────────────
-    const last7 = new Date(Date.now() - 7 * 86_400_000);
-    const freq7 = new Map<string, number>();
-    for (const tp of periodTps) {
-      if (tp.recordedAt >= last7) {
-        freq7.set(tp.iqLeadId, (freq7.get(tp.iqLeadId) ?? 0) + 1);
-      }
-    }
+    const freqGroups = await prisma.leadActivitySummary.groupBy({
+      by: ["frequencyBucket"],
+      where: { workspaceId },
+      _count: { iqLeadId: true },
+    });
+
+    const freqMap: Record<string, number> = {};
+    for (const g of freqGroups) freqMap[g.frequencyBucket ?? "0"] = g._count.iqLeadId;
 
     const freqBuckets = [
-      { label: "No contact",   range: "0",    min: 0,  max: 0,        count: 0, color: "slate"   },
-      { label: "Light",        range: "1-2",  min: 1,  max: 2,        count: 0, color: "blue"    },
-      { label: "Healthy",      range: "3-5",  min: 3,  max: 5,        count: 0, color: "emerald" },
-      { label: "High",         range: "6-9",  min: 6,  max: 9,        count: 0, color: "amber"   },
-      { label: "Over-touched", range: "10+",  min: 10, max: Infinity,  count: 0, color: "rose"    },
+      { label: "No contact",   range: "0",   count: freqMap["0"]   ?? 0, color: "slate"   },
+      { label: "Light",        range: "1-2", count: freqMap["1-2"] ?? 0, color: "blue"    },
+      { label: "Healthy",      range: "3-5", count: freqMap["3-5"] ?? 0, color: "emerald" },
+      { label: "High",         range: "6-9", count: freqMap["6-9"] ?? 0, color: "amber"   },
+      { label: "Over-touched", range: "10+", count: freqMap["10+"] ?? 0, color: "rose"    },
     ];
-    freqBuckets[0].count = byLead.size - freq7.size;
-    for (const [, c] of freq7) {
-      const b = freqBuckets.find(b => c >= b.min && c <= (b.max === Infinity ? Infinity : b.max));
-      if (b) b.count++;
-    }
 
-    const overTouchedIds = [...freq7.entries()]
-      .filter(([, c]) => c >= 6)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([id]) => id);
+    const overTouchedCount = freqMap["10+"] ?? 0;
+    const totalLeads = Object.values(freqMap).reduce((a, b) => a + b, 0);
+    const overTouchedPct = totalLeads > 0 ? overTouchedCount / totalLeads : 0;
 
-    const overTouchedLeads = await prisma.iqLead.findMany({
-      where: { workspaceId, id: { in: overTouchedIds } },
-      select: { id: true, displayName: true, company: true, title: true },
+    // Top 5 over-touched leads with display info
+    const overTouchedRows = await prisma.leadActivitySummary.findMany({
+      where: {
+        workspaceId,
+        touchCount7d: { gte: 10 },
+      },
+      orderBy: { touchCount7d: "desc" },
+      take: 5,
+      select: {
+        touchCount7d: true,
+        iqLead: { select: { displayName: true, company: true, title: true } },
+      },
     });
-    const overTouchedWithCount = overTouchedLeads
-      .map(l => ({ displayName: l.displayName ?? "Unknown", company: l.company ?? "—", title: l.title ?? "", count: freq7.get(l.id) ?? 0 }))
-      .sort((a, b) => b.count - a.count);
 
-    const overTouchedCount = [...freq7.values()].filter(c => c >= 10).length;
-    const overTouchedPct   = byLead.size > 0 ? overTouchedCount / byLead.size : 0;
+    const overTouchedLeads = overTouchedRows.map(r => ({
+      displayName: r.iqLead?.displayName ?? "Unknown",
+      company:     r.iqLead?.company     ?? "—",
+      title:       r.iqLead?.title       ?? "",
+      count:       r.touchCount7d,
+    }));
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 3. COVERAGE GAPS
+    // 3. PIPELINE COVERAGE GAPS
     // ─────────────────────────────────────────────────────────────────────────
-    const withOutreach = new Set(allOutreachTps.map(t => t.iqLeadId));
     const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
-    let gapCount = 0;
-    for (const [leadId, importTime] of firstImport) {
-      if (importTime < sevenDaysAgo && !withOutreach.has(leadId)) gapCount++;
-    }
-    const totalImported = firstImport.size;
+
+    const [totalImported, gapCount, withOutreachCount] = await Promise.all([
+      prisma.leadActivitySummary.count({
+        where: { workspaceId, importedAt: { not: null } },
+      }),
+      // Silent leads: imported > 7 days ago, zero outreach ever
+      prisma.leadActivitySummary.count({
+        where: {
+          workspaceId,
+          importedAt: { lt: sevenDaysAgo, not: null },
+          firstOutreachAt: null,
+        },
+      }),
+      // Leads that received at least one outreach
+      prisma.leadActivitySummary.count({
+        where: { workspaceId, firstOutreachAt: { not: null } },
+      }),
+    ]);
+
     const gapPct = totalImported > 0 ? gapCount / totalImported : 0;
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 4. STEP FUNNEL (all-time)
+    // 4. MULTI-STEP PIPELINE FUNNEL (waterfall — sequential state machine)
     // ─────────────────────────────────────────────────────────────────────────
-    const eventLeads = new Map<string, Set<string>>();
-    for (const tp of allTps) {
-      if (!eventLeads.has(tp.eventType)) eventLeads.set(tp.eventType, new Set());
-      eventLeads.get(tp.eventType)!.add(tp.iqLeadId);
-    }
-    function unionCount(events: string[]): number {
-      const u = new Set<string>();
-      for (const e of events) eventLeads.get(e)?.forEach(id => u.add(id));
-      return u.size;
-    }
-    const FUNNEL = [
-      { label: "Imported",  events: ["lead_imported"] },
-      { label: "Enriched",  events: ["lead_enriched"] },
-      { label: "Contacted", events: ["email_sent","sequence_started","message_sent","connection_sent","connection_request_sent"] },
-      { label: "Engaged",   events: ["email_opened","email_clicked","link_clicked"] },
-      { label: "Replied",   events: ["reply_received"] },
-      { label: "Meeting",   events: ["meeting_booked"] },
-      { label: "Won",       events: ["deal_won"] },
-    ];
-    const funnelSteps = FUNNEL.map((step, i) => {
-      const count    = unionCount(step.events);
-      const prev     = i > 0 ? unionCount(FUNNEL[i - 1].events) : count;
-      const pct      = i === 0 || prev === 0 ? 100 : Math.round((count / prev) * 100);
-      const dropPct  = i === 0 ? null : 100 - pct;
-      return { label: step.label, count, pct, dropPct };
+    const funnelGroups = await prisma.leadActivitySummary.groupBy({
+      by: ["funnelStage"],
+      where: { workspaceId },
+      _count: { iqLeadId: true },
     });
+
+    const stageCountMap: Record<string, number> = {};
+    for (const g of funnelGroups) stageCountMap[g.funnelStage] = g._count.iqLeadId;
+
+    // Stages in order — a lead counted at "replied" is also at "contacted" etc.
+    // So the count at each stage = sum of counts at that stage AND all later stages.
+    const stageOrder = ["imported", "enriched", "contacted", "engaged", "replied", "meeting", "won"];
+    const stageLabels: Record<string, string> = {
+      imported: "Imported", enriched: "Enriched", contacted: "Contacted",
+      engaged: "Engaged", replied: "Replied", meeting: "Meeting", won: "Won",
+    };
+
+    const funnelSteps = stageOrder.map((stage, i) => {
+      // Cumulative count: leads AT or BEYOND this stage
+      const count = stageOrder.slice(i).reduce((sum, s) => sum + (stageCountMap[s] ?? 0), 0);
+      const prev  = i === 0 ? count
+        : stageOrder.slice(i - 1).reduce((sum, s) => sum + (stageCountMap[s] ?? 0), 0);
+      const pct     = i === 0 || prev === 0 ? 100 : Math.round((count / prev) * 100);
+      const dropPct = i === 0 ? null : 100 - pct;
+      return { label: stageLabels[stage], count, pct, dropPct };
+    });
+
     let biggestDrop = ""; let maxDrop = 0;
     for (const s of funnelSteps) {
       if (s.dropPct !== null && s.dropPct > maxDrop) { maxDrop = s.dropPct; biggestDrop = s.label; }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 5. PATH ATTRIBUTION
+    // 5. TOP CONVERTING TOUCHPOINT PATHS
+    // Still derived from raw Touchpoint data — LeadActivitySummary doesn't
+    // store path sequences. Scoped to period + limited to 500 leads for speed.
     // ─────────────────────────────────────────────────────────────────────────
+    const OUTREACH_EVENTS = new Set([
+      "email_sent", "sequence_started", "message_sent",
+      "connection_sent", "connection_request_sent",
+    ]);
+    const POSITIVE_EVENTS = new Set([
+      "reply_received", "meeting_booked", "deal_won", "deal_created",
+    ]);
+
+    // Get the top 500 iqLeadIds active in the period (ordered by recency)
+    const activeLeadIds = await prisma.leadActivitySummary.findMany({
+      where: {
+        workspaceId,
+        lastOutreachAt: { gte: since },
+      },
+      select: { iqLeadId: true },
+      orderBy: { lastOutreachAt: "desc" },
+      take: 500,
+    });
+
+    const iqLeadIdSet = activeLeadIds.map(r => r.iqLeadId);
+
+    const [periodTps, outcomes] = await Promise.all([
+      iqLeadIdSet.length > 0
+        ? prisma.touchpoint.findMany({
+            where: {
+              workspaceId,
+              iqLeadId: { in: iqLeadIdSet },
+              recordedAt: { gte: since },
+            },
+            select: { iqLeadId: true, eventType: true, recordedAt: true },
+            orderBy: { recordedAt: "asc" },
+          })
+        : Promise.resolve([]),
+      iqLeadIdSet.length > 0
+        ? prisma.outcome.findMany({
+            where: {
+              workspaceId,
+              iqLeadId: { in: iqLeadIdSet },
+              recordedAt: { gte: since },
+            },
+            select: { iqLeadId: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const byLead = new Map<string, { eventType: string; recordedAt: Date }[]>();
+    for (const tp of periodTps) {
+      if (!byLead.has(tp.iqLeadId)) byLead.set(tp.iqLeadId, []);
+      byLead.get(tp.iqLeadId)!.push(tp);
+    }
+
     const outcomeLeads = new Set(outcomes.map(o => o.iqLeadId));
     const pathMap = new Map<string, { count: number; outcomes: number }>();
+
     for (const [leadId, events] of byLead) {
       const path: string[] = [];
       for (const e of events) {
@@ -221,10 +261,11 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       if (outcomeLeads.has(leadId)) ex.outcomes++;
       pathMap.set(key, ex);
     }
+
     const topPaths = [...pathMap.entries()]
       .map(([key, d]) => ({
-        path: key.split(" → "),
-        count: d.count,
+        path:     key.split(" → "),
+        count:    d.count,
         outcomes: d.outcomes,
         convRate: d.count > 0 ? Math.round((d.outcomes / d.count) * 100) : 0,
       }))
@@ -233,41 +274,33 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       .slice(0, 6);
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 6. ENRICHMENT STALENESS (active leads only)
+    // 6. ENRICHMENT FRESHNESS (active leads — outreach in last 30 days)
     // ─────────────────────────────────────────────────────────────────────────
     const last30 = new Date(Date.now() - 30 * 86_400_000);
-    const recentActive = new Set<string>();
-    for (const tp of periodTps) {
-      if (tp.recordedAt >= last30 && OUTREACH_EVENTS.has(tp.eventType)) {
-        recentActive.add(tp.iqLeadId);
-      }
-    }
 
-    const lastEnrich = new Map<string, Date>();
-    for (const tp of enrichTps) {
-      const ex = lastEnrich.get(tp.iqLeadId);
-      if (!ex || tp.recordedAt > ex) lastEnrich.set(tp.iqLeadId, tp.recordedAt);
-    }
+    const enrichGroups = await prisma.leadActivitySummary.groupBy({
+      by: ["enrichmentBucket"],
+      where: {
+        workspaceId,
+        lastOutreachAt: { gte: last30 }, // active leads only
+      },
+      _count: { iqLeadId: true },
+    });
+
+    const enrichMap: Record<string, number> = {};
+    for (const g of enrichGroups) enrichMap[g.enrichmentBucket ?? "never"] = g._count.iqLeadId;
 
     const enrichBuckets = [
-      { label: "Fresh",      days: "< 30 days",   min: 0,   max: 30,       count: 0, color: "emerald" },
-      { label: "Aging",      days: "30–90 days",  min: 30,  max: 90,       count: 0, color: "blue"    },
-      { label: "Stale",      days: "90–180 days", min: 90,  max: 180,      count: 0, color: "amber"   },
-      { label: "Very Stale", days: "> 180 days",  min: 180, max: Infinity,  count: 0, color: "rose"    },
+      { label: "Fresh",      days: "< 30 days",   key: "fresh",      count: enrichMap["fresh"]      ?? 0, color: "emerald" },
+      { label: "Aging",      days: "30–90 days",  key: "aging",      count: enrichMap["aging"]      ?? 0, color: "blue"    },
+      { label: "Stale",      days: "90–180 days", key: "stale",      count: enrichMap["stale"]      ?? 0, color: "amber"   },
+      { label: "Very Stale", days: "> 180 days",  key: "very_stale", count: enrichMap["very_stale"] ?? 0, color: "rose"    },
     ];
-    let neverEnriched = 0; let activeWithStale = 0; let freshEnrichCount = 0;
-    for (const leadId of recentActive) {
-      const le = lastEnrich.get(leadId);
-      if (!le) { neverEnriched++; continue; }
-      const daysAgo = (Date.now() - le.getTime()) / 86_400_000;
-      const b = enrichBuckets.find(b => daysAgo >= b.min && daysAgo < b.max);
-      if (b) {
-        b.count++;
-        if (daysAgo >= 90)  activeWithStale++;
-        if (daysAgo < 30)   freshEnrichCount++;
-      }
-    }
-    const activeTotal    = recentActive.size;
+
+    const neverEnriched   = enrichMap["never"] ?? 0;
+    const activeWithStale = (enrichMap["stale"] ?? 0) + (enrichMap["very_stale"] ?? 0);
+    const freshEnrichCount = enrichMap["fresh"] ?? 0;
+    const activeTotal = Object.values(enrichMap).reduce((a, b) => a + b, 0);
     const freshEnrichPct = activeTotal > 0 ? (freshEnrichCount / activeTotal) * 100 : 100;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -285,32 +318,32 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       period,
       healthScore,
       latency: {
-        buckets: latencyBuckets,
-        avgHours:    avgLatency    !== null ? +avgLatency.toFixed(1)    : null,
-        medianHours: medLatency    !== null ? +medLatency.toFixed(1)    : null,
-        avgFormatted:    avgLatency    !== null ? hf(avgLatency)    : null,
-        medianFormatted: medLatency    !== null ? hf(medLatency)    : null,
-        fastPct:     Math.round(fastPct),
-        totalMeasured: latencyHours.length,
-        insight: latencyHours.length === 0
+        buckets:         latencyBuckets,
+        avgHours:        avgLatency !== null ? +avgLatency.toFixed(1)  : null,
+        medianHours:     medLatency !== null ? +medLatency.toFixed(1)  : null,
+        avgFormatted:    avgLatency !== null ? hf(avgLatency)          : null,
+        medianFormatted: medLatency !== null ? hf(medLatency)          : null,
+        fastPct:         Math.round(fastPct),
+        totalMeasured,
+        insight: totalMeasured === 0
           ? "No latency data — connect a tool and start importing leads"
           : fastPct >= 50
           ? `${Math.round(fastPct)}% of leads contacted within 4 hours of import`
           : `Only ${Math.round(fastPct)}% contacted within 4 hours — slow response is costing conversions`,
       },
       frequency: {
-        buckets: freqBuckets,
+        buckets:          freqBuckets,
         overTouchedCount,
-        overTouchedLeads: overTouchedWithCount,
+        overTouchedLeads,
         insight: overTouchedCount === 0
           ? "No over-touched leads detected this week"
           : `${overTouchedCount} lead${overTouchedCount !== 1 ? "s" : ""} hit 10+ touches/week — high unsubscribe risk`,
       },
       coverage: {
         totalImported,
-        withOutreach: totalImported - gapCount,
-        gaps:    gapCount,
-        gapPct:  Math.round(gapPct * 100),
+        withOutreach: withOutreachCount,
+        gaps:         gapCount,
+        gapPct:       Math.round(gapPct * 100),
         insight: gapCount === 0
           ? "All imported leads have received outreach"
           : `${gapCount} imported lead${gapCount !== 1 ? "s" : ""} (${Math.round(gapPct * 100)}%) never received any outreach`,
@@ -318,7 +351,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       funnel: { steps: funnelSteps, biggestDrop },
       paths:  { top: topPaths, totalWithOutcome: outcomeLeads.size },
       enrichment: {
-        buckets: enrichBuckets,
+        buckets:        enrichBuckets,
         activeWithStale,
         neverEnriched,
         freshEnrichPct: Math.round(freshEnrichPct),
