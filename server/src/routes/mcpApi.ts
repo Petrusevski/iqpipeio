@@ -42,6 +42,7 @@ import {
   providerCheckers, sanitizeSecrets,
 } from "./integrations";
 import { APP_CATALOG } from "./workflowMirror";
+import { getWorkflowHealthData } from "../services/workflowHealthService";
 
 const router = Router();
 
@@ -235,60 +236,16 @@ router.get("/workflows", requireApiKey, async (req: ApiKeyRequest, res: Response
 });
 
 // ─── GET /api/mcp/workflow-health ─────────────────────────────────────────────
+// Returns the full pipeline intelligence payload (latency, frequency, coverage,
+// funnel, paths, enrichment) from the LeadActivitySummary materialized table.
+// Same data shape as GET /api/workflow-health (dashboard route).
 router.get("/workflow-health", requireApiKey, async (req: ApiKeyRequest, res: Response) => {
   const workspaceId = req.workspaceId!;
-  const period = (req.query.period as string) || "30d";
-  const days = parseInt(period.replace("d", "")) || 30;
-  const since = new Date(Date.now() - days * 24 * 3_600_000);
+  const period      = (req.query.period as string) || "30d";
 
   try {
-    const [n8nMetas, makeMetas] = await Promise.all([
-      prisma.n8nWorkflowMeta.findMany({
-        where:  { workspaceId },
-        select: { id: true, n8nId: true, name: true, active: true },
-      }),
-      prisma.makeScenarioMeta.findMany({
-        where:  { workspaceId },
-        select: { id: true, makeId: true, name: true, active: true },
-      }),
-    ]);
-
-    // Fetch event counts per workflow
-    const eventCountsByWorkflow = await prisma.n8nQueuedEvent.groupBy({
-      by:    ["workflowId", "status"],
-      where: { workspaceId, processedAt: { gte: since } },
-      _count: { id: true },
-    });
-
-    const byWf: Record<string, { done: number; failed: number; total: number }> = {};
-    for (const r of eventCountsByWorkflow) {
-      if (!byWf[r.workflowId]) byWf[r.workflowId] = { done: 0, failed: 0, total: 0 };
-      byWf[r.workflowId].total += r._count.id;
-      if (r.status === "done")   byWf[r.workflowId].done   += r._count.id;
-      if (r.status === "failed") byWf[r.workflowId].failed += r._count.id;
-    }
-
-    const summarise = (id: string, n8nId: string | null, name: string, platform: string, active: boolean) => {
-      const m = byWf[n8nId ?? id] ?? { done: 0, failed: 0, total: 0 };
-      const successRate = m.total > 0 ? Math.round((m.done / m.total) * 100) : null;
-      return {
-        id, name, platform, active,
-        period,
-        eventsTotal: m.total,
-        eventsDone:  m.done,
-        eventsFailed: m.failed,
-        successRate,
-        health: successRate === null ? "no_data"
-          : successRate >= 90 ? "healthy"
-          : successRate >= 70 ? "warning"
-          : "critical",
-      };
-    };
-
-    res.json([
-      ...n8nMetas.map(w => summarise(w.id, w.n8nId, w.name, "n8n", w.active)),
-      ...makeMetas.map(s => summarise(s.id, s.makeId, s.name, "make", s.active)),
-    ]);
+    const data = await getWorkflowHealthData(workspaceId, period);
+    res.json(data);
   } catch (err) {
     console.error("[mcp/workflow-health]", err);
     res.status(500).json({ error: "Failed to fetch workflow health" });
