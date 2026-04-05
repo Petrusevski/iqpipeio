@@ -11,9 +11,9 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Terminal, Copy, Check, Search, Shield, Code2,
-  ArrowRight, BookOpen,
+  ArrowRight, BookOpen, Zap,
   Lock, Server, GitBranch, Package,
-  Network, FileCode, Play, ChevronDown,
+  Cpu, Network, FileCode, Play, ChevronDown,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -567,7 +567,8 @@ export default function MCPProtocolPage() {
           {/* API key CTA */}
           <div className="mt-4 rounded-xl border border-indigo-500/20 bg-indigo-950/40 p-4">
             <p className="text-xs text-indigo-300 font-medium mb-2">Get your API key</p>
-            <p className="text-[11px] text-slate-500 mb-3 leading-snug">Create a scoped MCP key in Settings → API Keys.</p>
+            <p className="text-[11px] text-slate-500 mb-2 leading-snug">Create a scoped MCP key in Settings → API Keys.</p>
+            <p className="text-[10px] text-amber-400/70 mb-3 leading-snug">Available on Growth and Agency plans.</p>
             <Link to="/signup" className="flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
               Get started free <ArrowRight className="w-3 h-3" />
             </Link>
@@ -669,7 +670,8 @@ export default function MCPProtocolPage() {
             <p className="text-slate-400 leading-relaxed mb-8">
               Four connection paths. All require a{" "}
               <code className="text-indigo-300 font-mono text-sm">rvn_pk_</code> public API key
-              from Settings → API Keys.
+              from Settings → API Keys —{" "}
+              <span className="text-amber-400/80">available on Growth and Agency plans.</span>
             </p>
 
             <div className="space-y-6">
