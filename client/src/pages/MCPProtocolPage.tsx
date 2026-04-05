@@ -420,7 +420,7 @@ export default function MCPProtocolPage() {
       "name": "get_workflow_health",
       "arguments": { "period": "30d" }
     }
-  }'`;`;
+  }'`;
 
   const JSON_RPC_EXAMPLE = `{
   "jsonrpc": "2.0",
