@@ -650,6 +650,198 @@ export default function LandingPage() {
         </section>
 
 
+        {/* ── MCP Feature Highlight ─────────────────────────────────────────── */}
+        <section className="relative bg-[#0a0f1e] py-24 border-t border-slate-800/60 overflow-hidden">
+          {/* Background glow */}
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />
+            <div className="absolute -bottom-32 -right-32 w-[500px] h-[500px] rounded-full bg-fuchsia-600/8 blur-[120px]" />
+          </div>
+
+          <div className="relative mx-auto max-w-6xl px-6 grid md:grid-cols-2 gap-16 items-center">
+
+            {/* ── Left: copy ──────────────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, x: -32 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+            >
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 mb-6">
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                <span className="text-xs font-medium text-indigo-300 tracking-wide uppercase">Model Context Protocol</span>
+              </div>
+
+              <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-5">
+                Connect Your Tools,{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-fuchsia-400">
+                  Unified via MCP
+                </span>
+              </h2>
+
+              <p className="text-slate-400 text-lg leading-relaxed mb-8 max-w-md">
+                MCP is an open standard that lets AI models securely talk to your local
+                and remote data sources — no custom glue code, no brittle one-off integrations.
+                IQPipe exposes your entire GTM intelligence layer through a single MCP server,
+                so your AI tools always have live, authoritative context.
+              </p>
+
+              {/* Three micro-benefits */}
+              <ul className="space-y-3 mb-10">
+                {[
+                  { icon: "⚡", text: "Query live pipeline health from any MCP-compatible AI" },
+                  { icon: "🔒", text: "Scoped API keys — share only what each agent needs" },
+                  { icon: "🔌", text: "Works with Claude, Cursor, VS Code, and any MCP host" },
+                ].map(({ icon, text }) => (
+                  <li key={text} className="flex items-start gap-3">
+                    <span className="text-base mt-0.5">{icon}</span>
+                    <span className="text-slate-300 text-sm leading-snug">{text}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <a
+                href="#pricing"
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-indigo-500/20"
+              >
+                Explore the Protocol
+                <ArrowRight className="w-4 h-4" />
+              </a>
+            </motion.div>
+
+            {/* ── Right: code/diagram visual ──────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, x: 32 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="relative"
+            >
+              {/* Outer glow ring */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/10 blur-xl -z-10" />
+
+              {/* Card shell */}
+              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/80 backdrop-blur overflow-hidden shadow-2xl">
+
+                {/* Fake window chrome */}
+                <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-700/60 bg-slate-800/60">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500/70" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
+                  <span className="ml-3 text-xs text-slate-500 font-mono">mcp-client  ·  iqpipe</span>
+                </div>
+
+                {/* Code block */}
+                <div className="p-5 font-mono text-[13px] leading-relaxed overflow-x-auto">
+                  {/* Comment */}
+                  <div className="text-slate-500 mb-3">{"// Connect Claude to your GTM data in 3 lines"}</div>
+
+                  {/* Line 1 */}
+                  <div>
+                    <span className="text-fuchsia-400">import </span>
+                    <span className="text-slate-300">{"{ MCPClient } "}</span>
+                    <span className="text-fuchsia-400">from </span>
+                    <span className="text-emerald-400">"@iqpipe/mcp"</span>
+                    <span className="text-slate-300">;</span>
+                  </div>
+
+                  {/* Blank */}
+                  <div className="h-3" />
+
+                  {/* Line 2 */}
+                  <div>
+                    <span className="text-fuchsia-400">const </span>
+                    <span className="text-indigo-300">client </span>
+                    <span className="text-slate-400">= </span>
+                    <span className="text-sky-300">new </span>
+                    <span className="text-amber-300">MCPClient</span>
+                    <span className="text-slate-300">({"{"}</span>
+                  </div>
+                  <div className="pl-6">
+                    <span className="text-indigo-300">apiKey</span>
+                    <span className="text-slate-400">: </span>
+                    <span className="text-emerald-400">"rvn_pk_…"</span>
+                    <span className="text-slate-300">,</span>
+                  </div>
+                  <div className="pl-6">
+                    <span className="text-indigo-300">tools</span>
+                    <span className="text-slate-400">: </span>
+                    <span className="text-emerald-400">["get_funnel", "get_anomalies", "list_deals"]</span>
+                    <span className="text-slate-300">,</span>
+                  </div>
+                  <div><span className="text-slate-300">{"});"}</span></div>
+
+                  {/* Blank */}
+                  <div className="h-3" />
+
+                  {/* Line 3 */}
+                  <div>
+                    <span className="text-fuchsia-400">const </span>
+                    <span className="text-indigo-300">funnel </span>
+                    <span className="text-slate-400">= </span>
+                    <span className="text-fuchsia-400">await </span>
+                    <span className="text-indigo-300">client</span>
+                    <span className="text-slate-400">.</span>
+                    <span className="text-amber-300">get_funnel</span>
+                    <span className="text-slate-300">({"{"}</span>
+                  </div>
+                  <div className="pl-6">
+                    <span className="text-indigo-300">period</span>
+                    <span className="text-slate-400">: </span>
+                    <span className="text-emerald-400">"30d"</span>
+                    <span className="text-slate-300">,</span>
+                  </div>
+                  <div><span className="text-slate-300">{"});"}</span></div>
+
+                  {/* Blank */}
+                  <div className="h-3" />
+
+                  {/* Output */}
+                  <div className="rounded-lg bg-slate-800/70 border border-slate-700/50 p-3 mt-1">
+                    <div className="text-slate-500 text-[11px] mb-2">{"// → live response"}</div>
+                    <div>
+                      <span className="text-slate-400">{"{ "}</span>
+                      <span className="text-indigo-300">healthScore</span>
+                      <span className="text-slate-400">{": "}</span>
+                      <span className="text-emerald-400">81</span>
+                      <span className="text-slate-400">{", "}</span>
+                      <span className="text-indigo-300">biggestDrop</span>
+                      <span className="text-slate-400">{": "}</span>
+                      <span className="text-emerald-400">"Contacted"</span>
+                      <span className="text-slate-400">{","}</span>
+                    </div>
+                    <div className="pl-4">
+                      <span className="text-indigo-300">contacted</span>
+                      <span className="text-slate-400">{": "}</span>
+                      <span className="text-amber-300">247</span>
+                      <span className="text-slate-400">{", "}</span>
+                      <span className="text-indigo-300">replied</span>
+                      <span className="text-slate-400">{": "}</span>
+                      <span className="text-amber-300">38</span>
+                      <span className="text-slate-400">{", "}</span>
+                      <span className="text-indigo-300">won</span>
+                      <span className="text-slate-400">{": "}</span>
+                      <span className="text-emerald-400">11</span>
+                      <span className="text-slate-400">{" }"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer status bar */}
+                <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-700/60 bg-slate-800/40">
+                  <div className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[11px] text-emerald-400 font-medium">Connected  ·  12 tools active</span>
+                  </div>
+                  <span className="text-[11px] text-slate-600 font-mono">MCP/1.0</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+
         {/* ── Pricing ───────────────────────────────────────────────────────── */}
         <section id="pricing" className="relative bg-slate-950 py-24 border-t border-slate-900">
           <div className="mx-auto max-w-4xl text-center px-4">
