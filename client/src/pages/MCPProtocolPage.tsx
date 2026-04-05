@@ -569,8 +569,8 @@ export default function MCPProtocolPage() {
             <p className="text-xs text-indigo-300 font-medium mb-2">Get your API key</p>
             <p className="text-[11px] text-slate-500 mb-2 leading-snug">Create a scoped MCP key in Settings → API Keys.</p>
             <p className="text-[10px] text-amber-400/70 mb-3 leading-snug">Available on Growth and Agency plans.</p>
-            <Link to="/signup" className="flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
-              Get started free <ArrowRight className="w-3 h-3" />
+            <Link to="/pricing" className="flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
+              View Growth & Agency plans <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
         </aside>
@@ -991,12 +991,13 @@ export default function MCPProtocolPage() {
           {/* ── Final CTA ─────────────────────────────────────────────────────── */}
           <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/60 to-slate-900/60 p-10 text-center">
             <div className="text-3xl font-bold text-white mb-3">Ready to connect your AI?</div>
-            <p className="text-slate-400 mb-8 max-w-md mx-auto text-sm leading-relaxed">
-              Get your API key, wire it into Claude or Cursor, and give your AI live GTM context in under five minutes.
+            <p className="text-slate-400 mb-2 max-w-md mx-auto text-sm leading-relaxed">
+              MCP access is included on Growth and Agency plans. Upgrade to get your API key and wire IQPipe into Claude or Cursor in minutes.
             </p>
+            <p className="text-amber-400/70 text-xs mb-8">Requires Growth or Agency plan</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Link to="/signup" className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-indigo-500/20">
-                Start free <ArrowRight className="w-4 h-4" />
+              <Link to="/pricing" className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-indigo-500/20">
+                View plans <ArrowRight className="w-4 h-4" />
               </Link>
               <a href="#quickstart" className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 px-6 py-3 text-sm font-medium text-slate-300 transition-colors">
                 <Play className="w-4 h-4" />
