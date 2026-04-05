@@ -3,17 +3,17 @@
  *
  * Technical deep-dive hub for the IQPipe Model Context Protocol server.
  * Sections: Hero → How it Works → Quick Start → Connector Registry →
- *           Security → SDK Reference → Community Templates
+ *           Security → SDK Reference
  */
 
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Terminal, Copy, Check, Search, Shield, Zap, Code2,
-  Database, ArrowRight, ChevronRight, BookOpen,
-  Lock, Server, GitBranch, Package, Users, ExternalLink,
-  Cpu, Network, FileCode, Play, ChevronDown,
+  Terminal, Copy, Check, Search, Shield, Code2,
+  ArrowRight, BookOpen,
+  Lock, Server, GitBranch, Package,
+  Network, FileCode, Play, ChevronDown,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -22,13 +22,12 @@ import { API_BASE_URL } from "../../config";
 // ─── Sidebar nav sections ────────────────────────────────────────────────────
 
 const NAV_SECTIONS = [
-  { id: "overview",    label: "Overview",            icon: BookOpen  },
-  { id: "how-it-works", label: "How it Works",       icon: Network   },
-  { id: "quickstart",  label: "Quick Start",          icon: Terminal  },
-  { id: "connectors",  label: "Connector Registry",   icon: Package   },
-  { id: "security",    label: "Security & Privacy",   icon: Shield    },
-  { id: "sdk",         label: "SDK Reference",        icon: Code2     },
-  { id: "community",   label: "Community Templates",  icon: Users     },
+  { id: "overview",    label: "Overview",           icon: BookOpen  },
+  { id: "how-it-works", label: "How it Works",      icon: Network   },
+  { id: "quickstart",  label: "Quick Start",         icon: Terminal  },
+  { id: "connectors",  label: "Connector Registry",  icon: Package   },
+  { id: "security",    label: "Security & Privacy",  icon: Shield    },
+  { id: "sdk",         label: "SDK Reference",       icon: Code2     },
 ];
 
 // ─── Connector registry data ─────────────────────────────────────────────────
@@ -343,58 +342,6 @@ const SDK_TOOLS = [
   },
 ];
 
-// ─── Community templates ──────────────────────────────────────────────────────
-
-const TEMPLATES = [
-  {
-    title: "Claude GTM Assistant",
-    author: "iqpipe team",
-    stars: 142,
-    desc: "System prompt + tool config for Claude to answer GTM questions using live IQPipe data.",
-    tags: ["Claude", "GTM", "Official"],
-    official: true,
-  },
-  {
-    title: "Cursor Pipeline Reviewer",
-    author: "community",
-    stars: 87,
-    desc: "Cursor rules file that wires get_workflow_health into your IDE for inline pipeline feedback.",
-    tags: ["Cursor", "DevEx"],
-    official: false,
-  },
-  {
-    title: "Daily Slack Digest",
-    author: "community",
-    stars: 63,
-    desc: "n8n workflow that queries get_anomalies each morning and posts a summary to Slack.",
-    tags: ["n8n", "Slack", "Alerts"],
-    official: false,
-  },
-  {
-    title: "Outreach Quality Gate",
-    author: "community",
-    stars: 51,
-    desc: "Before launching a sequence, check get_funnel to confirm coverage gap > 20% first.",
-    tags: ["Apollo", "Sequences", "ICP"],
-    official: false,
-  },
-  {
-    title: "Enrichment Freshness Bot",
-    author: "community",
-    stars: 38,
-    desc: "Polls get_anomalies for stale enrichment and re-enqueues leads in Clay automatically.",
-    tags: ["Clay", "Enrichment", "Automation"],
-    official: false,
-  },
-  {
-    title: "VS Code Revenue Sidebar",
-    author: "community",
-    stars: 29,
-    desc: "VS Code extension that surfaces list_deals and get_funnel in a dedicated sidebar panel.",
-    tags: ["VS Code", "Deals"],
-    official: false,
-  },
-];
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
@@ -405,6 +352,9 @@ export default function MCPProtocolPage() {
   const [expandedTool,    setExpandedTool]    = useState<string | null>(null);
   const { copied, copy } = useCopy();
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+
+  // ── Scroll to top on mount ───────────────────────────────────────────────────
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
   // ── Scroll-spy ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -432,36 +382,45 @@ export default function MCPProtocolPage() {
     return matchCat && matchQ;
   });
 
-  // ── Quick-start code samples ─────────────────────────────────────────────────
-  const INSTALL_CMD  = `npm install @iqpipe/mcp-client`;
-  const CONFIG_CMD   = `npx iqpipe-mcp init`;
-  const CLAUDE_JSON  = `{
+  // ── Quick-start code samples (all accurate — sourced from mcpServer.ts) ───────
+
+  // Claude Desktop + any MCP host that supports Streamable HTTP
+  const CLAUDE_DESKTOP_JSON = `{
   "mcpServers": {
     "iqpipe": {
-      "command": "npx",
-      "args": ["-y", "@iqpipe/mcp-server"],
-      "env": {
-        "IQPIPE_API_KEY": "rvn_pk_your_key_here"
+      "url": "https://api.iqpipe.io/mcp",
+      "headers": {
+        "Authorization": "Bearer rvn_pk_your_key_here"
       }
     }
   }
 }`;
 
-  const SDK_EXAMPLE = `import { MCPClient } from "@iqpipe/mcp";
+  // Cursor — .cursor/mcp.json uses same format
+  const CURSOR_JSON = `{
+  "mcpServers": {
+    "iqpipe": {
+      "url": "https://api.iqpipe.io/mcp",
+      "headers": {
+        "Authorization": "Bearer rvn_pk_your_key_here"
+      }
+    }
+  }
+}`;
 
-const client = new MCPClient({
-  apiKey: process.env.IQPIPE_API_KEY,
-  tools: ["get_funnel", "get_anomalies", "list_deals"],
-});
-
-// Query live pipeline health
-const health = await client.get_workflow_health({ period: "30d" });
-console.log(\`Health score: \${health.healthScore}/100\`);
-console.log(\`Biggest drop: \${health.funnel.biggestDrop}\`);
-
-// Find anomalies
-const alerts = await client.get_anomalies({ severity: "warning" });
-alerts.forEach(a => console.log(a.title));`;
+  // Raw HTTP — works with any HTTP client, script, or test
+  const CURL_EXAMPLE = `curl -X POST https://api.iqpipe.io/mcp \\
+  -H "Authorization: Bearer rvn_pk_your_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get_workflow_health",
+      "arguments": { "period": "30d" }
+    }
+  }'`;`;
 
   const JSON_RPC_EXAMPLE = `{
   "jsonrpc": "2.0",
@@ -795,36 +754,40 @@ alerts.forEach(a => console.log(a.title));`;
                   <div className="w-6 h-6 rounded bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
                     <img src={`${API_BASE_URL}/api/proxy/favicon?domain=claude.ai`} alt="Claude" width={14} height={14} className="object-contain" />
                   </div>
-                  Option B — Claude Desktop (local)
+                  Option B — Claude Desktop
                 </h3>
                 <p className="text-xs text-slate-500 mb-4">
-                  For Claude Desktop app — add to{" "}
-                  <code className="font-mono text-slate-400">claude_desktop_config.json</code>:
+                  Add to{" "}
+                  <code className="font-mono text-slate-400">claude_desktop_config.json</code>.
+                  Uses the remote Streamable HTTP transport — no local process required.
                 </p>
-                <CodeBlock code={CLAUDE_JSON} language="json" copyKey="claude-json" onCopy={copy} isCopied={copied === "claude-json"} />
+                <CodeBlock code={CLAUDE_DESKTOP_JSON} language="json" copyKey="claude-desktop-json" onCopy={copy} isCopied={copied === "claude-desktop-json"} />
               </div>
 
-              {/* ── Option C: Node.js SDK ─────────────────────────────────── */}
+              {/* ── Option C: Cursor ──────────────────────────────────────── */}
               <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5">
                 <h3 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
-                  <Package className="w-4 h-4 text-indigo-400" />
-                  Option C — Node.js SDK
+                  <div className="w-6 h-6 rounded bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
+                    <img src={`${API_BASE_URL}/api/proxy/favicon?domain=cursor.com`} alt="Cursor" width={14} height={14} className="object-contain" />
+                  </div>
+                  Option C — Cursor
                 </h3>
-                <p className="text-xs text-slate-500 mb-4">For custom agents, scripts, or any Node.js environment.</p>
-                <div className="space-y-3">
-                  <CodeBlock code={INSTALL_CMD} language="bash" copyKey="install" onCopy={copy} isCopied={copied === "install"} />
-                  <CodeBlock code={SDK_EXAMPLE} language="typescript" copyKey="sdk-example" onCopy={copy} isCopied={copied === "sdk-example"} />
-                </div>
+                <p className="text-xs text-slate-500 mb-4">
+                  Add to <code className="font-mono text-slate-400">.cursor/mcp.json</code> in your project root (or global Cursor settings):
+                </p>
+                <CodeBlock code={CURSOR_JSON} language="json" copyKey="cursor-json" onCopy={copy} isCopied={copied === "cursor-json"} />
               </div>
 
-              {/* ── Option D: CLI init ────────────────────────────────────── */}
+              {/* ── Option D: Raw HTTP / curl ─────────────────────────────── */}
               <div className="rounded-xl border border-slate-700/60 bg-slate-900/60 p-5">
                 <h3 className="text-sm font-semibold text-white mb-1 flex items-center gap-2">
                   <Terminal className="w-4 h-4 text-indigo-400" />
-                  Option D — Interactive CLI
+                  Option D — Direct HTTP (curl / any client)
                 </h3>
-                <p className="text-xs text-slate-500 mb-4">Scaffolds config, prompts for API key, and verifies the connection.</p>
-                <CodeBlock code={CONFIG_CMD} language="bash" copyKey="config-cmd" onCopy={copy} isCopied={copied === "config-cmd"} />
+                <p className="text-xs text-slate-500 mb-4">
+                  Any HTTP client can call the MCP server directly. Useful for testing, scripts, or building your own MCP host.
+                </p>
+                <CodeBlock code={CURL_EXAMPLE} language="bash" copyKey="curl-example" onCopy={copy} isCopied={copied === "curl-example"} />
               </div>
 
             </div>
@@ -1020,57 +983,6 @@ alerts.forEach(a => console.log(a.title));`;
                   </AnimatePresence>
                 </div>
               ))}
-            </div>
-          </section>
-
-          {/* ── Community Templates ───────────────────────────────────────────── */}
-          <section id="community" ref={sectionRef("community")}>
-            <SectionHeading icon={Users} title="Community Templates" />
-            <p className="text-slate-400 leading-relaxed mb-6">
-              Pre-built configurations, system prompts, and automation recipes shared by
-              the IQPipe community. Submit yours via GitHub.
-            </p>
-
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {TEMPLATES.map(t => (
-                <div key={t.title} className={`flex flex-col rounded-xl border p-5 transition-colors hover:border-slate-600 ${t.official ? "border-indigo-500/30 bg-indigo-950/30" : "border-slate-800 bg-slate-900/60"}`}>
-                  {t.official && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded px-1.5 py-0.5 self-start mb-3">
-                      ★ Official
-                    </span>
-                  )}
-                  <div className="text-sm font-semibold text-white mb-1.5">{t.title}</div>
-                  <div className="text-xs text-slate-500 leading-relaxed mb-4 flex-1">{t.desc}</div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-wrap gap-1">
-                      {t.tags.map(tag => (
-                        <span key={tag} className="text-[10px] font-mono text-slate-500 bg-slate-800 rounded px-1.5 py-0.5">{tag}</span>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1 text-[11px] text-slate-500">
-                      <span>★</span>
-                      <span>{t.stars}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* GitHub CTA */}
-            <div className="mt-8 flex items-center justify-center gap-4 rounded-xl border border-slate-800 bg-slate-900/40 py-8 px-6 text-center">
-              <div>
-                <div className="text-sm font-semibold text-white mb-1">Share your template</div>
-                <div className="text-xs text-slate-500 mb-4">Open a PR to the <code className="font-mono text-slate-400">iqpipe/mcp-templates</code> repo.</div>
-                <a
-                  href="https://github.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition-colors"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  View on GitHub
-                </a>
-              </div>
             </div>
           </section>
 
