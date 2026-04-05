@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   CreditCard,
   Database,
@@ -701,13 +703,13 @@ export default function LandingPage() {
                 ))}
               </ul>
 
-              <a
-                href="#pricing"
+              <Link
+                to="/mcp"
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-indigo-500/20"
               >
                 Explore the Protocol
                 <ArrowRight className="w-4 h-4" />
-              </a>
+              </Link>
             </motion.div>
 
             {/* ── Right: code/diagram visual ──────────────────────────────── */}
