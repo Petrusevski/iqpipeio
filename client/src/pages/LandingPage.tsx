@@ -704,7 +704,7 @@ export default function LandingPage() {
               </ul>
 
               <Link
-                to="/mcp"
+                to="/mcp-protocol"
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-indigo-500/20"
               >
                 Explore the Protocol

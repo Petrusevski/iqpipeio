@@ -125,7 +125,7 @@ function App() {
         <Route path="/gtm-stack"      element={<GTMStackPage />} />
         <Route path="/careers"        element={<CareersPage />} />
         <Route path="/integrations"     element={<PublicIntegrationsPage />} />
-        <Route path="/mcp"              element={<MCPProtocolPage />} />
+        <Route path="/mcp-protocol"     element={<MCPProtocolPage />} />
         <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
         <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
         {/* Admin — always accessible regardless of user auth */}
