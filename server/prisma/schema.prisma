@@ -78,6 +78,71 @@ model Workspace {
   customEventTypes    CustomEventType[]
   sourceMappings      SourceMapping[]
   fieldMappings       FieldMapping[]
+  outreachLeads       OutreachLead[]
+  outreachMetrics     OutreachMetric[]
+}
+
+// ─── Outreach tracking ────────────────────────────────────────────────────────
+// Lightweight lead record created only when a lead first enters an outreach
+// sequence. Sourcing and enrichment events are ignored entirely.
+
+model OutreachLead {
+  id          String    @id          // "orl_" + 12 random chars
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+
+  // Privacy-first: hashed for cross-tool matching, encrypted for retrieval
+  emailHash    String?
+  emailEnc     String?
+  linkedinHash String?
+  linkedinEnc  String?
+  phoneHash    String?
+  phoneEnc     String?
+
+  // Non-PII display fields
+  displayName String  @default("Unknown Lead")
+  company     String?
+  title       String?
+
+  // Provenance
+  firstTool       String   // tool that fired the first sequence-entry event
+  firstSequenceAt DateTime // timestamp of sequence entry
+  lastEventAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  metrics OutreachMetric[]
+
+  @@unique([workspaceId, emailHash])
+  @@unique([workspaceId, linkedinHash])
+  @@unique([workspaceId, phoneHash])
+  @@index([workspaceId, lastEventAt])
+  @@index([workspaceId, firstTool])
+}
+
+// Cumulative metrics per (lead × tool × sequence × step × eventType).
+// `count` is incremented on each event; no individual event rows are stored.
+// sequenceId and stepId default to "" (empty = no sequence/step context).
+
+model OutreachMetric {
+  id          String       @id @default(cuid())
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+  lead        OutreachLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId      String
+
+  tool       String
+  sequenceId String  @default("") // "" = no sequence context
+  stepId     String  @default("") // "" = no step context
+  eventType  String
+
+  count   Int      @default(1)
+  firstAt DateTime
+  lastAt  DateTime
+
+  @@unique([workspaceId, leadId, tool, sequenceId, stepId, eventType])
+  @@index([workspaceId, leadId])
+  @@index([workspaceId, tool, sequenceId])
+  @@index([workspaceId, eventType])
 }
 
 model Notification {

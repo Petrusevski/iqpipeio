@@ -46,6 +46,7 @@ import { resolveIqLead, recordTouchpoint } from "../utils/identity";
 import { assertNotBillingKey } from "../utils/stripeKeyGuard";
 import { checkAndIncrementQuota, quotaExceededResponse, rateLimitExceededResponse } from "../utils/quota";
 import { detectAndLearn } from "../utils/fieldDetector";
+import { processOutreachEvent } from "../services/outreachTracker";
 
 const router = Router();
 
@@ -77,18 +78,13 @@ async function recordEvent(
   meta: Record<string, any> = {},
   opts: { experimentId?: string | null; stackVariant?: string | null; sourceType?: string } = {},
 ): Promise<boolean> {
-  // ── 0. Quota + rate-limit guard ───────────────────────────────────────────
-  // Webhook receivers must return 200 quickly to prevent retries from the
-  // sending tool. Return false (drop event) when blocked; the caller still
-  // responds 200 to the sender.
+  // ── 0. Quota guard ────────────────────────────────────────────────────────
   const quota = await checkAndIncrementQuota(workspaceId);
   if (!quota.allowed) return false;
 
   let { firstName, lastName, email, linkedin, phone, company, title } = contact;
 
   // ── 0b. Fuzzy field detection: fill gaps from raw meta payload ────────────
-  // If the provider-specific extraction left identity fields empty, scan meta
-  // (the raw payload) for pattern-matching fields and apply learned mappings.
   if ((!email && !linkedin && !phone) && Object.keys(meta).length > 0) {
     const enriched = await detectAndLearn(workspaceId, source, meta, {
       email, phone, linkedin, firstName, lastName, company, title,
@@ -102,14 +98,29 @@ async function recordEvent(
     if (!title    && enriched.title)    title    = enriched.title    ?? null;
   }
 
-  // ── 1. Privacy-first identity resolution ─────────────────────────────────
-  const iqLeadId = await resolveIqLead(
-    workspaceId,
-    { email, linkedin, phone },
-    { firstName, lastName, company, title },
-  );
+  // ── 1. Extract sequence context from meta ─────────────────────────────────
+  const sequenceId = meta.campaign || meta.campaignId || meta.sequence || meta.sequenceId || null;
+  const stepId     = meta.step || meta.stepId || meta.step_id || null;
 
-  // ── 2. Record touchpoint (triggers attribution if outcome event) ──────────
+  // ── 2. Attribution + compact outreach tracking (parallel) ─────────────────
+  const [iqLeadId] = await Promise.all([
+    resolveIqLead(
+      workspaceId,
+      { email, linkedin, phone },
+      { firstName, lastName, company, title },
+    ),
+    processOutreachEvent({
+      workspaceId,
+      tool: source,
+      eventType,
+      contact: { firstName, lastName, email, linkedin, phone, company, title },
+      sequenceId,
+      stepId,
+      eventAt: new Date(),
+    }).catch(err => console.error("[outreachTracker]", err.message)),
+  ]);
+
+  // ── 3. Record touchpoint (triggers attribution if outcome event) ──────────
   await recordTouchpoint(
     workspaceId,
     iqLeadId,
@@ -125,54 +136,6 @@ async function recordEvent(
     undefined, // consentBasis
     externalId || null,
   );
-
-  // ── 3. Backward-compat: maintain Contact + Lead + Activity for existing UI ─
-  const contactId = `${source.toLowerCase()}-${externalId}`;
-
-  await prisma.contact.upsert({
-    where: { id: contactId },
-    update: { firstName, lastName },
-    create: {
-      id: contactId, workspaceId, firstName, lastName,
-      email: null,       // PII not stored in plain text
-      linkedinUrl: null, // PII not stored in plain text
-      status: "active",
-    },
-  });
-
-  let dbLead = await prisma.lead.findFirst({ where: { contactId } });
-  if (!dbLead) {
-    dbLead = await prisma.lead.create({
-      data: {
-        workspaceId, contactId,
-        email: "",  // intentionally empty — PII lives in IqLead only
-        fullName: `${firstName} ${lastName}`.trim(),
-        firstName, lastName,
-        company: company || null, title: title || null,
-        source, status: "new",
-      },
-    });
-  }
-
-  // Dedup Activity by lead + eventType per day
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const existing = await prisma.activity.findFirst({
-    where: {
-      workspaceId, leadId: dbLead.id, type: eventType,
-      createdAt: { gte: dayStart },
-    },
-  });
-  if (existing) return false;
-
-  await prisma.activity.create({
-    data: {
-      workspaceId, type: eventType,
-      subject: `${firstName} ${lastName}`.trim() || "Unknown",
-      body: JSON.stringify({ ...meta, source, iqLeadId }),
-      status: "completed", leadId: dbLead.id,
-    },
-  });
 
   return true;
 }
