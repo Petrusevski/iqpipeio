@@ -86,6 +86,16 @@ interface ScoredWorkflow {
     breakdown: LeakageBreakdown[];
   };
   lastEventAt: string | null;
+  branches: {
+    port:             number;
+    label:            string;
+    channel:          string;
+    conditionSummary: string | null;
+    downstreamApps:   string[];
+    leadsEntered:     number;
+    leadsWithOutcome: number;
+    conversionRate:   number;
+  }[];
 }
 interface ScoreResponse {
   scoring_model: {
@@ -1275,6 +1285,113 @@ export default function WorkflowComparePage() {
                               );
                             })}
                           </tr>
+
+                          {/* ── Branch Structure ── */}
+                          {scoredItems.some(wf => wf.branches?.length > 0) && (
+                            <>
+                              <tr className="bg-slate-900/30 border-t border-slate-800/60">
+                                <td className="px-5 py-3.5">
+                                  <div className="flex items-center gap-2">
+                                    <Network size={13} className="text-violet-400 shrink-0" />
+                                    <p className="text-xs font-medium text-slate-300">Branch Structure</p>
+                                  </div>
+                                  <p className="text-[10px] text-slate-600 mt-0.5 pl-5">IF / Switch / Router splits</p>
+                                </td>
+                                {scoredItems.map(wf => {
+                                  const branches = wf.branches ?? [];
+                                  if (branches.length === 0) {
+                                    return (
+                                      <td key={wf.id} className={`px-5 py-3.5 ${wf.id === winnerPlatformId ? "bg-indigo-500/3" : ""}`}>
+                                        <span className="text-[10px] text-slate-700 italic">Linear — no branching</span>
+                                      </td>
+                                    );
+                                  }
+                                  const CHANNEL_ICON: Record<string, string> = {
+                                    linkedin: "🔗", email: "📧", phone: "📞",
+                                    sms: "💬", mixed: "⚡", unknown: "◦",
+                                  };
+                                  const CHANNEL_COLOR: Record<string, string> = {
+                                    linkedin: "text-blue-400 border-blue-500/20 bg-blue-500/10",
+                                    email:    "text-emerald-400 border-emerald-500/20 bg-emerald-500/10",
+                                    phone:    "text-amber-400 border-amber-500/20 bg-amber-500/10",
+                                    sms:      "text-violet-400 border-violet-500/20 bg-violet-500/10",
+                                    mixed:    "text-slate-400 border-slate-500/20 bg-slate-500/10",
+                                    unknown:  "text-slate-600 border-slate-700/20 bg-slate-800/30",
+                                  };
+                                  return (
+                                    <td key={wf.id} className={`px-5 py-3.5 ${wf.id === winnerPlatformId ? "bg-indigo-500/3" : ""}`}>
+                                      <div className="flex flex-col gap-1.5">
+                                        {branches.map((b: any) => (
+                                          <div key={b.port} className="flex items-start gap-1.5">
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium shrink-0 ${CHANNEL_COLOR[b.channel] ?? CHANNEL_COLOR.unknown}`}>
+                                              {CHANNEL_ICON[b.channel] ?? "◦"} {b.channel}
+                                            </span>
+                                            <div className="min-w-0">
+                                              <p className="text-[10px] text-slate-400 truncate font-medium">{b.label}</p>
+                                              {b.conditionSummary && (
+                                                <p className="text-[9px] text-slate-600 truncate" title={b.conditionSummary}>
+                                                  if {b.conditionSummary}
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+
+                              {/* ── Channel Conversion ── */}
+                              <tr>
+                                <td className="px-5 py-3 pl-10">
+                                  <p className="text-[11px] text-slate-600">Conversion rate per branch</p>
+                                  <p className="text-[9px] text-slate-700 mt-0.5">leads with positive outcome / entered</p>
+                                </td>
+                                {scoredItems.map(wf => {
+                                  const branches = wf.branches ?? [];
+                                  if (branches.length === 0) {
+                                    return (
+                                      <td key={wf.id} className={`px-5 py-3 ${wf.id === winnerPlatformId ? "bg-indigo-500/3" : ""}`}>
+                                        <span className="text-xs text-slate-700">—</span>
+                                      </td>
+                                    );
+                                  }
+                                  return (
+                                    <td key={wf.id} className={`px-5 py-3 ${wf.id === winnerPlatformId ? "bg-indigo-500/3" : ""}`}>
+                                      <div className="flex flex-col gap-1">
+                                        {branches.map((b: any) => {
+                                          const hasData = b.leadsEntered > 0;
+                                          const rate    = b.conversionRate as number;
+                                          const color   = !hasData ? "text-slate-700"
+                                            : rate >= 20 ? "text-emerald-400"
+                                            : rate >= 8  ? "text-amber-400"
+                                            : "text-rose-400";
+                                          return (
+                                            <div key={b.port} className="flex items-center gap-2">
+                                              <span className="text-[9px] text-slate-600 w-14 truncate shrink-0">{b.label}</span>
+                                              {hasData ? (
+                                                <>
+                                                  <span className={`text-xs font-semibold tabular-nums ${color}`}>
+                                                    {rate}%
+                                                  </span>
+                                                  <span className="text-[9px] text-slate-700">
+                                                    {b.leadsWithOutcome}/{b.leadsEntered}
+                                                  </span>
+                                                </>
+                                              ) : (
+                                                <span className="text-[10px] text-slate-700">no data</span>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            </>
+                          )}
 
                           {/* ── Connectivity detail ── */}
                           <tr className="bg-slate-900/30">

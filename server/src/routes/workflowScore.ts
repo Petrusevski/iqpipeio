@@ -289,6 +289,7 @@ interface ScoredWorkflow {
     breakdown:    { eventType: string; failedCount: number; conversionProb: number; estimatedLoss: number }[];
   };
   lastEventAt: string | null;
+  branches:    BranchSummary[];
 }
 
 interface PillarWeights {
@@ -414,6 +415,7 @@ function scoreWorkflows(
         breakdown: leakageBreakdown.sort((a, b) => b.estimatedLoss - a.estimatedLoss),
       },
       lastEventAt: m.lastEventAt,
+      branches:    [],   // populated by enrichWithBranches after scoring
     };
   });
 }
@@ -510,8 +512,11 @@ router.get("/", async (req: Request, res: Response) => {
 
     const scored = scoreWorkflows(allMetrics, acv, currency, effectiveWeights);
 
+    // Enrich each workflow with its branch definitions and per-channel conversion
+    const enriched = await enrichWithBranches(workspaceId, scored);
+
     // Winner = highest Alpha Score (ties broken by reliability)
-    const winner = [...scored].sort((a, b) =>
+    const winner = [...enriched].sort((a, b) =>
       b.alphaScore !== a.alphaScore
         ? b.alphaScore - a.alphaScore
         : b.pillars.reliability - a.pillars.reliability,
@@ -519,11 +524,11 @@ router.get("/", async (req: Request, res: Response) => {
 
     // Per-pillar bests
     const bestBy = (pillar: keyof ScoredWorkflow["pillars"]) =>
-      scored.reduce((best, w) => w.pillars[pillar] > best.pillars[pillar] ? w : best);
+      enriched.reduce((best, w) => w.pillars[pillar] > best.pillars[pillar] ? w : best);
 
     return res.json({
       scoring_model: buildModelManifest(acv, currency, effectiveWeights),
-      workflows: scored,
+      workflows: enriched,
       winner: winner
         ? { id: winner.id, name: winner.name, platform: winner.platform, alphaScore: winner.alphaScore, grade: winner.grade }
         : null,
@@ -539,6 +544,134 @@ router.get("/", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// ─── Branch enrichment ────────────────────────────────────────────────────────
+
+/**
+ * Outreach event types that count as "entered this channel".
+ * Used to denominate per-branch conversion rates.
+ */
+const CHANNEL_ENTRY_EVENTS = new Set([
+  "email_sent", "sequence_started", "message_sent",
+  "connection_sent", "connection_request_sent", "inmail_sent",
+  "sms_sent", "whatsapp_sent",
+  "call_initiated",
+]);
+
+/** Events that indicate a positive outcome for any channel. */
+const CHANNEL_POSITIVE_EVENTS = new Set([
+  "reply_received", "positive_reply", "interested_reply", "inmail_replied",
+  "connection_accepted",
+  "meeting_booked", "demo_completed",
+]);
+
+export interface BranchSummary {
+  port:              number;
+  label:             string;
+  channel:           string;
+  conditionSummary:  string | null;
+  downstreamApps:    string[];
+  leadsEntered:      number;
+  leadsWithOutcome:  number;
+  conversionRate:    number;   // 0–100 %
+}
+
+/**
+ * For each scored workflow, attach branch definitions and per-branch
+ * OutreachMetric conversion rates. The link between a branch and its
+ * leads is: branch.downstreamApps ∩ OutreachLead.firstTool (case-insensitive).
+ *
+ * This is an approximation — without execution-level lead tracking we infer
+ * which leads went through a branch by matching their tool to the branch's
+ * downstream app slugs. It is correct when tools are dedicated to one branch
+ * (the common case) and approximate when tools appear on multiple branches.
+ */
+async function enrichWithBranches(
+  workspaceId: string,
+  scored: ScoredWorkflow[],
+): Promise<(ScoredWorkflow & { branches: BranchSummary[] })[]> {
+  if (scored.length === 0) return scored.map(w => ({ ...w, branches: [] }));
+
+  const nativeIds = scored.map(w => w.id);
+
+  // Fetch all branch definitions for the workflows in this comparison set
+  const allBranchDefs = await prisma.workflowBranchDef.findMany({
+    where: {
+      workspaceId,
+      nativeWorkflowId: { in: nativeIds },
+    },
+    orderBy: [{ nativeWorkflowId: "asc" }, { branchPort: "asc" }],
+  });
+
+  if (allBranchDefs.length === 0) {
+    return scored.map(w => ({ ...w, branches: [] }));
+  }
+
+  // Collect every tool slug referenced across all branches
+  const allToolSlugs = new Set<string>();
+  for (const b of allBranchDefs) {
+    const apps: string[] = JSON.parse(b.downstreamApps ?? "[]");
+    for (const a of apps) allToolSlugs.add(a.toLowerCase());
+  }
+
+  // Fetch OutreachMetric aggregates for tools referenced by these branches
+  // group by (tool, eventType) to count distinct leads per (tool × event bucket)
+  const metrics = await prisma.outreachMetric.findMany({
+    where: {
+      workspaceId,
+      tool: { in: [...allToolSlugs], mode: "insensitive" },
+    },
+    select: { leadId: true, tool: true, eventType: true },
+  });
+
+  // Index: toolSlug → { enteredLeadIds, outcomeLeadIds }
+  const toolStats = new Map<string, { entered: Set<string>; outcome: Set<string> }>();
+  for (const m of metrics) {
+    const slug = m.tool.toLowerCase();
+    if (!toolStats.has(slug)) toolStats.set(slug, { entered: new Set(), outcome: new Set() });
+    const s = toolStats.get(slug)!;
+    if (CHANNEL_ENTRY_EVENTS.has(m.eventType))    s.entered.add(m.leadId);
+    if (CHANNEL_POSITIVE_EVENTS.has(m.eventType)) s.outcome.add(m.leadId);
+  }
+
+  // Build per-workflow branch summaries
+  const branchMap = new Map<string, BranchSummary[]>();
+  for (const b of allBranchDefs) {
+    if (!branchMap.has(b.nativeWorkflowId)) branchMap.set(b.nativeWorkflowId, []);
+
+    const apps: string[] = JSON.parse(b.downstreamApps ?? "[]");
+    let entered = 0, outcome = 0;
+
+    for (const app of apps) {
+      const s = toolStats.get(app.toLowerCase());
+      if (s) {
+        // Union of lead IDs across branch's tools for this port
+        // (simple sum if tools are on separate branches — common case)
+        entered += s.entered.size;
+        outcome += s.outcome.size;
+      }
+    }
+
+    // Deduplicate: if a lead appears in multiple tools on the same branch, cap at entered
+    outcome = Math.min(outcome, entered);
+
+    branchMap.get(b.nativeWorkflowId)!.push({
+      port:             b.branchPort,
+      label:            b.branchLabel,
+      channel:          b.primaryChannel,
+      conditionSummary: b.conditionSummary,
+      downstreamApps:   apps,
+      leadsEntered:     entered,
+      leadsWithOutcome: outcome,
+      conversionRate:   entered > 0 ? Math.round((outcome / entered) * 1000) / 10 : 0,
+    });
+  }
+
+  return scored.map(w => ({
+    ...w,
+    branches: branchMap.get(w.id) ?? [],
+  }));
+}
 
 // ─── Model manifest (self-describing JSON) ────────────────────────────────────
 
@@ -606,8 +739,9 @@ router.get("/export-xlsx", async (req: Request, res: Response) => {
       makeIds.length > 0 ? fetchMakeScenarioMetrics(workspaceId, makeIds, since) : Promise.resolve([] as WorkflowMetrics[]),
     ]);
 
-    const allMetrics = [...n8nMetrics, ...makeMetrics];
-    const scored     = allMetrics.length > 0 ? scoreWorkflows(allMetrics, 1, "USD") : [];
+    const allMetrics    = [...n8nMetrics, ...makeMetrics];
+    const scoredRaw     = allMetrics.length > 0 ? scoreWorkflows(allMetrics, 1, "USD") : [];
+    const scored        = await enrichWithBranches(workspaceId, scoredRaw);
 
     // Compute leakage risk (0–100) relative to this exported set
     const maxFailed = Math.max(...scored.map(w => w.metrics.reliability.failed), 1);
@@ -638,8 +772,9 @@ router.get("/export-xlsx", async (req: Request, res: Response) => {
       "Done", "Failed", "Total Events",
       "Outcome Events", "Process Events",
       "Apps Used", "High-Value Apps",
+      "Branch Structure",
     ];
-    const colWidths = [36, 10, 8, 8, 13, 13, 13, 14, 20, 20, 20, 8, 8, 13, 16, 16, 40, 40];
+    const colWidths = [36, 10, 8, 8, 13, 13, 13, 14, 20, 20, 20, 8, 8, 13, 16, 16, 40, 40, 60];
 
     headers.forEach((h, i) => {
       const cell = ws.getCell(2, i + 1);
@@ -684,6 +819,11 @@ router.get("/export-xlsx", async (req: Request, res: Response) => {
         wf.metrics.throughput.processEvents,
         wf.appsUsed.join(", "),
         wf.metrics.connectivity.highValueApps.join(", "),
+        wf.branches.length > 0
+          ? wf.branches.map(b =>
+              `[${b.channel.toUpperCase()}] ${b.label}${b.conditionSummary ? ` (if ${b.conditionSummary})` : ""}: ${b.leadsEntered} leads, ${b.conversionRate}% conversion`
+            ).join(" | ")
+          : "Linear — no branching",
       ];
 
       vals.forEach((v, ci) => {
