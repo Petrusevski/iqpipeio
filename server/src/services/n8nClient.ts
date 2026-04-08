@@ -13,6 +13,7 @@ import { createHash } from "crypto";
 import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
 import { createNotification } from "./notificationService";
+import { extractN8nBranches, syncWorkflowBranches } from "./branchExtractor";
 import { normalizeEventType } from "../utils/eventTaxonomy";
 
 // ── Node → App mapping ────────────────────────────────────────────────────────
@@ -276,6 +277,18 @@ async function fetchWorkflowNodes(
   return data.nodes ?? [];
 }
 
+async function fetchWorkflowFull(
+  baseUrl: string,
+  apiKey: string,
+  id: string,
+): Promise<{ nodes: any[]; connections: Record<string, any> }> {
+  const data = await n8nGet(baseUrl, apiKey, `/workflows/${id}`);
+  return {
+    nodes:       data.nodes       ?? [],
+    connections: data.connections ?? {},
+  };
+}
+
 // ── Sync ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -307,7 +320,7 @@ export async function syncN8nConnection(
 
     for (const wf of workflows) {
       try {
-        const nodes = await fetchWorkflowNodes(conn.baseUrl, apiKey, wf.id);
+        const { nodes, connections } = await fetchWorkflowFull(conn.baseUrl, apiKey, wf.id);
         const { apps, nodeTypes } = parseWorkflowApps(nodes);
         const triggerType = classifyTrigger(nodes);
         const tags = (wf.tags ?? []).map((t: any) => t.name ?? t).filter(Boolean);
@@ -373,6 +386,13 @@ export async function syncN8nConnection(
             syncedAt:      new Date(),
           },
         });
+
+        // Extract and persist branch definitions (IF / Switch nodes)
+        const branchRows = extractN8nBranches(wf.id, wf.name, nodes, connections);
+        await syncWorkflowBranches(workspaceId, branchRows).catch(err =>
+          console.error(`[n8nClient] Branch sync failed for workflow ${wf.id}:`, err.message)
+        );
+
         synced++;
       } catch (err: any) {
         console.error(`[n8nClient] Failed to sync workflow ${wf.id}:`, err.message);

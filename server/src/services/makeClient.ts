@@ -15,6 +15,7 @@ import axios from "axios";
 import { prisma } from "../db";
 import { createNotification } from "./notificationService";
 import { decrypt } from "../utils/encryption";
+import { extractMakeBranches, syncWorkflowBranches } from "./branchExtractor";
 
 // ── Module → App display name mapping ────────────────────────────────────────
 // Keys are the prefix of Make's "appSlug:actionName" module format.
@@ -306,6 +307,13 @@ export async function syncMakeConnection(
             syncedAt:      new Date(),
           },
         });
+
+        // Extract and persist branch definitions (Router / Filter modules)
+        const branchRows = extractMakeBranches(String(sc.id), sc.name, flow);
+        await syncWorkflowBranches(workspaceId, branchRows).catch(err =>
+          console.error(`[makeClient] Branch sync failed for scenario ${sc.id}:`, err.message)
+        );
+
         synced++;
       } catch (err: any) {
         console.error(`[makeClient] Failed to sync scenario ${sc.id}:`, err.message);

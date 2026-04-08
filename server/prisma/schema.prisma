@@ -81,6 +81,7 @@ model Workspace {
   outreachLeads        OutreachLead[]
   outreachMetrics      OutreachMetric[]
   webhookDeliveryLogs  WebhookDeliveryLog[]
+  workflowBranchDefs   WorkflowBranchDef[]
 }
 
 // ─── Outreach tracking ────────────────────────────────────────────────────────
@@ -165,6 +166,43 @@ model WebhookDeliveryLog {
   @@index([workspaceId, tool, receivedAt])
   @@index([workspaceId, status, receivedAt])
   @@index([workspaceId, receivedAt])
+}
+
+// One row per output port of each branching node (IF/Switch/Router/Filter)
+// extracted from imported n8n workflows and Make.com scenarios at sync time.
+// Drives branch-aware gap detection and branch-normalized funnel analysis.
+
+model WorkflowBranchDef {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+
+  platform           String   // "n8n" | "make"
+  nativeWorkflowId   String   // n8n workflow id or Make scenario id
+  workflowName       String
+
+  // Branch node identification
+  branchNodeId       String   // node.id (n8n) or module.id as string (Make)
+  branchNodeName     String   // node.name or module display name
+  branchNodeType     String   // "if" | "switch" | "router" | "filter"
+  branchPort         Int      // output index: 0=TRUE/first route, 1=FALSE/second, …
+  branchLabel        String   // "TRUE", "FALSE", "Route 1", custom route filter name
+
+  // Human-readable condition context
+  conditionSummary   String?  // e.g. "linkedinUrl is not empty"
+  conditionRaw       String?  // raw JSON from workflow (capped at 1000 chars)
+
+  // Channel classification for this branch's output path
+  primaryChannel     String   @default("unknown") // "email"|"linkedin"|"phone"|"sms"|"mixed"|"unknown"
+  downstreamApps     String   @default("[]")       // JSON string[] — apps reachable from this branch
+  expectedEventTypes String   @default("[]")       // JSON string[] — event types expected from this branch
+
+  syncedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, platform, nativeWorkflowId, branchNodeId, branchPort])
+  @@index([workspaceId])
+  @@index([workspaceId, platform, nativeWorkflowId])
 }
 
 model Notification {

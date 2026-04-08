@@ -244,7 +244,180 @@ export async function getWorkflowHealthData(workspaceId: string, period: string)
     .slice(0, 6);
 
   // ───────────────────────────────────────────────────────────────────────────
-  // 6. ENRICHMENT FRESHNESS
+  // 6. BRANCH-AWARE GAP DETECTION
+  // ───────────────────────────────────────────────────────────────────────────
+  // For every gap lead (imported > 7 days ago, no outreach), infer which
+  // channel they would route to based on their available identity signals.
+  // This separates "real leakage" (email-capable leads never contacted) from
+  // "expected gaps" (LinkedIn-only leads on a LinkedIn branch that may not yet
+  // have fired, or that IQPipe hasn't seen an event for).
+  //
+  // IqLead hash fields: emailHash, linkedinHash, phoneHash — all nullable.
+  // Signal profile inference:
+  //   linkedin_only  = linkedinHash not null, emailHash null
+  //   email_capable  = emailHash not null (with or without linkedin)
+  //   phone_only     = phoneHash not null, emailHash null, linkedinHash null
+  //   unknown        = none of the above
+
+  // Fetch gap lead identity signals (IqLead drives LeadActivitySummary)
+  const gapLeadIds = await prisma.leadActivitySummary.findMany({
+    where: {
+      workspaceId,
+      importedAt: { lt: sevenDaysAgo, not: null },
+      firstOutreachAt: null,
+    },
+    select: { iqLeadId: true },
+    take: 2000,
+  });
+
+  const gapIqLeadIds = gapLeadIds.map(r => r.iqLeadId);
+
+  const gapLeadSignals = gapIqLeadIds.length > 0
+    ? await prisma.iqLead.findMany({
+        where:  { id: { in: gapIqLeadIds } },
+        select: { id: true, emailHash: true, linkedinHash: true, phoneHash: true },
+      })
+    : [];
+
+  const gapBySignal = {
+    email_capable: 0,   // emailHash present → should have received email outreach
+    linkedin_only:  0,   // linkedinHash present, no emailHash → LinkedIn branch only
+    phone_only:     0,   // phoneHash only → phone branch
+    unknown:        0,   // no identity signals (data quality issue)
+  };
+
+  for (const lead of gapLeadSignals) {
+    if (lead.emailHash)                                                gapBySignal.email_capable++;
+    else if (lead.linkedinHash)                                        gapBySignal.linkedin_only++;
+    else if (lead.phoneHash)                                           gapBySignal.phone_only++;
+    else                                                               gapBySignal.unknown++;
+  }
+
+  // Fetch workspace branch definitions to provide context for why LinkedIn gaps exist
+  const branchDefs = await prisma.workflowBranchDef.findMany({
+    where:  { workspaceId },
+    select: { primaryChannel: true, branchLabel: true, workflowName: true, conditionSummary: true },
+  });
+  const hasLinkedInBranch = branchDefs.some(b => b.primaryChannel === "linkedin");
+  const hasEmailBranch    = branchDefs.some(b => b.primaryChannel === "email");
+
+  const genuineGaps    = gapBySignal.email_capable + gapBySignal.phone_only;
+  const branchGaps     = gapBySignal.linkedin_only; // may be expected if LinkedIn branch exists
+  const unexplainedGaps = gapBySignal.unknown;
+
+  let gapInsight: string;
+  if (gapCount === 0) {
+    gapInsight = "All imported leads have received outreach";
+  } else if (branchGaps > 0 && hasLinkedInBranch && genuineGaps === 0) {
+    gapInsight = `${branchGaps} gap lead${branchGaps !== 1 ? "s" : ""} are LinkedIn-only identities — ` +
+      `likely on your LinkedIn branch. These are routing decisions, not leakage. ` +
+      `${gapBySignal.email_capable > 0 ? `${gapBySignal.email_capable} email-capable leads are genuine gaps.` : ""}`;
+  } else if (genuineGaps > 0) {
+    gapInsight = `${genuineGaps} email-capable lead${genuineGaps !== 1 ? "s" : ""} never received outreach — genuine leakage. ` +
+      (branchGaps > 0 ? `${branchGaps} are LinkedIn-only identities (${hasLinkedInBranch ? "likely routing decisions" : "check your LinkedIn branch"}).` : "");
+  } else {
+    gapInsight = `${gapCount} imported lead${gapCount !== 1 ? "s" : ""} (${Math.round(gapPct * 100)}%) never received any outreach`;
+  }
+
+  const branchAwareGap = {
+    totalGaps:     gapCount,
+    genuineGaps,
+    branchGaps,
+    unexplainedGaps,
+    bySignal:      gapBySignal,
+    hasLinkedInBranch,
+    hasEmailBranch,
+    branchDefs:    branchDefs.slice(0, 10).map(b => ({
+      channel:          b.primaryChannel,
+      label:            b.branchLabel,
+      workflow:         b.workflowName,
+      condition:        b.conditionSummary,
+    })),
+    insight: gapInsight,
+  };
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 7. BRANCH-NORMALIZED FUNNEL
+  // ───────────────────────────────────────────────────────────────────────────
+  // Uses OutreachMetric to build separate channel funnels.
+  // A lead's channel is inferred from their first/primary event type.
+  // Each channel gets its own ordered funnel with stage-to-stage conversion.
+
+  const CHANNEL_FUNNELS: Record<string, string[]> = {
+    linkedin: ["connection_sent", "connection_request_sent", "connection_accepted",
+               "message_sent", "inmail_sent", "reply_received", "meeting_booked"],
+    email:    ["email_sent", "sequence_started", "email_opened", "email_clicked",
+               "reply_received", "meeting_booked"],
+    phone:    ["call_initiated", "call_completed", "voicemail_left", "meeting_booked"],
+    sms:      ["sms_sent", "sms_received", "whatsapp_sent", "whatsapp_received", "meeting_booked"],
+  };
+
+  const EVENT_TO_CHANNEL: Record<string, string> = {
+    connection_sent: "linkedin", connection_request_sent: "linkedin",
+    connection_accepted: "linkedin", inmail_sent: "linkedin",
+    follow_sent: "linkedin", liked_post: "linkedin",
+    email_sent: "email", sequence_started: "email",
+    email_opened: "email", email_clicked: "email",
+    call_initiated: "phone", call_completed: "phone", voicemail_left: "phone",
+    sms_sent: "sms", sms_received: "sms", whatsapp_sent: "sms", whatsapp_received: "sms",
+  };
+
+  // Get all OutreachLeads with their first event type (earliest firstAt)
+  const allMetrics = await prisma.outreachMetric.findMany({
+    where:   { workspaceId, firstAt: { gte: since } },
+    select:  { leadId: true, eventType: true, firstAt: true },
+    orderBy: { firstAt: "asc" },
+  });
+
+  // Determine channel for each lead from their earliest event
+  const leadChannel = new Map<string, string>();
+  for (const m of allMetrics) {
+    if (!leadChannel.has(m.leadId)) {
+      const ch = EVENT_TO_CHANNEL[m.eventType];
+      if (ch) leadChannel.set(m.leadId, ch);
+    }
+  }
+
+  // Per-channel: which event types each lead touched
+  const channelLeadEvents = new Map<string, Map<string, Set<string>>>();
+  // channelLeadEvents[channel][leadId] = Set<eventType>
+  for (const m of allMetrics) {
+    const ch = leadChannel.get(m.leadId);
+    if (!ch) continue;
+    if (!channelLeadEvents.has(ch)) channelLeadEvents.set(ch, new Map());
+    const byLead = channelLeadEvents.get(ch)!;
+    if (!byLead.has(m.leadId)) byLead.set(m.leadId, new Set());
+    byLead.get(m.leadId)!.add(m.eventType);
+  }
+
+  const branchFunnels: Record<string, {
+    channel:     string;
+    totalLeads:  number;
+    stages:      { eventType: string; leadCount: number; pct: number; convFromPrev: number | null }[];
+  }> = {};
+
+  for (const [channel, stages] of Object.entries(CHANNEL_FUNNELS)) {
+    const byLead = channelLeadEvents.get(channel);
+    if (!byLead || byLead.size === 0) continue;
+
+    const totalLeads = byLead.size;
+    const funnelStages = stages.map((et, i) => {
+      const count = [...byLead.values()].filter(evtSet => evtSet.has(et)).length;
+      const pct   = Math.round((count / totalLeads) * 100);
+      const prev  = i === 0
+        ? null
+        : [...byLead.values()].filter(evtSet => evtSet.has(stages[i - 1])).length;
+      const convFromPrev = prev !== null && prev > 0
+        ? Math.round((count / prev) * 100)
+        : null;
+      return { eventType: et, leadCount: count, pct, convFromPrev };
+    }).filter(s => s.leadCount > 0); // omit stages with zero activity
+
+    branchFunnels[channel] = { channel, totalLeads, stages: funnelStages };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 8. ENRICHMENT FRESHNESS
   // ───────────────────────────────────────────────────────────────────────────
   const last30 = new Date(Date.now() - 30 * 86_400_000);
 
@@ -311,12 +484,12 @@ export async function getWorkflowHealthData(workspaceId: string, period: string)
       withOutreach: withOutreachCount,
       gaps:         gapCount,
       gapPct:       Math.round(gapPct * 100),
-      insight: gapCount === 0
-        ? "All imported leads have received outreach"
-        : `${gapCount} imported lead${gapCount !== 1 ? "s" : ""} (${Math.round(gapPct * 100)}%) never received any outreach`,
+      insight: `${gapCount} imported lead${gapCount !== 1 ? "s" : ""} (${Math.round(gapPct * 100)}%) never received outreach — see branchGap for channel breakdown`,
     },
     funnel: { steps: funnelSteps, biggestDrop },
     paths:  { top: topPaths, totalWithOutcome: outcomeLeads.size },
+    branchGap: branchAwareGap,
+    branchFunnels,
     enrichment: {
       buckets:        enrichBuckets,
       activeWithStale,
