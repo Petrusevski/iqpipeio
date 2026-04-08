@@ -56,6 +56,12 @@ import {
   getWebhookReliability,
   getOutcomeAttribution,
 } from "../services/outreachQueryService";
+import {
+  fetchAllWorkflowMetrics,
+  scoreWorkflows,
+  enrichWithBranches,
+  periodStart,
+} from "../services/workflowScoreService";
 
 const router = Router();
 
@@ -1192,6 +1198,375 @@ function createServer(workspaceId: string, baseUrl: string): any {
     async () => {
       const data = await getOutcomeAttribution(workspaceId);
       return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── compare_workflows ─────────────────────────────────────────────────────
+  server.tool(
+    "compare_workflows",
+    "Run the GTM Alpha Score engine across all (or selected) workflows and return a ranked comparison. " +
+    "Each workflow receives an alphaScore (0–100) and grade (A–F) across four pillars: " +
+    "Reliability (event success rate), Throughput (outcome ratio), Connectivity (app diversity), " +
+    "and Business Criticality (event type importance). Also returns estimated revenue leakage per workflow " +
+    "and branch structure with per-channel conversion rates. " +
+    "Use this to answer: 'which workflow performs best?', 'where is revenue leaking?', " +
+    "'which channel branch converts better?', 'should we pause this workflow?'",
+    {
+      workflow_ids: z.array(z.string()).optional()
+        .describe("Specific workflow IDs to compare. Leave empty to compare ALL workflows."),
+      period: z.enum(["7d", "30d", "90d", "all"]).optional()
+        .describe("Look-back period for event metrics. Default: 30d."),
+      platform: z.enum(["n8n", "make", "all"]).optional()
+        .describe("Filter by platform. Default: all."),
+      acv: z.number().optional()
+        .describe("Average contract value in USD used to price leakage. Default: 5000."),
+    },
+    async ({ workflow_ids, period, platform, acv: acvParam }: any) => {
+      const since    = periodStart(period ?? "30d");
+      const acv      = Math.max(1, acvParam ?? 5000);
+
+      const workspace = await prisma.workspace.findUnique({
+        where: { id: workspaceId }, select: { defaultCurrency: true },
+      });
+      const currency = workspace?.defaultCurrency ?? "USD";
+
+      const allMetrics = await fetchAllWorkflowMetrics(workspaceId, {
+        ids:      workflow_ids ?? [],
+        platform: platform ?? "all",
+        since,
+      });
+
+      if (allMetrics.length === 0) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ workflows: [], winner: null, message: "No workflows found. Connect n8n or Make.com first." }) }] };
+      }
+
+      const scored   = scoreWorkflows(allMetrics, acv, currency);
+      const enriched = await enrichWithBranches(workspaceId, scored);
+
+      // Sort by alphaScore desc, ties broken by reliability
+      const ranked = [...enriched].sort((a, b) =>
+        b.alphaScore !== a.alphaScore
+          ? b.alphaScore - a.alphaScore
+          : b.pillars.reliability - a.pillars.reliability,
+      );
+
+      const winner = ranked[0];
+
+      // Pillar bests
+      const bestBy = (pillar: keyof typeof winner.pillars) =>
+        enriched.reduce((best, w) => w.pillars[pillar] > best.pillars[pillar] ? w : best);
+
+      // Per-workflow action hints for agent consumption
+      const workflowSummaries = ranked.map((w, rank) => ({
+        rank:        rank + 1,
+        id:          w.id,
+        name:        w.name,
+        platform:    w.platform,
+        active:      w.active,
+        alphaScore:  w.alphaScore,
+        grade:       w.grade,
+        pillars:     w.pillars,
+        leakage: {
+          totalLoss: w.leakage.totalLoss,
+          currency:  w.leakage.currency,
+          topLeaks:  w.leakage.breakdown.slice(0, 3),
+        },
+        branches:    w.branches,
+        nodeCount:   w.nodeCount,
+        appsUsed:    w.appsUsed,
+        triggerType: w.triggerType,
+        lastEventAt: w.lastEventAt,
+        // Agent-readable signal
+        healthSignal: w.alphaScore >= 85 ? "performing" :
+                      w.alphaScore >= 70 ? "acceptable" :
+                      w.alphaScore >= 55 ? "needs_attention" : "critical",
+        leakageSignal: w.leakage.totalLoss > 10000 ? "high" :
+                       w.leakage.totalLoss > 2000  ? "medium" : "low",
+      }));
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            period:    period ?? "30d",
+            acv,
+            currency,
+            total:     enriched.length,
+            winner: winner ? {
+              id:         winner.id,
+              name:       winner.name,
+              platform:   winner.platform,
+              alphaScore: winner.alphaScore,
+              grade:      winner.grade,
+            } : null,
+            pillar_leaders: {
+              best_reliability:  bestBy("reliability").name,
+              best_throughput:   bestBy("throughput").name,
+              best_connectivity: bestBy("connectivity").name,
+              best_criticality:  bestBy("criticality").name,
+            },
+            workflows: workflowSummaries,
+          }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // ── get_improvement_report ────────────────────────────────────────────────
+  server.tool(
+    "get_improvement_report",
+    "Synthesizes all IQPipe observability data into a structured list of issues and actionable " +
+    "improvement suggestions. This is the primary output to pass back to n8n or Make.com for workflow " +
+    "improvement. Combines: webhook reliability gaps, stuck leads, funnel drop-offs, branch channel " +
+    "gaps, leakage hotspots, and sequence performance. " +
+    "Use this to answer: 'what should I fix in my GTM stack?', " +
+    "'what changes should I make to my n8n workflow?', 'what is the highest-impact improvement?'",
+    {
+      workflow_id: z.string().optional()
+        .describe("Focus report on a specific workflow ID. Leave empty for workspace-wide report."),
+      sequence_id: z.string().optional()
+        .describe("Focus funnel analysis on a specific sequence/campaign ID."),
+      days: z.number().int().min(1).max(90).optional()
+        .describe("Look-back window in days. Default: 30."),
+    },
+    async ({ workflow_id, sequence_id, days }: any) => {
+      const lookback = days ?? 30;
+      const since    = new Date(Date.now() - lookback * 86_400_000);
+      const period   = `${lookback}d`;
+
+      // Gather all data sources in parallel
+      const [overview, stuckLeads, webhookHealth, outreachOverview, attribution] = await Promise.all([
+        // Workflow health
+        (async () => {
+          const allMetrics = await fetchAllWorkflowMetrics(workspaceId, {
+            ids: workflow_id ? [workflow_id] : [],
+            platform: "all",
+            since,
+          });
+          if (allMetrics.length === 0) return null;
+          const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { defaultCurrency: true } });
+          const scored   = scoreWorkflows(allMetrics, 5000, workspace?.defaultCurrency ?? "USD");
+          const enriched = await enrichWithBranches(workspaceId, scored);
+          return enriched;
+        })(),
+        // Stuck leads
+        getStuckLeads(workspaceId, { sequenceId: sequence_id, daysSilent: 5, limit: 20 }),
+        // Webhook reliability
+        getWebhookReliability(workspaceId, { hours: lookback * 24 }),
+        // Sequence overview
+        getOutreachOverview(workspaceId),
+        // Attribution
+        getOutcomeAttribution(workspaceId),
+      ]);
+
+      // Optionally fetch funnel for specific sequence
+      const funnelData = sequence_id
+        ? await getSequenceFunnel(workspaceId, sequence_id)
+        : null;
+
+      // ── Issue detection ──────────────────────────────────────────────────
+      const issues: {
+        severity:    "critical" | "warning" | "info";
+        category:    string;
+        title:       string;
+        detail:      string;
+        workflowId?: string;
+        metric?:     Record<string, unknown>;
+      }[] = [];
+
+      // 1. Critical workflow failures
+      if (overview) {
+        for (const w of overview) {
+          if (w.pillars.reliability < 70 && w.metrics.reliability.total > 0) {
+            issues.push({
+              severity:   "critical",
+              category:   "workflow_reliability",
+              title:      `${w.name} has low reliability (${w.pillars.reliability}%)`,
+              detail:     `${w.metrics.reliability.failed} failed events out of ${w.metrics.reliability.total} in the last ${period}. Fix failing nodes or check for API auth errors.`,
+              workflowId: w.id,
+              metric:     { successRate: w.pillars.reliability, failedEvents: w.metrics.reliability.failed },
+            });
+          }
+          if (w.leakage.totalLoss > 5000) {
+            issues.push({
+              severity:   w.leakage.totalLoss > 20000 ? "critical" : "warning",
+              category:   "revenue_leakage",
+              title:      `${w.name} leaking ~$${w.leakage.totalLoss.toLocaleString()}`,
+              detail:     `Top leak: ${w.leakage.breakdown[0]?.eventType ?? "unknown"} (${w.leakage.breakdown[0]?.failedCount ?? 0} failed events). Fix these event failures to recover pipeline value.`,
+              workflowId: w.id,
+              metric:     { totalLoss: w.leakage.totalLoss, topLeaks: w.leakage.breakdown.slice(0, 2) },
+            });
+          }
+          // Branch with zero conversion
+          for (const b of w.branches) {
+            if (b.leadsEntered > 20 && b.conversionRate === 0) {
+              issues.push({
+                severity:   "warning",
+                category:   "branch_dead",
+                title:      `Branch "${b.label}" in ${w.name} has 0% conversion (${b.channel})`,
+                detail:     `${b.leadsEntered} leads entered this branch with no positive outcome. Check if the ${b.channel} sequence is active and messages are being sent.`,
+                workflowId: w.id,
+                metric:     { branch: b.label, channel: b.channel, leadsEntered: b.leadsEntered },
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Webhook delivery issues
+      for (const t of webhookHealth.tools) {
+        if (t.processRate < 70 && t.total > 10) {
+          issues.push({
+            severity: t.processRate < 40 ? "critical" : "warning",
+            category: "webhook_reliability",
+            title:    `${t.tool} webhooks: only ${t.processRate}% processed`,
+            detail:   `${t.droppedQuota} dropped (quota), ${t.droppedNoId} dropped (no identity), ${t.errors} errors out of ${t.total} total in last ${lookback}d. Check webhook secret and lead identity fields.`,
+            metric:   { tool: t.tool, processRate: t.processRate, droppedNoId: t.droppedNoId, droppedQuota: t.droppedQuota },
+          });
+        }
+      }
+
+      // 3. Stuck leads
+      const neverReplied = stuckLeads.filter(l => !l.hasReplied);
+      if (neverReplied.length > 10) {
+        issues.push({
+          severity: "warning",
+          category: "stuck_leads",
+          title:    `${neverReplied.length} leads stuck with no reply (5+ days silent)`,
+          detail:   `Top stuck: ${neverReplied.slice(0, 3).map(l => `${l.displayName} @ ${l.company ?? "unknown"} (${l.daysSilent}d silent)`).join(", ")}. Consider a follow-up step or sequence rotation.`,
+          metric:   { stuckCount: neverReplied.length, sampleLeads: neverReplied.slice(0, 5).map(l => ({ name: l.displayName, company: l.company, daysSilent: l.daysSilent })) },
+        });
+      }
+
+      // 4. Funnel drop-off (specific sequence)
+      if (funnelData) {
+        const biggestDrop = funnelData.steps
+          .filter(s => s.conversionFromPrev !== null && s.conversionFromPrev! < 30)
+          .sort((a, b) => (a.conversionFromPrev ?? 100) - (b.conversionFromPrev ?? 100))[0];
+        if (biggestDrop) {
+          issues.push({
+            severity: biggestDrop.conversionFromPrev! < 10 ? "critical" : "warning",
+            category: "funnel_bottleneck",
+            title:    `Sequence ${sequence_id}: ${biggestDrop.conversionFromPrev}% conversion at ${biggestDrop.eventType}`,
+            detail:   `Only ${biggestDrop.leadCount} of ${funnelData.entryLeads} leads reached ${biggestDrop.eventType}. This is your biggest funnel drop. Investigate messaging, timing, or targeting at this stage.`,
+            metric:   { stage: biggestDrop.eventType, leadCount: biggestDrop.leadCount, entryLeads: funnelData.entryLeads, conversionFromPrev: biggestDrop.conversionFromPrev },
+          });
+        }
+      }
+
+      // 5. Low-performing sequences
+      for (const seq of outreachOverview.sequences) {
+        if (seq.totalLeads > 50 && seq.replyRate < 2) {
+          issues.push({
+            severity: "warning",
+            category: "sequence_performance",
+            title:    `Sequence ${seq.sequenceId} has ${seq.replyRate}% reply rate`,
+            detail:   `${seq.totalLeads} leads contacted via ${seq.tool}, only ${seq.replies} replied. A/B test subject lines, improve personalization, or review send timing.`,
+            metric:   { sequenceId: seq.sequenceId, tool: seq.tool, totalLeads: seq.totalLeads, replyRate: seq.replyRate },
+          });
+        }
+      }
+
+      // ── Improvement suggestions ──────────────────────────────────────────
+      // Ranked by estimated impact — structured for agent → n8n/Make handoff
+      const suggestions: {
+        priority:  number;
+        impact:    "high" | "medium" | "low";
+        action:    string;
+        reason:    string;
+        n8n_hint?: string;
+        make_hint?: string;
+      }[] = [];
+
+      // Critical workflow fixes
+      const criticalWorkflows = issues.filter(i => i.category === "workflow_reliability" && i.severity === "critical");
+      if (criticalWorkflows.length > 0) {
+        suggestions.push({
+          priority: 1,
+          impact:   "high",
+          action:   "Fix failing workflow nodes",
+          reason:   `${criticalWorkflows.length} workflow(s) have <70% reliability. Failed events mean lost pipeline signals.`,
+          n8n_hint: "Check 'Error' nodes in the n8n execution log. Add an Error Trigger node to catch and alert on failures. Re-authenticate any expired credentials.",
+          make_hint: "Open scenario history and filter by 'Error'. Review failed module inputs. Re-authorize connections under Connections tab.",
+        });
+      }
+
+      // Leakage recovery
+      const leakageIssues = issues.filter(i => i.category === "revenue_leakage");
+      if (leakageIssues.length > 0) {
+        const topLoss = leakageIssues.reduce((sum, i) => sum + ((i.metric?.totalLoss as number) ?? 0), 0);
+        suggestions.push({
+          priority: 2,
+          impact:   "high",
+          action:   `Recover ~$${topLoss.toLocaleString()} in pipeline leakage`,
+          reason:   `Failed events for high-value types (meeting_booked, deal_created) are losing estimated pipeline value.`,
+          n8n_hint: "Add a Retry node after HTTP Request nodes that call your CRM or sequencer. Use IF node to branch on error and trigger a Slack alert.",
+          make_hint: "Enable 'Incomplete execution' handling on router modules. Add error handlers on modules that write to your CRM.",
+        });
+      }
+
+      // Webhook identity fix
+      const noIdDrops = webhookHealth.tools.filter(t => t.droppedNoId > 20);
+      if (noIdDrops.length > 0) {
+        suggestions.push({
+          priority: 3,
+          impact:   "high",
+          action:   `Fix missing identity fields in ${noIdDrops.map(t => t.tool).join(", ")} webhooks`,
+          reason:   `${noIdDrops.reduce((s, t) => s + t.droppedNoId, 0)} events dropped because IQPipe could not identify the lead (no email, LinkedIn URL, or phone).`,
+          n8n_hint: "In your IQPipe webhook node, ensure the 'email' or 'linkedin_url' field is mapped from the source payload. Use a Set node before the IQPipe HTTP Request to normalize field names.",
+          make_hint: "In the HTTP module sending to IQPipe, check that the Body includes an 'email' key mapped from the trigger data. Use a Text Parser module to extract email from raw text if needed.",
+        });
+      }
+
+      // Stuck leads follow-up
+      if (neverReplied.length > 10) {
+        suggestions.push({
+          priority: 4,
+          impact:   "medium",
+          action:   `Add a follow-up step for ${neverReplied.length} silent leads`,
+          reason:   `${neverReplied.length} leads received outreach but never replied and have been silent 5+ days. A timed follow-up can recover 10–20% of these.`,
+          n8n_hint: "Add a Wait node (5 days) → IF node checking for reply_received event from IQPipe → conditional follow-up email via Lemlist/Instantly node.",
+          make_hint: "Add a delay module (5 days) after the initial send, then use an IQPipe HTTP lookup to check if the lead replied before sending a follow-up via your sequencer.",
+        });
+      }
+
+      // Dead branch fix
+      const deadBranches = issues.filter(i => i.category === "branch_dead");
+      if (deadBranches.length > 0) {
+        suggestions.push({
+          priority: 5,
+          impact:   "medium",
+          action:   `Investigate dead branch(es): ${deadBranches.map(i => i.title).join("; ")}`,
+          reason:   "Branches with 0% conversion despite traffic indicate a configuration error or inactive sequence.",
+          n8n_hint: "Check that the IF branch actually routes to an active node. Enable execution in n8n and inspect the branch path manually with a test lead.",
+          make_hint: "In Make, run the scenario with a test webhook and trace which route the Router takes. Verify the downstream modules are active and not in 'paused' state.",
+        });
+      }
+
+      // Sort issues by severity
+      const severityOrder = { critical: 0, warning: 1, info: 2 };
+      issues.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            generatedAt:  new Date().toISOString(),
+            period:       `${lookback}d`,
+            workflowId:   workflow_id ?? null,
+            sequenceId:   sequence_id ?? null,
+            summary: {
+              issueCount:       issues.length,
+              criticalIssues:   issues.filter(i => i.severity === "critical").length,
+              warningIssues:    issues.filter(i => i.severity === "warning").length,
+              stuckLeadCount:   neverReplied.length,
+              totalWorkflows:   overview?.length ?? 0,
+            },
+            issues,
+            suggestions: suggestions.sort((a, b) => a.priority - b.priority),
+          }, null, 2),
+        }],
+      };
     }
   );
 
