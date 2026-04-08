@@ -55,6 +55,9 @@ import {
   getLeadJourney,
   getWebhookReliability,
   getOutcomeAttribution,
+  checkLeadStatus,
+  getSequenceRecommendation,
+  confirmEventReceived,
 } from "../services/outreachQueryService";
 import {
   fetchAllWorkflowMetrics,
@@ -1197,6 +1200,98 @@ function createServer(workspaceId: string, baseUrl: string): any {
     {},
     async () => {
       const data = await getOutcomeAttribution(workspaceId);
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── check_lead_status ─────────────────────────────────────────────────────
+  server.tool(
+    "check_lead_status",
+    "Before enrolling any lead in an outreach sequence, call this tool to check whether it is safe to contact them. " +
+    "Accepts one email or a batch of up to 200 emails. Returns per-lead: safeToContact (bool), reason, " +
+    "optedOut, activeSequence, lastContactedAt, hasReplied, hasMeeting, touchpointCount. " +
+    "A lead is NOT safe to contact if: opted out, has a meeting booked, contacted within 3 days, " +
+    "or currently enrolled in another active sequence. " +
+    "Always call this before passing emails to an n8n or Make.com enrollment node.",
+    {
+      emails: z.union([
+        z.string().describe("Single email address."),
+        z.array(z.string()).describe("Batch of email addresses (up to 200)."),
+      ]).describe("Email address(es) to check."),
+    },
+    async ({ emails }: any) => {
+      const emailList: string[] = Array.isArray(emails) ? emails : [emails];
+      if (emailList.length === 0) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Provide at least one email." }) }] };
+      }
+      if (emailList.length > 200) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Batch limit is 200 emails per call." }) }] };
+      }
+      const results = await checkLeadStatus(workspaceId, emailList);
+      const safeCount    = results.filter(r => r.safeToContact).length;
+      const blockedCount = results.length - safeCount;
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            total:         results.length,
+            safeToContact: safeCount,
+            blocked:       blockedCount,
+            leads:         results,
+          }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // ── get_sequence_recommendation ───────────────────────────────────────────
+  server.tool(
+    "get_sequence_recommendation",
+    "Given a lead's ICP profile, returns the outreach sequences most likely to convert them — " +
+    "ranked by historical reply rate, meeting rate, and ICP signal match. " +
+    "Use this before enrolling a lead to choose the best sequence rather than guessing. " +
+    "Signals used for ranking: job title match against leads that converted, source tool match, " +
+    "channel preference, and statistical performance. All signals are optional — omit what you don't know.",
+    {
+      title:       z.string().optional().describe("Lead's job title, e.g. 'VP of Sales', 'Head of Marketing'."),
+      company:     z.string().optional().describe("Lead's company name (used for context, not matching)."),
+      source_tool: z.string().optional().describe("Tool the lead was sourced from, e.g. 'apollo', 'clay', 'linkedin'. Used to find sequences where similar-source leads converted."),
+      channel:     z.enum(["email", "linkedin", "phone", "any"]).optional().describe("Preferred outreach channel. Filters sequences to tools that operate on that channel."),
+    },
+    async ({ title, company, source_tool, channel }: any) => {
+      const data = await getSequenceRecommendation(workspaceId, {
+        title,
+        company,
+        sourceTool: source_tool,
+        channel,
+      });
+      if (data.recommendations.length === 0) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ message: "No sequence performance data yet. IQPipe needs to observe at least one completed sequence before it can make recommendations.", recommendations: [] }) }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── confirm_event_received ────────────────────────────────────────────────
+  server.tool(
+    "confirm_event_received",
+    "After triggering an n8n or Make.com workflow that sends an outreach event (email sent, " +
+    "LinkedIn message, connection request), call this to verify IQPipe actually received and " +
+    "processed the webhook within the expected window. " +
+    "Returns: arrived (bool), processed count, drop reason if dropped, and a plain-English verdict. " +
+    "Use this to close the execution loop: if arrived=false after 5 minutes, the webhook is misconfigured " +
+    "or the n8n/Make node did not execute. If dropped, the payload is missing identity fields.",
+    {
+      tool:          z.string().describe("The tool that should have sent the event, e.g. 'HeyReach', 'Lemlist', 'Instantly'."),
+      since_minutes: z.number().int().min(1).max(120).optional().describe("How many minutes back to check. Default: 10."),
+      event_type:    z.string().optional().describe("Optional event type to filter by, e.g. 'email_sent', 'connection_sent'. Leave empty to check any event from this tool."),
+    },
+    async ({ tool, since_minutes, event_type }: any) => {
+      const data = await confirmEventReceived(workspaceId, {
+        tool,
+        sinceMinutes: since_minutes,
+        eventType:    event_type,
+      });
       return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
     }
   );

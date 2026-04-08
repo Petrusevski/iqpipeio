@@ -506,3 +506,367 @@ export async function getOutcomeAttribution(workspaceId: string): Promise<{
 
   return { totalMeetings, totalDeals, sequences };
 }
+
+// ─── check_lead_status ────────────────────────────────────────────────────────
+
+const OPT_OUT_EVENTS = new Set([
+  "unsubscribed", "opt_out", "do_not_contact", "bounced", "hard_bounce",
+  "spam_reported", "blacklisted",
+]);
+
+// A lead contacted more recently than this is considered "in cooldown"
+const COOLDOWN_DAYS = 3;
+
+export interface LeadStatusResult {
+  email:            string;
+  found:            boolean;
+  safeToContact:    boolean;
+  reason:           string;
+  optedOut:         boolean;
+  activeSequence:   string | null;  // sequenceId if currently active
+  lastContactedAt:  string | null;
+  daysSinceContact: number | null;
+  touchpointCount:  number;
+  hasReplied:       boolean;
+  hasMeeting:       boolean;
+}
+
+export async function checkLeadStatus(
+  workspaceId: string,
+  emails: string[],
+): Promise<LeadStatusResult[]> {
+  // Hash all emails in one pass
+  const emailMap = new Map<string, string>(); // hash → original email
+  for (const e of emails) {
+    const clean = e.toLowerCase().trim();
+    if (clean) emailMap.set(hashEmail(clean), e);
+  }
+
+  // Single batch query for all leads
+  const leads = await prisma.outreachLead.findMany({
+    where: {
+      workspaceId,
+      emailHash: { in: [...emailMap.keys()] },
+    },
+    select: {
+      id: true, emailHash: true, displayName: true,
+      firstSequenceAt: true, lastEventAt: true,
+      metrics: {
+        select: { eventType: true, count: true, sequenceId: true, lastAt: true },
+      },
+    },
+  });
+
+  // Index by hash
+  const leadByHash = new Map(leads.map(l => [l.emailHash, l]));
+  const now = Date.now();
+
+  return emails.map(email => {
+    const hash = hashEmail(email.toLowerCase().trim());
+    const lead = leadByHash.get(hash);
+
+    if (!lead) {
+      return {
+        email, found: false, safeToContact: true,
+        reason: "No prior contact found in IQPipe — lead has never been outreached.",
+        optedOut: false, activeSequence: null,
+        lastContactedAt: null, daysSinceContact: null,
+        touchpointCount: 0, hasReplied: false, hasMeeting: false,
+      };
+    }
+
+    const metrics = lead.metrics;
+
+    const optedOut   = metrics.some(m => OPT_OUT_EVENTS.has(m.eventType) && m.count > 0);
+    const hasReplied = metrics.some(m => POSITIVE_OUTCOMES.has(m.eventType) && m.count > 0);
+    const hasMeeting = metrics.some(m =>
+      ["meeting_booked", "demo_completed"].includes(m.eventType) && m.count > 0
+    );
+
+    const lastAt      = lead.lastEventAt;
+    const daysSince   = Math.floor((now - lastAt.getTime()) / 86_400_000);
+    const inCooldown  = daysSince < COOLDOWN_DAYS;
+
+    // Find most recent active sequence (last entry event sequence)
+    let activeSequence: string | null = null;
+    let latestSeqAt: Date | null = null;
+    for (const m of metrics) {
+      if (ENTRY_EVENTS.has(m.eventType) && m.sequenceId && m.lastAt) {
+        if (!latestSeqAt || m.lastAt > latestSeqAt) {
+          latestSeqAt   = m.lastAt;
+          activeSequence = m.sequenceId;
+        }
+      }
+    }
+    // Only flag active if the last entry was within 30 days
+    if (latestSeqAt && (now - latestSeqAt.getTime()) > 30 * 86_400_000) {
+      activeSequence = null;
+    }
+
+    // Determine safety and reason
+    let safeToContact = true;
+    let reason = "Lead can be contacted.";
+
+    if (optedOut) {
+      safeToContact = false;
+      reason = "Lead has opted out or hard-bounced. Do not contact.";
+    } else if (hasMeeting) {
+      safeToContact = false;
+      reason = "Lead has already booked a meeting. Escalate to sales rather than re-outreaching.";
+    } else if (inCooldown) {
+      safeToContact = false;
+      reason = `Lead was contacted ${daysSince} day(s) ago — within the ${COOLDOWN_DAYS}-day cooldown window.`;
+    } else if (activeSequence) {
+      safeToContact = false;
+      reason = `Lead is currently active in sequence ${activeSequence}. Do not enroll in another sequence.`;
+    }
+
+    return {
+      email,
+      found:           true,
+      safeToContact,
+      reason,
+      optedOut,
+      activeSequence,
+      lastContactedAt:  lastAt.toISOString(),
+      daysSinceContact: daysSince,
+      touchpointCount:  metrics.reduce((s, m) => s + m.count, 0),
+      hasReplied,
+      hasMeeting,
+    };
+  });
+}
+
+// ─── get_sequence_recommendation ──────────────────────────────────────────────
+
+export interface SequenceRecommendation {
+  sequenceId:        string;
+  tool:              string;
+  replyRate:         number;
+  meetingRate:       number;
+  totalLeads:        number;
+  relevanceScore:    number;   // 0–100; higher = better match for the provided ICP signals
+  relevanceReasons:  string[];
+  topConvertingStep: string | null;
+}
+
+export async function getSequenceRecommendation(
+  workspaceId: string,
+  profile: {
+    title?:      string;   // e.g. "VP of Sales"
+    company?:    string;   // e.g. "Acme Corp"
+    sourceTool?: string;   // tool the lead was sourced from, e.g. "apollo"
+    channel?:    "email" | "linkedin" | "phone" | "any";
+  },
+): Promise<{ recommendations: SequenceRecommendation[]; profileMatched: Record<string, string> }> {
+  // Pull all metrics grouped by sequence
+  const rows = await prisma.outreachMetric.findMany({
+    where:  { workspaceId, sequenceId: { not: "" } },
+    select: { sequenceId: true, tool: true, leadId: true, eventType: true, count: true, stepId: true },
+  });
+
+  // For title matching: find leads in positive-outcome sequences
+  // and check if their stored title matches the requested profile
+  const positiveLeadIds = new Set(
+    rows.filter(r => POSITIVE_OUTCOMES.has(r.eventType)).map(r => r.leadId)
+  );
+
+  let titleMatchLeads: Set<string> = new Set();
+  let toolMatchLeads:  Set<string> = new Set();
+
+  if ((profile.title || profile.sourceTool) && positiveLeadIds.size > 0) {
+    const conditions: any[] = [{ id: { in: [...positiveLeadIds] }, workspaceId }];
+
+    const matchedLeads = await prisma.outreachLead.findMany({
+      where: {
+        workspaceId,
+        id: { in: [...positiveLeadIds] },
+      },
+      select: { id: true, title: true, firstTool: true },
+    });
+
+    for (const l of matchedLeads) {
+      if (profile.title && l.title) {
+        // Fuzzy match: any word overlap between requested title and stored title
+        const reqWords  = profile.title.toLowerCase().split(/\W+/).filter(w => w.length > 2);
+        const leadWords = l.title.toLowerCase().split(/\W+/);
+        if (reqWords.some(w => leadWords.includes(w))) titleMatchLeads.add(l.id);
+      }
+      if (profile.sourceTool && l.firstTool.toLowerCase() === profile.sourceTool.toLowerCase()) {
+        toolMatchLeads.add(l.id);
+      }
+    }
+  }
+
+  // Channel → expected tool slugs
+  const CHANNEL_TOOLS: Record<string, string[]> = {
+    email:    ["lemlist", "instantly", "smartlead", "mailshake", "woodpecker", "gmail", "outlook"],
+    linkedin: ["heyreach", "expandi", "dripify", "waalaxy", "phantombuster"],
+    phone:    ["aircall", "dialpad", "close"],
+  };
+  const channelTools = profile.channel && profile.channel !== "any"
+    ? new Set(CHANNEL_TOOLS[profile.channel] ?? [])
+    : null;
+
+  // Aggregate per sequence
+  const bySeq: Record<string, {
+    tool: string;
+    leadIds: Set<string>;
+    replies: number;
+    meetings: number;
+    stepMeetings: Record<string, number>;
+  }> = {};
+
+  for (const r of rows) {
+    if (!bySeq[r.sequenceId]) {
+      bySeq[r.sequenceId] = { tool: r.tool, leadIds: new Set(), replies: 0, meetings: 0, stepMeetings: {} };
+    }
+    const s = bySeq[r.sequenceId];
+    s.leadIds.add(r.leadId);
+    if (["reply_received","positive_reply","interested_reply","inmail_replied"].includes(r.eventType)) s.replies  += r.count;
+    if (["meeting_booked","demo_completed"].includes(r.eventType)) {
+      s.meetings += r.count;
+      if (r.stepId) s.stepMeetings[r.stepId] = (s.stepMeetings[r.stepId] ?? 0) + r.count;
+    }
+  }
+
+  const recommendations: SequenceRecommendation[] = Object.entries(bySeq).map(([sequenceId, s]) => {
+    const total       = s.leadIds.size || 1;
+    const replyRate   = Math.round((s.replies  / total) * 1000) / 10;
+    const meetingRate = Math.round((s.meetings / total) * 1000) / 10;
+    const topStep     = Object.entries(s.stepMeetings).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+    // Relevance scoring — additive signals
+    let relevance = 0;
+    const reasons: string[] = [];
+
+    // Base performance
+    if (replyRate >= 10) { relevance += 30; reasons.push(`High reply rate (${replyRate}%)`); }
+    else if (replyRate >= 5) { relevance += 15; }
+    if (meetingRate >= 3)  { relevance += 25; reasons.push(`Strong meeting rate (${meetingRate}%)`); }
+    else if (meetingRate >= 1) { relevance += 10; }
+
+    // Channel match
+    if (channelTools && channelTools.has(s.tool.toLowerCase())) {
+      relevance += 20;
+      reasons.push(`Matches requested channel (${profile.channel})`);
+    }
+
+    // Source tool match — leads from same source converted here
+    const seqLeadIds = [...s.leadIds];
+    const toolMatchInSeq = seqLeadIds.filter(id => toolMatchLeads.has(id)).length;
+    if (toolMatchInSeq > 0) {
+      relevance += 15;
+      reasons.push(`${toolMatchInSeq} leads from ${profile.sourceTool} converted in this sequence`);
+    }
+
+    // Title match — leads with similar title converted here
+    const titleMatchInSeq = seqLeadIds.filter(id => titleMatchLeads.has(id)).length;
+    if (titleMatchInSeq > 0) {
+      relevance += 10;
+      reasons.push(`${titleMatchInSeq} leads with similar title (${profile.title}) had positive outcomes`);
+    }
+
+    // Volume signal — prefer sequences with enough data to trust
+    if (total < 10) relevance = Math.round(relevance * 0.7); // discount thin sequences
+
+    return {
+      sequenceId,
+      tool:              s.tool,
+      replyRate,
+      meetingRate,
+      totalLeads:        total,
+      relevanceScore:    Math.min(100, relevance),
+      relevanceReasons:  reasons,
+      topConvertingStep: topStep,
+    };
+  }).sort((a, b) => b.relevanceScore !== a.relevanceScore
+    ? b.relevanceScore - a.relevanceScore
+    : b.replyRate - a.replyRate
+  );
+
+  const profileMatched: Record<string, string> = {};
+  if (profile.title)      profileMatched.title      = profile.title;
+  if (profile.company)    profileMatched.company     = profile.company;
+  if (profile.sourceTool) profileMatched.sourceTool  = profile.sourceTool;
+  if (profile.channel)    profileMatched.channel     = profile.channel;
+
+  return { recommendations: recommendations.slice(0, 10), profileMatched };
+}
+
+// ─── confirm_event_received ───────────────────────────────────────────────────
+
+export interface EventConfirmationResult {
+  arrived:       boolean;
+  processed:     number;
+  dropped:       number;
+  errors:        number;
+  total:         number;
+  windowMinutes: number;
+  tool:          string;
+  eventType:     string | null;
+  lastEvent:     { status: string; receivedAt: string; eventType: string | null } | null;
+  verdict:       string;   // human-readable conclusion for Claude
+}
+
+export async function confirmEventReceived(
+  workspaceId: string,
+  opts: {
+    tool:          string;
+    sinceMinutes?: number;
+    eventType?:    string;
+  },
+): Promise<EventConfirmationResult> {
+  const minutes = opts.sinceMinutes ?? 10;
+  const since   = new Date(Date.now() - minutes * 60_000);
+
+  const where: any = {
+    workspaceId,
+    tool:       { equals: opts.tool, mode: "insensitive" },
+    receivedAt: { gte: since },
+  };
+  if (opts.eventType) where.rawEventKey = { contains: opts.eventType, mode: "insensitive" };
+
+  const logs = await prisma.webhookDeliveryLog.findMany({
+    where,
+    orderBy: { receivedAt: "desc" },
+    select:  { status: true, receivedAt: true, eventType: true, rawEventKey: true },
+  });
+
+  const total     = logs.length;
+  const processed = logs.filter(l => l.status === "processed").length;
+  const dropped   = logs.filter(l => l.status.startsWith("dropped")).length;
+  const errors    = logs.filter(l => l.status === "error").length;
+  const arrived   = total > 0;
+
+  const last = logs[0] ?? null;
+
+  // Compose verdict
+  let verdict: string;
+  if (!arrived) {
+    verdict = `No events from ${opts.tool} received in the last ${minutes} minutes${opts.eventType ? ` matching "${opts.eventType}"` : ""}. The webhook may not have fired, the payload may be missing identity fields, or the n8n/Make trigger hasn't executed yet.`;
+  } else if (processed > 0) {
+    verdict = `${processed} of ${total} event(s) from ${opts.tool} were successfully processed by IQPipe in the last ${minutes} minutes. The pipeline is working.`;
+  } else if (dropped > 0) {
+    verdict = `${total} event(s) from ${opts.tool} arrived but all were dropped (${logs[0]?.status}). Check that the webhook payload includes a recognizable email, LinkedIn URL, or phone number for identity resolution.`;
+  } else {
+    verdict = `${total} event(s) from ${opts.tool} arrived but resulted in errors. Check webhook signature or payload format.`;
+  }
+
+  return {
+    arrived,
+    processed,
+    dropped,
+    errors,
+    total,
+    windowMinutes: minutes,
+    tool:      opts.tool,
+    eventType: opts.eventType ?? null,
+    lastEvent: last ? {
+      status:     last.status,
+      receivedAt: last.receivedAt.toISOString(),
+      eventType:  last.eventType,
+    } : null,
+    verdict,
+  };
+}
