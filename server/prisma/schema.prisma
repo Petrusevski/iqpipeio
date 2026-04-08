@@ -78,8 +78,9 @@ model Workspace {
   customEventTypes    CustomEventType[]
   sourceMappings      SourceMapping[]
   fieldMappings       FieldMapping[]
-  outreachLeads       OutreachLead[]
-  outreachMetrics     OutreachMetric[]
+  outreachLeads        OutreachLead[]
+  outreachMetrics      OutreachMetric[]
+  webhookDeliveryLogs  WebhookDeliveryLog[]
 }
 
 // ─── Outreach tracking ────────────────────────────────────────────────────────
@@ -143,6 +144,27 @@ model OutreachMetric {
   @@index([workspaceId, leadId])
   @@index([workspaceId, tool, sequenceId])
   @@index([workspaceId, eventType])
+}
+
+// Inbound webhook delivery log — every event received, before processing gates.
+// Answers: "Did webhooks arrive?", "What got dropped?", "Where are errors?"
+// Rotated after 30 days to keep the table lean.
+
+model WebhookDeliveryLog {
+  id          String    @id @default(cuid())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspaceId String
+
+  tool        String    // provider name: "HeyReach", "Lemlist", etc.
+  rawEventKey String    // provider's raw event type string (before normalization)
+  eventType   String    // normalized IQPipe event type, or "unknown"
+  status      String    // "processed" | "dropped_quota" | "dropped_ignored" | "dropped_no_identity" | "error"
+  errorMsg    String?   // populated only when status = "error"
+  receivedAt  DateTime  @default(now())
+
+  @@index([workspaceId, tool, receivedAt])
+  @@index([workspaceId, status, receivedAt])
+  @@index([workspaceId, receivedAt])
 }
 
 model Notification {

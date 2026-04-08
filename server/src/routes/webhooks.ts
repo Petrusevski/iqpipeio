@@ -50,6 +50,22 @@ import { processOutreachEvent } from "../services/outreachTracker";
 
 const router = Router();
 
+// ─── Delivery log helper ──────────────────────────────────────────────────────
+// Fire-and-forget. Never blocks webhook response. Rotated server-side at 30d.
+
+function logDelivery(
+  workspaceId: string,
+  tool: string,
+  rawEventKey: string,
+  eventType: string,
+  status: "processed" | "dropped_quota" | "dropped_ignored" | "dropped_no_identity" | "error",
+  errorMsg?: string,
+) {
+  prisma.webhookDeliveryLog.create({
+    data: { workspaceId, tool, rawEventKey, eventType, status, errorMsg },
+  }).catch(() => { /* never surface log failures to webhook callers */ });
+}
+
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
 type AuthData = { apiKey?: string; accessToken?: string; webhookSecret?: string; [k: string]: any };
@@ -77,10 +93,14 @@ async function recordEvent(
   externalId: string,
   meta: Record<string, any> = {},
   opts: { experimentId?: string | null; stackVariant?: string | null; sourceType?: string } = {},
+  rawEventKey: string = eventType,  // provider's original event name for logging
 ): Promise<boolean> {
   // ── 0. Quota guard ────────────────────────────────────────────────────────
   const quota = await checkAndIncrementQuota(workspaceId);
-  if (!quota.allowed) return false;
+  if (!quota.allowed) {
+    logDelivery(workspaceId, source, rawEventKey, eventType, "dropped_quota");
+    return false;
+  }
 
   let { firstName, lastName, email, linkedin, phone, company, title } = contact;
 
@@ -96,6 +116,12 @@ async function recordEvent(
     if (!lastName  && enriched.lastName)  lastName  = enriched.lastName;
     if (!company  && enriched.company)  company  = enriched.company  ?? null;
     if (!title    && enriched.title)    title    = enriched.title    ?? null;
+  }
+
+  // Drop if still no identity after field detection
+  if (!email && !linkedin && !phone) {
+    logDelivery(workspaceId, source, rawEventKey, eventType, "dropped_no_identity");
+    return false;
   }
 
   // ── 1. Extract sequence context from meta ─────────────────────────────────
@@ -136,6 +162,9 @@ async function recordEvent(
     undefined, // consentBasis
     externalId || null,
   );
+
+  // ── 4. Log delivery success ───────────────────────────────────────────────
+  logDelivery(workspaceId, source, rawEventKey, eventType, "processed");
 
   return true;
 }
@@ -196,7 +225,10 @@ router.post("/heyreach", async (req: Request, res: Response) => {
         },
         "HeyReach", String(lead.id),
         { campaign: lead.campaignName || payload?.data?.campaignName, heyreachEvent: raw },
+        {}, raw,
       );
+    } else if (!eventType && raw) {
+      logDelivery(workspaceId, "HeyReach", raw, "unknown", "dropped_ignored");
     }
     return res.json({ received: true });
   } catch (err: any) {

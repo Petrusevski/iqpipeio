@@ -48,6 +48,14 @@ import { APP_CATALOG } from "./workflowMirror";
 import { diagnose } from "../services/diagnosticEngine";
 import { applyFix } from "../services/remediationEngine";
 import { watchRecovery } from "../services/recoveryWatcher";
+import {
+  getOutreachOverview,
+  getStuckLeads,
+  getSequenceFunnel,
+  getLeadJourney,
+  getWebhookReliability,
+  getOutcomeAttribution,
+} from "../services/outreachQueryService";
 
 const router = Router();
 
@@ -1062,6 +1070,128 @@ function createServer(workspaceId: string, baseUrl: string): any {
         timeoutMinutes,
       });
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GTM OBSERVABILITY TOOLS  — powered by OutreachLead + OutreachMetric
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── get_outreach_overview ─────────────────────────────────────────────────
+  server.tool(
+    "get_outreach_overview",
+    "High-level health snapshot of all active outreach sequences across all connected tools. " +
+    "Returns per-sequence stats: total leads, sends, replies, meetings, and reply/meeting rates. " +
+    "Use this to identify which sequences are performing, which are stalling, and which tool " +
+    "is driving the most activity. Start here before drilling into specific sequences.",
+    {},
+    async () => {
+      const data = await getOutreachOverview(workspaceId);
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── get_stuck_leads ───────────────────────────────────────────────────────
+  server.tool(
+    "get_stuck_leads",
+    "Returns leads that entered an outreach sequence (email_sent, message_sent, connection_sent, etc.) " +
+    "but have had NO activity for at least N days. Sorted by: no reply yet first, then most days silent. " +
+    "A lead is 'stuck' if they received outreach but never replied, accepted, or progressed. " +
+    "Use this to identify follow-up opportunities or broken sequences.",
+    {
+      days_silent: z.number().int().min(1).max(90).optional()
+        .describe("Minimum days without any event to classify as stuck. Default: 5."),
+      sequence_id: z.string().optional()
+        .describe("Filter to one specific sequence/campaign ID. Leave empty for all sequences."),
+      limit: z.number().int().min(1).max(200).optional()
+        .describe("Max leads to return. Default: 50."),
+    },
+    async ({ days_silent, sequence_id, limit }: any) => {
+      const data = await getStuckLeads(workspaceId, {
+        daysSilent: days_silent,
+        sequenceId: sequence_id,
+        limit,
+      });
+      const summary = {
+        count: data.length,
+        neverReplied: data.filter(l => !l.hasReplied).length,
+        leads: data,
+      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
+    }
+  );
+
+  // ── get_sequence_funnel ───────────────────────────────────────────────────
+  server.tool(
+    "get_sequence_funnel",
+    "Step-by-step conversion funnel for a specific outreach sequence. " +
+    "Shows how many distinct leads reached each event stage (connection_sent → accepted → " +
+    "reply_received → meeting_booked) with conversion rates from the entry stage and from " +
+    "the previous stage. Use get_outreach_overview first to get sequence IDs.",
+    {
+      sequence_id: z.string()
+        .describe("The sequence/campaign ID to analyze. Get IDs from get_outreach_overview."),
+    },
+    async ({ sequence_id }: any) => {
+      const data = await getSequenceFunnel(workspaceId, sequence_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── get_lead_journey ──────────────────────────────────────────────────────
+  server.tool(
+    "get_lead_journey",
+    "Full outreach history for a single lead: every event type, tool, sequence, step, " +
+    "cumulative count, and timestamps. Identifies whether the lead replied, booked a meeting, " +
+    "or is still silent. Use this to debug a specific prospect's journey or answer " +
+    "'what happened to john@acme.com?'.",
+    {
+      email: z.string().optional()
+        .describe("Lead's email address. Used to look up their hashed identity record."),
+      lead_id: z.string().optional()
+        .describe("IQPipe lead ID (orl_…) from get_stuck_leads or get_sequence_funnel."),
+    },
+    async ({ email, lead_id }: any) => {
+      if (!email && !lead_id) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Provide email or lead_id." }) }] };
+      }
+      const data = await getLeadJourney(workspaceId, { email, leadId: lead_id });
+      if (!data) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Lead not found." }) }] };
+      }
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── get_webhook_reliability ───────────────────────────────────────────────
+  server.tool(
+    "get_webhook_reliability",
+    "Webhook delivery health report per connected tool. Shows how many events arrived, " +
+    "how many were processed vs dropped (quota, ignored event types, missing identity, errors). " +
+    "Use this to answer 'did HeyReach webhooks arrive last night?' or 'why are leads not appearing?' " +
+    "Data is available for events received after this feature was enabled.",
+    {
+      tool: z.string().optional()
+        .describe("Filter to a specific tool, e.g. 'HeyReach', 'Lemlist'. Leave empty for all tools."),
+      hours: z.number().int().min(1).max(168).optional()
+        .describe("Look-back window in hours. Default: 24. Max: 168 (7 days)."),
+    },
+    async ({ tool, hours }: any) => {
+      const data = await getWebhookReliability(workspaceId, { tool, hours });
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    }
+  );
+
+  // ── get_outcome_attribution ───────────────────────────────────────────────
+  server.tool(
+    "get_outcome_attribution",
+    "Attribution report: which outreach sequences and steps generated meetings and deals. " +
+    "Shows meeting count, deal count, meeting rate per sequence, and the top-converting step. " +
+    "Use this to answer 'which sequence drove the most demos?' or 'which LinkedIn campaign converts best?'",
+    {},
+    async () => {
+      const data = await getOutcomeAttribution(workspaceId);
+      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
     }
   );
 
