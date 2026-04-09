@@ -29,8 +29,10 @@ import AutomationHealthPage  from "./pages/AutomationHealthPage";
 import AutomationsPage        from "./pages/AutomationsPage";
 import IntegrationsPage     from "./pages/IntegrationsPage";
 import SettingsPage         from "./pages/SettingsPage";
-import WorkflowComparePage  from "./pages/WorkflowComparePage";
-import KnowledgeBasePage    from "./pages/KnowledgeBasePage";
+import WorkflowComparePage          from "./pages/WorkflowComparePage";
+import KnowledgeBasePage            from "./pages/KnowledgeBasePage";
+import OutreachIntelligencePage     from "./pages/OutreachIntelligencePage";
+import ImprovementReportPage        from "./pages/ImprovementReportPage";
 
 // Public pages
 import LandingPage   from "./pages/LandingPage";
@@ -64,7 +66,9 @@ function AuthenticatedApp() {
           <Route path="/my-workflow/:id"  element={<WorkflowMirrorDetailPage />} />
           <Route path="/automations"       element={<AutomationsPage />} />
           <Route path="/automation-health" element={<AutomationHealthPage />} />
-          <Route path="/compare"       element={<WorkflowComparePage />} />
+          <Route path="/compare"              element={<WorkflowComparePage />} />
+          <Route path="/outreach"           element={<OutreachIntelligencePage />} />
+          <Route path="/improvement-report" element={<ImprovementReportPage />} />
           <Route path="/integrations"     element={<IntegrationsPage />} />
           <Route path="/settings"         element={<SettingsPage />} />
           <Route path="/knowledge-base"   element={<KnowledgeBasePage />} />

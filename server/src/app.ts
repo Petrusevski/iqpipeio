@@ -52,6 +52,7 @@ import customEventTypesRouter from "./routes/customEventTypes";
 import sourceMappingsRouter from "./routes/sourceMappings";
 import fieldMappingsRouter  from "./routes/fieldMappings";
 import kbRouter             from "./routes/kb";
+import outreachRouter       from "./routes/outreach";
 import { ensureKbSeeded }   from "./services/kbSeed";
 
 const app = express();
@@ -193,6 +194,7 @@ app.use("/api/custom-event-types", customEventTypesRouter);
 app.use("/api/source-mappings",    sourceMappingsRouter);
 app.use("/api/field-mappings",     fieldMappingsRouter);
 app.use("/api/kb",                 kbRouter);
+app.use("/api/outreach",           outreachRouter);
 
 // MCP server — must allow any origin so Claude.ai and other MCP clients can reach it
 app.use("/mcp", cors({

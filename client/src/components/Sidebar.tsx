@@ -10,6 +10,8 @@ import {
   BarChart3,
   Sparkles,
   BookOpen,
+  Radio,
+  FileText,
 } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
@@ -35,6 +37,13 @@ const navGroups = [
     title: "Analyze",
     items: [
       { label: "Workflow Compare",  path: "/compare",          icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Intelligence",
+    items: [
+      { label: "Outreach",          path: "/outreach",         icon: Radio      },
+      { label: "Improvement Report", path: "/improvement-report", icon: FileText },
     ],
   },
   {

@@ -895,12 +895,16 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
   const fullUrl    = apiKey ? `${MCP_URL}?key=${apiKey}` : "";
   const CLAUDE_AI_INTEGRATIONS = "https://claude.ai/settings/integrations";
 
+  const storedUser = (() => { try { return JSON.parse(localStorage.getItem("iqpipe_user") ?? "{}"); } catch { return {}; } })();
+  const isNewUser  = storedUser.isNewUser === true;
+
   const [tab, setTab]           = useState<"web" | "desktop">("web");
   const [platform, setPlatform] = useState<"windows" | "mac">("windows");
   const [copied, setCopied]     = useState<string | null>(null);
   const [running, setRunning]   = useState(false);
   const [scriptDone, setScriptDone] = useState(false);
   const [scriptErr, setScriptErr]   = useState<string | null>(null);
+  const [testState, setTestState]   = useState<"idle" | "testing" | "ok" | "fail">("idle");
 
   const copy = (text: string, id: string) => {
     if (!text) return;
@@ -943,8 +947,36 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
     ? `irm "${MCP_URL.replace("https://", "https://")}/api/mcp/setup-script?platform=windows" -Headers @{Authorization="Bearer ${apiKey}"} | iex`
     : `curl -sH "Authorization: Bearer ${apiKey}" "${API_BASE_URL}/api/mcp/setup-script?platform=mac" | bash`;
 
+  const testConnection = async () => {
+    if (!apiKey) return;
+    setTestState("testing");
+    try {
+      const r = await fetch(`${MCP_URL}?key=${apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "iqpipe-test", version: "1.0" } }, id: 1 }),
+      });
+      setTestState(r.ok ? "ok" : "fail");
+    } catch {
+      setTestState("fail");
+    }
+    setTimeout(() => setTestState("idle"), 5000);
+  };
+
   return (
     <section className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5">
+      {/* New-user onboarding callout */}
+      {isNewUser && (
+        <div className="flex items-start gap-3 p-3 rounded-xl bg-indigo-500/10 border border-indigo-400/20 mb-4">
+          <Zap size={14} className="text-indigo-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-indigo-300 mb-0.5">Connect Claude first</p>
+            <p className="text-[11px] text-indigo-300/70">
+              Connecting Claude to IQPipe unlocks 37 GTM tools directly in your Claude conversations — no switching tabs.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center gap-2 mb-1">
         <Bot size={14} className="text-indigo-400" />
@@ -1116,6 +1148,31 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
             </span>
           ))}
         </div>
+      </div>
+
+      {/* Connection test */}
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={testConnection}
+          disabled={!apiKey || testState === "testing"}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50 ${
+            testState === "ok"   ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400" :
+            testState === "fail" ? "bg-rose-500/15 border-rose-500/30 text-rose-400" :
+            "bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500"
+          }`}
+        >
+          {testState === "testing" ? <RefreshCw size={11} className="animate-spin" /> :
+           testState === "ok"      ? <Check size={11} /> :
+           testState === "fail"    ? <AlertTriangle size={11} /> :
+           <Zap size={11} />}
+          {testState === "testing" ? "Testing…" :
+           testState === "ok"      ? "Connected" :
+           testState === "fail"    ? "Connection failed" :
+           "Test connection"}
+        </button>
+        {testState === "fail" && (
+          <p className="text-[11px] text-rose-400/80">Check your API key and try again.</p>
+        )}
       </div>
 
       {/* API key (collapsed, for reference) */}
