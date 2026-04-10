@@ -968,7 +968,7 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
           <div>
             <p className="text-xs font-semibold text-indigo-300 mb-0.5">Connect Claude first</p>
             <p className="text-[11px] text-indigo-300/70">
-              Connecting Claude to IQPipe unlocks 37 GTM tools directly in your Claude conversations — no switching tabs.
+              Connecting Claude to iqpipe unlocks 37 GTM tools directly in your Claude conversations — no switching tabs.
             </p>
           </div>
         </div>
@@ -980,7 +980,7 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
         <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/20">MCP</span>
       </div>
       <p className="text-xs text-slate-400 mb-4">
-        Connect Claude to your IQPipe workspace in one step — no config files, no JSON editing. Claude can then diagnose GTM issues, check workflow health, search contacts, and fix problems directly in conversation.
+        Connect Claude to your iqpipe workspace in one step — no config files, no JSON editing. Claude can then diagnose GTM issues, check workflow health, search contacts, and fix problems directly in conversation.
       </p>
 
       {/* Platform tabs */}
@@ -1111,7 +1111,7 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
             <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0 mt-0.5">2</div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-200">Restart Claude Desktop</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">IQPipe will appear in Claude's tool list automatically.</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">iqpipe will appear in Claude's tool list automatically.</p>
             </div>
           </div>
 

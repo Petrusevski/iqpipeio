@@ -4,7 +4,7 @@
  * Opens when the user clicks "Keep Connected" on an app_removed notification.
  * Lets them:
  *   1. Provide an API key and/or webhook secret for the removed app
- *   2. Pick which events they want IQPipe to receive
+ *   2. Pick which events they want iqpipe to receive
  *   3. Submit → POST /api/notifications/retain-app → connection created
  *      → returns a webhook URL to register in the app's dashboard
  */
@@ -147,7 +147,7 @@ export default function AppRetainModal({ notificationId, meta, onClose, onRetain
                 Keep <span className="text-indigo-400 capitalize">{catalog?.label ?? appKey}</span> connected
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Was removed from <span className="text-slate-300">"{workflowName}"</span>. Connect it directly to IQPipe to keep receiving events.
+                Was removed from <span className="text-slate-300">"{workflowName}"</span>. Connect it directly to iqpipe to keep receiving events.
               </p>
             </div>
             <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors ml-4 mt-0.5">

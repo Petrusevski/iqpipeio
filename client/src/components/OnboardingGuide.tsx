@@ -31,8 +31,8 @@ export const GUIDE_STEPS: GuideStep[] = [
     Icon:        Workflow,
     iconColor:   "text-indigo-400",
     title:       "Connect your automations",
-    description: "This is where you connect your n8n or Make.com workspace. Once connected, IQPipe fetches all your workflows, maps which apps each automation uses, and starts monitoring every event that flows through them.",
-    whatToDo:    "Paste your n8n API key + base URL, or your Make.com API key. IQPipe will immediately sync all your workflows and surface which tools they touch.",
+    description: "This is where you connect your n8n or Make.com workspace. Once connected, iqpipe fetches all your workflows, maps which apps each automation uses, and starts monitoring every event that flows through them.",
+    whatToDo:    "Paste your n8n API key + base URL, or your Make.com API key. iqpipe will immediately sync all your workflows and surface which tools they touch.",
     ctaLabel:    "Connect automations",
   },
   {
@@ -87,7 +87,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     iconColor:   "text-violet-400",
     title:       "Your personal workflow view",
     description: "A focused view of the workflows assigned to you — task statuses, next actions, and pipeline signals. Everything your team has flagged for your attention.",
-    whatToDo:    "Review any flagged tasks or pipeline signals here. This is your personal workspace inside IQPipe.",
+    whatToDo:    "Review any flagged tasks or pipeline signals here. This is your personal workspace inside iqpipe.",
     ctaLabel:    "Open my workflow",
   },
   {

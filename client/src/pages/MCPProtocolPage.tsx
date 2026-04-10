@@ -1,7 +1,7 @@
 /**
  * MCPProtocolPage — /mcp
  *
- * Technical deep-dive hub for the IQPipe Model Context Protocol server.
+ * Technical deep-dive hub for the iqpipe Model Context Protocol server.
  * Sections: Hero → How it Works → Quick Start → Connector Registry →
  *           Security → SDK Reference
  */
@@ -229,7 +229,7 @@ function ArchDiagram() {
         className="shrink-0 flex flex-col items-center justify-center w-36 h-36 rounded-2xl border-2 border-indigo-500/50 bg-indigo-950/60 backdrop-blur shadow-lg shadow-indigo-500/20"
       >
         <div className="text-2xl mb-1">⬡</div>
-        <div className="text-xs font-bold text-indigo-300">IQPipe</div>
+        <div className="text-xs font-bold text-indigo-300">iqpipe</div>
         <div className="text-[10px] text-indigo-400 font-mono">MCP Server</div>
         <div className="mt-2 flex items-center gap-1">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -494,7 +494,7 @@ export default function MCPProtocolPage() {
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}
             className="text-lg text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed"
           >
-            MCP is an open standard for AI-to-data interoperability. IQPipe's MCP server gives
+            MCP is an open standard for AI-to-data interoperability. iqpipe's MCP server gives
             any compatible AI model — Claude, Cursor, custom agents — live, authenticated access
             to your entire GTM intelligence layer over a single, standardized protocol.
           </motion.p>
@@ -588,7 +588,7 @@ export default function MCPProtocolPage() {
               versioned protocol — similar to what LSP did for language servers in editors.
             </p>
             <p className="text-slate-400 leading-relaxed mb-8">
-              IQPipe's MCP server exposes your entire GTM data layer — live pipeline health,
+              iqpipe's MCP server exposes your entire GTM data layer — live pipeline health,
               workflow events, lead activity, deal states, anomaly alerts — as a set of typed,
               authenticated tools that any MCP-compatible AI can call at runtime. Your AI always
               has fresh, authoritative context. No hallucinated pipeline data.
@@ -615,7 +615,7 @@ export default function MCPProtocolPage() {
             <p className="text-slate-400 leading-relaxed mb-8">
               MCP uses JSON-RPC 2.0 over stdio (local) or HTTP+SSE (remote). The AI client
               issues a <code className="text-indigo-300 font-mono text-sm">tools/call</code> request
-              with tool name and arguments. The IQPipe server resolves the workspace from the
+              with tool name and arguments. The iqpipe server resolves the workspace from the
               API key, executes the query against the materialized data layer, and streams the
               response back — typically in under 50ms.
             </p>
@@ -629,7 +629,7 @@ export default function MCPProtocolPage() {
             <div className="space-y-4">
               {[
                 { n: "01", title: "AI client sends tools/call",       desc: "The AI model (Claude, Cursor, custom agent) issues a JSON-RPC request to the MCP server with the tool name and any parameters." },
-                { n: "02", title: "Server resolves workspace + scope", desc: "IQPipe validates the API key, checks that the requested tool is within the key's permission scope, and identifies the workspace." },
+                { n: "02", title: "Server resolves workspace + scope", desc: "iqpipe validates the API key, checks that the requested tool is within the key's permission scope, and identifies the workspace." },
                 { n: "03", title: "Query hits materialized data",      desc: "The server reads from pre-computed tables (LeadActivitySummary, N8nWorkflowMeta, etc.) — O(1) indexed queries, never full scans." },
                 { n: "04", title: "Typed response streams back",       desc: "A validated, typed JSON object is returned to the AI client, which can then reason over it, surface insights, or take further actions." },
               ].map(({ n, title, desc }) => (
@@ -706,7 +706,7 @@ export default function MCPProtocolPage() {
                     <h3 className="text-base font-bold text-white mb-1">Connect via Claude.ai</h3>
                     <p className="text-sm text-slate-400 leading-relaxed">
                       Claude.ai's native <strong className="text-slate-300">Account Connectors</strong> let
-                      you add IQPipe as a remote MCP server directly inside the Claude interface — no
+                      you add iqpipe as a remote MCP server directly inside the Claude interface — no
                       terminal, no JSON files, no local process to manage. Your entire GTM data layer
                       becomes available to Claude in under 60 seconds.
                     </p>
@@ -717,9 +717,9 @@ export default function MCPProtocolPage() {
                 <ol className="space-y-2.5 mb-5">
                   {[
                     { n: "1", text: <>Open <strong className="text-slate-300">Claude.ai</strong> → Settings → <strong className="text-slate-300">Integrations</strong></> },
-                    { n: "2", text: <>Click <strong className="text-slate-300">Add integration</strong> and paste the IQPipe MCP URL:</> },
+                    { n: "2", text: <>Click <strong className="text-slate-300">Add integration</strong> and paste the iqpipe MCP URL:</> },
                     { n: "3", text: <>Enter your <code className="font-mono text-indigo-300 text-xs">rvn_pk_</code> API key when prompted</> },
-                    { n: "4", text: <>Hit <strong className="text-slate-300">Connect</strong> — all IQPipe tools appear in Claude instantly</> },
+                    { n: "4", text: <>Hit <strong className="text-slate-300">Connect</strong> — all iqpipe tools appear in Claude instantly</> },
                   ].map(({ n, text }) => (
                     <li key={n} className="flex items-start gap-3 text-sm text-slate-400">
                       <span className="flex-none w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-[11px] font-bold text-indigo-300 mt-0.5">{n}</span>
@@ -731,7 +731,7 @@ export default function MCPProtocolPage() {
                 {/* MCP URL copy block */}
                 <div className="rounded-lg border border-indigo-500/20 bg-slate-900/60 overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2 border-b border-indigo-500/10 bg-indigo-950/30">
-                    <span className="text-[11px] font-mono text-slate-500">IQPipe MCP Server URL</span>
+                    <span className="text-[11px] font-mono text-slate-500">iqpipe MCP Server URL</span>
                     <button
                       onClick={() => copy("https://api.iqpipe.io/mcp", "mcp-url")}
                       className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
@@ -799,7 +799,7 @@ export default function MCPProtocolPage() {
           <section id="connectors" ref={sectionRef("connectors")}>
             <SectionHeading icon={Package} title="Connector Registry" />
             <p className="text-slate-400 leading-relaxed mb-6">
-              IQPipe normalizes events from all connectors into the same canonical schema before
+              iqpipe normalizes events from all connectors into the same canonical schema before
               they reach the MCP layer. Every AI query sees consistent field names regardless of
               which tool the data originated from.
             </p>
@@ -910,7 +910,7 @@ export default function MCPProtocolPage() {
                 {
                   icon: FileCode,
                   title: "GDPR compliance",
-                  desc: "The MCP layer inherits IQPipe's Right to Erasure and DSAR support. Erasing a lead via the API removes them from all tool responses immediately.",
+                  desc: "The MCP layer inherits iqpipe's Right to Erasure and DSAR support. Erasing a lead via the API removes them from all tool responses immediately.",
                 },
               ].map(({ icon: Icon, title, desc }) => (
                 <div key={title} className="flex gap-4 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
@@ -992,7 +992,7 @@ export default function MCPProtocolPage() {
           <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/60 to-slate-900/60 p-10 text-center">
             <div className="text-3xl font-bold text-white mb-3">Ready to connect your AI?</div>
             <p className="text-slate-400 mb-2 max-w-md mx-auto text-sm leading-relaxed">
-              MCP access is included on every IQPipe plan. Sign up, grab your API key from Settings, and wire IQPipe into Claude or Cursor in minutes.
+              MCP access is included on every iqpipe plan. Sign up, grab your API key from Settings, and wire iqpipe into Claude or Cursor in minutes.
             </p>
             <p className="text-emerald-400/70 text-xs mb-8">Available on all plans — including free trial</p>
             <div className="flex flex-wrap items-center justify-center gap-3">

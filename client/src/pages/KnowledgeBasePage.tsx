@@ -500,7 +500,7 @@ export default function KnowledgeBasePage() {
             <div>
               <h1 className="text-xl font-bold text-white">Knowledge Base</h1>
               <p className="text-sm text-slate-500 mt-0.5">
-                Guides, playbooks, and troubleshooting for IQPipe.
+                Guides, playbooks, and troubleshooting for iqpipe.
               </p>
             </div>
           </div>

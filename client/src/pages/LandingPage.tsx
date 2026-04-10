@@ -316,11 +316,11 @@ export default function LandingPage() {
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-5 leading-tight">
                 GTM engineers rely on Claude to run their outbound.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-violet-400 to-fuchsia-400">
-                  Claude relies on IQPipe to not fly blind.
+                  Claude relies on iqpipe to not fly blind.
                 </span>
               </h2>
               <p className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed mb-12">
-                Claude can write sequences, trigger workflows, and orchestrate campaigns through n8n and Make.com. But it has no memory between sessions, no feedback loop after execution, and no access to your historical performance data. IQPipe fixes all five of those gaps.
+                Claude can write sequences, trigger workflows, and orchestrate campaigns through n8n and Make.com. But it has no memory between sessions, no feedback loop after execution, and no access to your historical performance data. iqpipe fixes all five of those gaps.
               </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-w-3xl mx-auto">
                 {[
@@ -366,7 +366,7 @@ export default function LandingPage() {
                 Every session, Claude starts fresh. Hand it 200 leads and it has no idea that 40 were already contacted last week, 3 opted out, and 2 already have meetings booked. It will enroll all 200.
               </p>
               <p className="text-slate-300 text-lg leading-relaxed mb-8">
-                IQPipe gives Claude a cross-session memory. Before any enrollment, Claude calls <code className="text-emerald-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">check_lead_status</code> on the full batch and receives a per-lead verdict — <span className="text-white font-semibold">safe or blocked, with the exact reason</span>. Only the safe leads reach n8n.
+                iqpipe gives Claude a cross-session memory. Before any enrollment, Claude calls <code className="text-emerald-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">check_lead_status</code> on the full batch and receives a per-lead verdict — <span className="text-white font-semibold">safe or blocked, with the exact reason</span>. Only the safe leads reach n8n.
               </p>
               <ul className="space-y-3 mb-10">
                 {[
@@ -397,7 +397,7 @@ export default function LandingPage() {
               <div className="rounded-2xl border border-slate-800 bg-slate-950/90 overflow-hidden shadow-2xl">
                 <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-800 bg-slate-900/60">
                   <Bot size={13} className="text-indigo-400" />
-                  <span className="text-xs font-semibold text-slate-300">Claude → IQPipe · check_lead_status</span>
+                  <span className="text-xs font-semibold text-slate-300">Claude → iqpipe · check_lead_status</span>
                 </div>
                 <div className="px-5 py-3 border-b border-slate-800/50 bg-indigo-500/5">
                   <div className="text-[10px] text-slate-500 mb-1 font-mono">→ request</div>
@@ -446,7 +446,7 @@ export default function LandingPage() {
               <div className="rounded-2xl border border-slate-800 bg-slate-950/90 overflow-hidden shadow-2xl">
                 <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-800 bg-slate-900/60">
                   <Target size={13} className="text-indigo-400" />
-                  <span className="text-xs font-semibold text-slate-300">Claude → IQPipe · get_sequence_recommendation</span>
+                  <span className="text-xs font-semibold text-slate-300">Claude → iqpipe · get_sequence_recommendation</span>
                 </div>
                 <div className="px-5 py-3 border-b border-slate-800/50 bg-indigo-500/5">
                   <div className="text-[10px] text-slate-500 mb-1 font-mono">→ request</div>
@@ -504,7 +504,7 @@ export default function LandingPage() {
                 When a GTM engineer tells Claude "enroll these VP-level leads," Claude picks a sequence based on its name or whatever context was in the prompt. It has never seen your reply rates, your meeting rates, or which sequences historically convert similar titles.
               </p>
               <p className="text-slate-300 text-lg leading-relaxed mb-8">
-                IQPipe gives Claude that performance history. Claude calls <code className="text-indigo-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">get_sequence_recommendation</code> with the lead's title, source tool, and preferred channel — and gets back a ranked list with the reasons why each sequence scored higher for this specific ICP.
+                iqpipe gives Claude that performance history. Claude calls <code className="text-indigo-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">get_sequence_recommendation</code> with the lead's title, source tool, and preferred channel — and gets back a ranked list with the reasons why each sequence scored higher for this specific ICP.
               </p>
               <ul className="space-y-3 mb-10">
                 {[
@@ -550,7 +550,7 @@ export default function LandingPage() {
                 Claude triggers an n8n workflow. That workflow sends a lead to HeyReach. HeyReach sends a LinkedIn message. At every step, things can silently fail — a misconfigured webhook, a missing email field in the payload, a paused node. Claude has no way to know.
               </p>
               <p className="text-slate-300 text-lg leading-relaxed mb-8">
-                IQPipe closes the loop. Claude calls <code className="text-sky-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">confirm_event_received</code> and within minutes knows if the event arrived, was processed, or was dropped — and why. If it failed, Claude acts immediately instead of the engineer finding out the next morning.
+                iqpipe closes the loop. Claude calls <code className="text-sky-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">confirm_event_received</code> and within minutes knows if the event arrived, was processed, or was dropped — and why. If it failed, Claude acts immediately instead of the engineer finding out the next morning.
               </p>
               <ul className="space-y-3 mb-10">
                 {[
@@ -596,7 +596,7 @@ export default function LandingPage() {
                         <div><div className="text-slate-600">processed</div><div className="font-bold text-emerald-400">47</div></div>
                         <div><div className="text-slate-600">window</div><div className="font-bold text-slate-300">10 min</div></div>
                       </div>
-                      <p className="text-[10px] text-emerald-400/80 leading-relaxed">47 of 47 events from HeyReach were successfully processed by IQPipe. The pipeline is working.</p>
+                      <p className="text-[10px] text-emerald-400/80 leading-relaxed">47 of 47 events from HeyReach were successfully processed by iqpipe. The pipeline is working.</p>
                     </div>
                     {/* Failure case */}
                     <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5">
@@ -649,7 +649,7 @@ export default function LandingPage() {
                   {[
                     { sev: "critical", tool: "HeyReach", title: "Tool went silent — 14 hours, 0 events", detail: "Expected connection_sent events based on 30-day baseline. Last good event: 14h ago.", color: "border-rose-500/30 bg-rose-500/5", badge: "bg-rose-500/20 text-rose-300 border-rose-500/30" },
                     { sev: "warning",  tool: "Instantly", title: "Reply rate dropped 61% vs last week", detail: "Sequence seq_cold_outbound: was 12.4%, now 4.8%. Possible: spam filter or subject line change.", color: "border-amber-500/20 bg-amber-500/4", badge: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
-                    { sev: "warning",  tool: "Webhooks",  title: "47 events dropped — no identity found", detail: "HubSpot payload missing 'email' field. Leads not being tracked in IQPipe.", color: "border-amber-500/20 bg-amber-500/4", badge: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
+                    { sev: "warning",  tool: "Webhooks",  title: "47 events dropped — no identity found", detail: "HubSpot payload missing 'email' field. Leads not being tracked in iqpipe.", color: "border-amber-500/20 bg-amber-500/4", badge: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
                   ].map((a) => (
                     <div key={a.title} className={`p-4 border-l-2 ${a.color} ml-0`}>
                       <div className="flex items-center gap-2 mb-1">
@@ -691,7 +691,7 @@ export default function LandingPage() {
                 Claude only knows what happens in the current session. If a webhook stops firing at 2am, a sequence stalls, or reply rates drop 60% mid-campaign — Claude finds out when the engineer notices the numbers are wrong. Days later.
               </p>
               <p className="text-slate-300 text-lg leading-relaxed mb-8">
-                IQPipe scans continuously. When Claude is next invoked, it calls <code className="text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">get_anomalies</code> first — surfaces active issues, diagnoses root causes, and can re-activate a paused n8n or Make scenario automatically. Claude goes from reactive to proactive.
+                iqpipe scans continuously. When Claude is next invoked, it calls <code className="text-amber-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">get_anomalies</code> first — surfaces active issues, diagnoses root causes, and can re-activate a paused n8n or Make scenario automatically. Claude goes from reactive to proactive.
               </p>
               <ul className="space-y-3 mb-10">
                 {[
@@ -730,14 +730,14 @@ export default function LandingPage() {
               <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-6">
                 Claude runs the campaign.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-pink-400">
-                  IQPipe tells it what to change.
+                  iqpipe tells it what to change.
                 </span>
               </h2>
               <p className="text-slate-400 text-lg leading-relaxed mb-6">
-                Without IQPipe, Claude executes campaigns but can never evaluate them. It doesn't know which funnel stage dropped leads, which sequence underperformed, which branch had zero conversion. It depends entirely on what the engineer reports back — which is always late and always incomplete.
+                Without iqpipe, Claude executes campaigns but can never evaluate them. It doesn't know which funnel stage dropped leads, which sequence underperformed, which branch had zero conversion. It depends entirely on what the engineer reports back — which is always late and always incomplete.
               </p>
               <p className="text-slate-300 text-lg leading-relaxed mb-8">
-                IQPipe closes the loop. Claude calls <code className="text-fuchsia-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">get_improvement_report</code> after a campaign runs and gets a structured list of issues and specific suggestions — with n8n and Make.com instructions ready to pass back into the next workflow iteration.
+                iqpipe closes the loop. Claude calls <code className="text-fuchsia-400 bg-slate-900 px-1.5 py-0.5 rounded text-sm font-mono">get_improvement_report</code> after a campaign runs and gets a structured list of issues and specific suggestions — with n8n and Make.com instructions ready to pass back into the next workflow iteration.
               </p>
               <ul className="space-y-3 mb-10">
                 {[
@@ -793,7 +793,7 @@ export default function LandingPage() {
                       priority: 3, impact: "medium", sev: "warning",
                       action: "Follow up on 34 silent leads (8+ days)",
                       detail: "Received outreach, never replied. A timed follow-up recovers 10–20% of these.",
-                      n8n: "Add Wait node (5d) → check reply via IQPipe → conditional follow-up.",
+                      n8n: "Add Wait node (5d) → check reply via iqpipe → conditional follow-up.",
                       color: "text-indigo-400", badge: "bg-indigo-500/15 border-indigo-500/30 text-indigo-300",
                     },
                   ].map((s) => (
@@ -843,7 +843,7 @@ export default function LandingPage() {
               </h2>
 
               <p className="text-slate-400 text-lg leading-relaxed mb-8 max-w-md">
-                Connect Claude to IQPipe's MCP server and it gains access to 37 tools covering every gap in GTM execution — from safe-to-contact checks to sequence recommendations to live webhook confirmation. No custom integration. One API key.
+                Connect Claude to iqpipe's MCP server and it gains access to 37 tools covering every gap in GTM execution — from safe-to-contact checks to sequence recommendations to live webhook confirmation. No custom integration. One API key.
               </p>
 
               <div className="grid grid-cols-2 gap-2 mb-10">
@@ -940,7 +940,7 @@ export default function LandingPage() {
                     "1 Seat · 1 Workspace",
                     "2 Make.com or n8n workflows",
                     "10,000 events / month",
-                    "IQPipe API Key with MCP access",
+                    "iqpipe API Key with MCP access",
                     "Live Feed + Contact Inspector",
                     "Pipeline health monitoring",
                   ].map((f) => (
@@ -963,7 +963,7 @@ export default function LandingPage() {
                     "3 Seats · 3 Workspaces",
                     "10 Make.com or n8n workflows",
                     "500,000 events / month",
-                    "IQPipe API Key with MCP access",
+                    "iqpipe API Key with MCP access",
                     "Workflow Health + Improvement Report",
                     "GTM Report PDF/XLSX export",
                     "API Access & Webhooks",
@@ -986,7 +986,7 @@ export default function LandingPage() {
                     "Unlimited Seats · 20 Workspaces",
                     "50 Make.com or n8n workflows",
                     "5,000,000 events / month",
-                    "IQPipe API Key with MCP access",
+                    "iqpipe API Key with MCP access",
                     "Full API Access & Webhooks",
                     "GTM Report PDF/XLSX export",
                     "Priority 24/7 support",
@@ -1023,11 +1023,11 @@ export default function LandingPage() {
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-fuchsia-400">Give it the context to prove it.</span>
               </h2>
               <p className="text-slate-400 text-lg mb-10 leading-relaxed max-w-xl mx-auto">
-                Connect IQPipe to your Claude account via MCP. From the next session, Claude will check lead safety before enrolling, pick sequences by performance, confirm every webhook landed, and tell you what to fix when campaigns stall.
+                Connect iqpipe to your Claude account via MCP. From the next session, Claude will check lead safety before enrolling, pick sequences by performance, confirm every webhook landed, and tell you what to fix when campaigns stall.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <a href="/signup" className="inline-flex h-14 items-center justify-center rounded-full bg-white text-slate-950 px-10 text-base font-bold shadow-xl hover:bg-slate-100 hover:scale-105 transition-all">
-                  Connect Claude to IQPipe free
+                  Connect Claude to iqpipe free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </a>
                 <a href="/mcp-protocol" className="inline-flex h-14 items-center justify-center rounded-full border border-slate-700 bg-slate-900/50 px-8 text-base font-medium text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all">

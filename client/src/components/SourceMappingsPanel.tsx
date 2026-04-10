@@ -67,7 +67,7 @@ export default function SourceMappingsPanel() {
         )}
       </div>
       <p className="text-xs text-slate-400 mb-4">
-        Map unknown n8n/Make nodes (HTTP Request, Database, Webhook) to a named source so IQPipe can
+        Map unknown n8n/Make nodes (HTTP Request, Database, Webhook) to a named source so iqpipe can
         track and display events from your internal systems.
       </p>
 
