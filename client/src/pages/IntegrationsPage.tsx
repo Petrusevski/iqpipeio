@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { API_BASE_URL } from "../../config";
-import { ArrowRight, CheckCircle2, ExternalLink, Zap, Workflow } from "lucide-react";
+import { ArrowRight, CheckCircle2, Zap, Workflow, Copy, Check, Loader2 } from "lucide-react";
+import PushConnectModal from "../components/PushConnectModal";
 
 const SUPPORTED_TOOLS = [
   { name: "Clay",          domain: "clay.com",          category: "Prospecting"  },
@@ -44,8 +45,102 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Revenue":     "text-green-400 bg-green-500/10 border-green-500/20",
 };
 
+function QuickConnectCard() {
+  const [urls,    setUrls]    = useState<{ n8n: string; make: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied,  setCopied]  = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("iqpipe_token");
+    if (!token) { setLoading(false); return; }
+    fetch(`${API_BASE_URL}/api/workspaces/webhook-url`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(d => setUrls({ n8n: d.n8n, make: d.make }))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const copy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(id);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  };
+
+  return (
+    <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Zap size={14} className="text-orange-400" />
+            <h3 className="text-sm font-semibold text-slate-100">Quick Connect — no API key needed</h3>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/20">2 min setup</span>
+          </div>
+          <p className="text-xs text-slate-400">
+            Add one HTTP Request node at the end of any existing n8n or Make.com workflow. No credentials required — just paste the URL and you're live.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <Loader2 size={12} className="animate-spin" /> Loading your webhook URLs…
+        </div>
+      ) : urls ? (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {/* n8n */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">n8n — HTTP Request node</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-orange-300 font-mono">
+                {urls.n8n}
+              </code>
+              <button
+                onClick={() => copy(urls.n8n, "n8n")}
+                className="shrink-0 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors"
+              >
+                {copied === "n8n" ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Make.com */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Make.com — HTTP module</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 min-w-0 truncate px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-orange-300 font-mono">
+                {urls.make}
+              </code>
+              <button
+                onClick={() => copy(urls.make, "make")}
+                className="shrink-0 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors"
+              >
+                {copied === "make" ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500">Sign in to see your webhook URLs.</p>
+      )}
+
+      {urls && (
+        <p className="mt-3 text-[11px] text-slate-600">
+          Need the payload reference?{" "}
+          <NavLink to="/settings" className="text-orange-400 hover:text-orange-300 underline underline-offset-2">
+            Open Settings → HTTP Push Node
+          </NavLink>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function IntegrationsPage() {
-  const [activeFilter, setActiveFilter] = useState<string>("All");
+  const [activeFilter,  setActiveFilter]  = useState<string>("All");
+  const [pushModal,     setPushModal]     = useState<"n8n" | "make" | null>(null);
   const categories = ["All", ...Array.from(new Set(SUPPORTED_TOOLS.map((t) => t.category)))];
   const filtered = activeFilter === "All" ? SUPPORTED_TOOLS : SUPPORTED_TOOLS.filter((t) => t.category === activeFilter);
 
@@ -57,6 +152,9 @@ export default function IntegrationsPage() {
       />
 
       <div className="mx-auto max-w-5xl px-6 py-10 space-y-12">
+
+        {/* ── Quick Connect banner ── */}
+        <QuickConnectCard />
 
         {/* ── Two platform cards ── */}
         <div className="grid md:grid-cols-2 gap-5">
@@ -92,12 +190,20 @@ export default function IntegrationsPage() {
                 </li>
               ))}
             </ul>
-            <NavLink
-              to="/automation-health"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-300 hover:text-white transition-colors"
-            >
-              View automation health <ArrowRight size={14} />
-            </NavLink>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setPushModal("make")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500/15 border border-orange-500/30 text-orange-300 hover:bg-orange-500/20 transition-all"
+              >
+                <Zap size={12} /> Quick Setup
+              </button>
+              <NavLink
+                to="/automation-health"
+                className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+              >
+                View health <ArrowRight size={12} />
+              </NavLink>
+            </div>
           </div>
 
           {/* n8n */}
@@ -131,12 +237,20 @@ export default function IntegrationsPage() {
                 </li>
               ))}
             </ul>
-            <NavLink
-              to="/automation-health"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-300 hover:text-white transition-colors"
-            >
-              View automation health <ArrowRight size={14} />
-            </NavLink>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setPushModal("n8n")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500/15 border border-orange-500/30 text-orange-300 hover:bg-orange-500/20 transition-all"
+              >
+                <Zap size={12} /> Quick Setup
+              </button>
+              <NavLink
+                to="/automation-health"
+                className="inline-flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+              >
+                View health <ArrowRight size={12} />
+              </NavLink>
+            </div>
           </div>
         </div>
 
@@ -233,6 +347,13 @@ export default function IntegrationsPage() {
         </div>
 
       </div>
+
+      {pushModal && (
+        <PushConnectModal
+          platform={pushModal}
+          onClose={() => setPushModal(null)}
+        />
+      )}
     </div>
   );
 }

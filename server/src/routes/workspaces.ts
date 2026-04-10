@@ -66,4 +66,35 @@ router.get("/primary", verifyToken, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
+// GET /api/workspaces/webhook-url
+// Returns ready-to-use webhook URLs for n8n and Make.com push-only mode.
+// Requires auth — no platform API key needed.
+router.get("/webhook-url", verifyToken, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.sub;
+  if (!userId) return res.status(401).json({ error: "User not authenticated" });
+
+  try {
+    const membership = await prisma.workspaceUser.findFirst({
+      where: { userId },
+      include: { workspace: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!membership) return res.status(404).json({ error: "No workspace found" });
+
+    const workspaceId = membership.workspaceId;
+    const base = process.env.API_BASE_URL ?? "https://api.iqpipe.io";
+
+    return res.json({
+      workspaceId,
+      n8n:  `${base}/api/webhooks/n8n?workspaceId=${workspaceId}`,
+      make: `${base}/api/webhooks/make?workspaceId=${workspaceId}`,
+      note: "Add one HTTP Request node at the end of any workflow. No n8n or Make.com API key required.",
+    });
+  } catch (err) {
+    console.error("webhook-url error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

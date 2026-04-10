@@ -12,7 +12,8 @@ import { API_BASE_URL } from "../../config";
 interface QueueStats { pending: number; processing: number; done: number; failed: number; total: number; }
 interface WorkflowError { id: string; errorCode: string; errorDetail: string; retryCount: number; createdAt: string; }
 interface WorkflowRow {
-  workflowId: string; totalEvents: number; done: number; pending: number; failed: number;
+  workflowId: string; workflowName?: string | null; sourceMode?: string;
+  totalEvents: number; done: number; pending: number; failed: number;
   successRate: number; outcomeEvents: number; processEvents: number;
   sourceApps: string[]; lastEventAt: string | null; lastEventType: string | null;
   recentErrors: WorkflowError[];
@@ -187,7 +188,17 @@ function WorkflowRowItem({ wf }: { wf: WorkflowRow }) {
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
             <GitBranch size={12} className="text-indigo-400 shrink-0" />
-            <span className="text-xs font-mono text-white truncate max-w-[180px]">{wf.workflowId}</span>
+            <div className="min-w-0">
+              {wf.workflowName && (
+                <div className="text-xs font-medium text-white truncate max-w-[160px]">{wf.workflowName}</div>
+              )}
+              <span className="text-[10px] font-mono text-slate-500 truncate max-w-[180px]">{wf.workflowId}</span>
+            </div>
+            {wf.sourceMode === "push_only" && (
+              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">
+                Push
+              </span>
+            )}
             {hasErrors && (
               <ChevronRight size={12} className={`text-slate-600 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`} />
             )}

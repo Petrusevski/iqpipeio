@@ -213,19 +213,20 @@ function createServer(workspaceId: string, baseUrl: string): any {
     "Returns ALL saved automation workflows across every connected platform (n8n AND Make.com). " +
     "Each workflow has a 'platform' field ('n8n' or 'make') — always read the full list before " +
     "drawing conclusions. Never assume a workflow is n8n-only. " +
-    "Fields: id, name, platform, active, appsUsed, nodeCount, triggerType, lastUpdatedAt.",
+    "sourceMode 'push_only' means the workflow was auto-registered when a push event arrived (no API import). " +
+    "Fields: id, name, platform, active, sourceMode, appsUsed, nodeCount, triggerType, lastUpdatedAt.",
     {},
     async () => {
       const [n8nRows, makeRows] = await Promise.all([
         prisma.n8nWorkflowMeta.findMany({
           where:   { workspaceId },
           orderBy: [{ active: "desc" }, { name: "asc" }],
-          select:  { id: true, n8nId: true, name: true, active: true, appsUsed: true, nodeCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
+          select:  { id: true, n8nId: true, name: true, active: true, sourceMode: true, appsUsed: true, nodeCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
         }),
         prisma.makeScenarioMeta.findMany({
           where:   { workspaceId },
           orderBy: [{ active: "desc" }, { name: "asc" }],
-          select:  { id: true, makeId: true, name: true, active: true, appsUsed: true, moduleCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
+          select:  { id: true, makeId: true, name: true, active: true, sourceMode: true, appsUsed: true, moduleCount: true, triggerType: true, lastUpdatedAt: true, syncedAt: true },
         }),
       ]);
 
@@ -237,6 +238,7 @@ function createServer(workspaceId: string, baseUrl: string): any {
           platform:      "n8n",
           name:          w.name,
           active:        w.active,
+          sourceMode:    w.sourceMode,
           appsUsed:      JSON.parse(w.appsUsed),
           nodeCount:     w.nodeCount,
           triggerType:   w.triggerType,
@@ -249,6 +251,7 @@ function createServer(workspaceId: string, baseUrl: string): any {
           platform:      "make",
           name:          s.name,
           active:        s.active,
+          sourceMode:    s.sourceMode,
           appsUsed:      JSON.parse(s.appsUsed),
           nodeCount:     s.moduleCount,
           triggerType:   s.triggerType,
@@ -281,8 +284,8 @@ function createServer(workspaceId: string, baseUrl: string): any {
       const since = new Date(Date.now() - days * 24 * 3_600_000);
 
       const [n8nMetas, makeMetas, eventCounts] = await Promise.all([
-        prisma.n8nWorkflowMeta.findMany({ where: { workspaceId }, select: { id: true, n8nId: true, name: true, active: true } }),
-        prisma.makeScenarioMeta.findMany({ where: { workspaceId }, select: { id: true, makeId: true, name: true, active: true } }),
+        prisma.n8nWorkflowMeta.findMany({ where: { workspaceId }, select: { id: true, n8nId: true, name: true, active: true, sourceMode: true } }),
+        prisma.makeScenarioMeta.findMany({ where: { workspaceId }, select: { id: true, makeId: true, name: true, active: true, sourceMode: true } }),
         prisma.n8nQueuedEvent.groupBy({ by: ["workflowId", "status"], where: { workspaceId, processedAt: { gte: since } }, _count: { id: true } }),
       ]);
 
@@ -294,19 +297,19 @@ function createServer(workspaceId: string, baseUrl: string): any {
         if (r.status === "failed") byWf[r.workflowId].failed += r._count.id;
       }
 
-      const summarise = (id: string, nativeId: string, name: string, platform: string, active: boolean) => {
+      const summarise = (id: string, nativeId: string, name: string, platform: string, active: boolean, sourceMode: string) => {
         const m = byWf[nativeId] ?? { done: 0, failed: 0, total: 0 };
         const successRate = m.total > 0 ? Math.round((m.done / m.total) * 100) : null;
         return {
-          id, name, platform, active, period: period ?? "30d",
+          id, name, platform, active, sourceMode, period: period ?? "30d",
           eventsTotal: m.total, eventsDone: m.done, eventsFailed: m.failed, successRate,
           health: successRate === null ? "no_data" : successRate >= 90 ? "healthy" : successRate >= 70 ? "warning" : "critical",
         };
       };
 
       const result = [
-        ...n8nMetas.map(w => summarise(w.id, w.n8nId, w.name, "n8n", w.active)),
-        ...makeMetas.map(s => summarise(s.id, s.makeId, s.name, "make", s.active)),
+        ...n8nMetas.map(w => summarise(w.id, w.n8nId, w.name, "n8n", w.active, w.sourceMode)),
+        ...makeMetas.map(s => summarise(s.id, s.makeId, s.name, "make", s.active, s.sourceMode)),
       ];
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }

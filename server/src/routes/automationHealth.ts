@@ -27,6 +27,14 @@ router.get("/", async (req: Request, res: Response) => {
       _count: { id: true },
     });
 
+    // Fetch sourceMode for all workflows in one query (keyed by n8nId = the workflowId used in events)
+    const wfIds = byWorkflow.map(r => r.workflowId);
+    const wfMetas = await prisma.n8nWorkflowMeta.findMany({
+      where: { workspaceId, n8nId: { in: wfIds } },
+      select: { n8nId: true, sourceMode: true, name: true },
+    });
+    const wfMetaMap = Object.fromEntries(wfMetas.map(m => [m.n8nId, m]));
+
     const workflows = await Promise.all(
       byWorkflow.map(async (row) => {
         const wfId = row.workflowId;
@@ -71,8 +79,11 @@ router.get("/", async (req: Request, res: Response) => {
         const total      = row._count.id;
         const done       = statusMap.done ?? 0;
 
+        const meta = wfMetaMap[wfId];
         return {
           workflowId:     wfId,
+          workflowName:   meta?.name ?? null,
+          sourceMode:     meta?.sourceMode ?? "api_import",
           totalEvents:    total,
           done,
           pending:        statusMap.pending    ?? 0,

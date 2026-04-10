@@ -1893,6 +1893,87 @@ router.post("/chargebee", async (req: Request, res: Response) => {
   }
 });
 
+// ─── Push-only workflow auto-registration ────────────────────────────────────
+// When an event arrives via HTTP push (no API-key import), we auto-create a
+// minimal workflow record so the workflow surfaces in the app immediately.
+// Runs fire-and-forget — never blocks the event response.
+
+async function ensurePushOnlyN8nWorkflow(
+  workspaceId: string,
+  workflowId: string,
+  workflowName: string | null,
+  sourceTool: string | null,
+): Promise<void> {
+  try {
+    const existing = await (prisma as any).n8nWorkflowMeta.findUnique({
+      where: { workspaceId_n8nId: { workspaceId, n8nId: workflowId } },
+      select: { id: true, name: true, sourceMode: true },
+    });
+
+    if (!existing) {
+      await (prisma as any).n8nWorkflowMeta.create({
+        data: {
+          workspaceId,
+          n8nId:       workflowId,
+          name:        workflowName || "Unnamed Workflow",
+          sourceMode:  "push_only",
+          firstEventAt: new Date(),
+          appsUsed:    sourceTool ? JSON.stringify([sourceTool]) : "[]",
+          active:      true,
+        },
+      });
+    } else if (existing.sourceMode === "push_only") {
+      // Update name if it was unnamed and we now have one
+      if (workflowName && existing.name === "Unnamed Workflow") {
+        await (prisma as any).n8nWorkflowMeta.update({
+          where: { workspaceId_n8nId: { workspaceId, n8nId: workflowId } },
+          data:  { name: workflowName },
+        });
+      }
+    }
+    // If sourceMode is "api_import" — leave it alone; API import takes precedence
+  } catch (err: any) {
+    console.error("[push-only/n8n] workflow auto-register failed:", err.message);
+  }
+}
+
+async function ensurePushOnlyMakeWorkflow(
+  workspaceId: string,
+  scenarioId: string,
+  scenarioName: string | null,
+  sourceTool: string | null,
+): Promise<void> {
+  try {
+    const existing = await (prisma as any).makeScenarioMeta.findUnique({
+      where: { workspaceId_makeId: { workspaceId, makeId: scenarioId } },
+      select: { id: true, name: true, sourceMode: true },
+    });
+
+    if (!existing) {
+      await (prisma as any).makeScenarioMeta.create({
+        data: {
+          workspaceId,
+          makeId:      scenarioId,
+          name:        scenarioName || "Unnamed Scenario",
+          sourceMode:  "push_only",
+          firstEventAt: new Date(),
+          appsUsed:    sourceTool ? JSON.stringify([sourceTool]) : "[]",
+          active:      true,
+        },
+      });
+    } else if (existing.sourceMode === "push_only") {
+      if (scenarioName && existing.name === "Unnamed Scenario") {
+        await (prisma as any).makeScenarioMeta.update({
+          where: { workspaceId_makeId: { workspaceId, makeId: scenarioId } },
+          data:  { name: scenarioName },
+        });
+      }
+    }
+  } catch (err: any) {
+    console.error("[push-only/make] scenario auto-register failed:", err.message);
+  }
+}
+
 // ─── n8n ─────────────────────────────────────────────────────────────────────
 // Users add an HTTP Request node at the end of any workflow, POST to this URL.
 // Expected payload fields (all optional — we extract what's available):
@@ -1932,6 +2013,11 @@ router.post("/n8n", async (req: Request, res: Response) => {
     };
 
     const externalId = meta.executionId || meta.workflowId || `n8n-${Date.now()}`;
+
+    // Auto-register push-only workflow (fire-and-forget)
+    if (meta.workflowId) {
+      ensurePushOnlyN8nWorkflow(workspaceId, String(meta.workflowId), meta.workflowName ?? null, recordingTool !== "n8n" ? recordingTool : null);
+    }
 
     await recordEvent(
       workspaceId, eventType,
@@ -2036,6 +2122,11 @@ router.post("/make", async (req: Request, res: Response) => {
     };
 
     const externalId = executionId || scenarioId || `make-${Date.now()}`;
+
+    // Auto-register push-only scenario (fire-and-forget)
+    if (scenarioId) {
+      ensurePushOnlyMakeWorkflow(workspaceId, String(scenarioId), eventMeta.scenarioName ?? null, recordingTool !== "make" ? recordingTool : null);
+    }
 
     await recordEvent(
       workspaceId, eventType,
