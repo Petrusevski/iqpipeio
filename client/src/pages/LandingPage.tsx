@@ -238,53 +238,53 @@ export default function LandingPage() {
 
           <div className="relative mx-auto max-w-7xl px-4 pt-16 pb-24 md:pt-24 md:pb-32 grid lg:grid-cols-5 gap-12 items-center">
             <div className="lg:col-span-2 z-10">
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 mb-6 text-xs font-medium text-indigo-300 backdrop-blur-sm hover:bg-indigo-500/20 transition-colors cursor-default"
               >
-                <span className="flex h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                Public Beta 2.0
+                <Bot size={12} className="text-indigo-400" />
+                GTM intelligence layer for Claude
               </motion.div>
-              <motion.h1 
+              <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
                 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.1] mb-6 text-white"
               >
-                One schema to <br />
+                Empower Claude<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400">
-                  unify your GTM.
+                  to run your GTM.
                 </span>
               </motion.h1>
-              <motion.p 
+              <motion.p
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
                 className="text-lg text-slate-400 mb-8 leading-relaxed"
               >
-                iqpipe acts as the central nervous system for your stack. We mint a <span className="text-slate-200 font-semibold">Universal ID</span> for every prospect and track their journey across every tool you use.
+                iqpipe is the <span className="text-slate-200 font-semibold">GTM intelligence layer</span> that gives Claude real-time data from every tool in your stack — so every automation decision is precise, not a guess.
               </motion.p>
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
                 className="flex flex-wrap gap-4"
               >
                 <a href="/signup" className="inline-flex h-12 items-center justify-center rounded-xl bg-white text-slate-950 px-6 text-sm font-bold shadow-xl shadow-indigo-500/20 hover:bg-slate-100 hover:scale-105 transition-all">
-                  Get started free
+                  Connect Claude free
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
                 <a href="/demo" className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-700 bg-slate-900/50 px-6 text-sm font-medium text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all backdrop-blur-sm">
-                  How it works
+                  See how it works
                 </a>
               </motion.div>
               <div className="mt-10 flex items-center gap-4 text-sm text-slate-500">
                 <p className="uppercase tracking-wider text-[10px] font-semibold">Works with</p>
                 <div className="flex gap-3 opacity-60 grayscale transition-all hover:grayscale-0">
-                   <span className="font-bold text-slate-300">Clay</span>
-                   <span className="font-bold text-slate-300">HubSpot</span>
-                   <span className="font-bold text-slate-300">Stripe</span>
+                  <span className="font-bold text-slate-300">n8n</span>
+                  <span className="font-bold text-slate-300">Make.com</span>
+                  <span className="font-bold text-slate-300">Claude</span>
                 </div>
               </div>
             </div>
