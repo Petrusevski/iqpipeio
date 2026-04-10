@@ -816,7 +816,7 @@ export default function LandingPage() {
         </section>
 
 
-        {/* ── MCP: 37 tools, one connection ────────────────────────────────── */}
+        {/* ── MCP: one connection, everything Claude needs ─────────────────── */}
         <section className="relative bg-[#0a0f1e] py-24 border-t border-slate-800/60 overflow-hidden">
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />
@@ -832,34 +832,31 @@ export default function LandingPage() {
             >
               <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 mb-6">
                 <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                <span className="text-xs font-medium text-indigo-300 tracking-wide uppercase">Model Context Protocol · 37 tools</span>
+                <span className="text-xs font-medium text-indigo-300 tracking-wide uppercase">Claude + iqpipe MCP</span>
               </div>
 
               <h2 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-5">
-                One MCP connection.<br />
+                One connection.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-fuchsia-400">
                   Everything Claude needs.
                 </span>
               </h2>
 
               <p className="text-slate-400 text-lg leading-relaxed mb-8 max-w-md">
-                Connect Claude to iqpipe's MCP server and it gains access to 37 tools covering every gap in GTM execution — from safe-to-contact checks to sequence recommendations to live webhook confirmation. No custom integration. One API key.
+                {"Connect Claude to iqpipe once. Every GTM tool your n8n or Make.com workflows already use becomes queryable — no extra integrations, no per-tool setup."}
               </p>
 
-              <div className="grid grid-cols-2 gap-2 mb-10">
+              <div className="space-y-2.5 mb-10">
                 {[
-                  { label: "check_lead_status",           color: "text-emerald-400" },
-                  { label: "get_sequence_recommendation", color: "text-indigo-400"  },
-                  { label: "confirm_event_received",      color: "text-sky-400"     },
-                  { label: "get_anomalies",               color: "text-amber-400"   },
-                  { label: "get_improvement_report",      color: "text-fuchsia-400" },
-                  { label: "compare_workflows",           color: "text-violet-400"  },
-                  { label: "get_stuck_leads",             color: "text-rose-400"    },
-                  { label: "get_outcome_attribution",     color: "text-cyan-400"    },
-                ].map(({ label, color }) => (
-                  <div key={label} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-800 bg-slate-900/40">
-                    <span className={`text-[9px] font-bold ${color}`}>fn</span>
-                    <code className={`text-[10px] font-mono ${color}`}>{label}</code>
+                  { color: "bg-emerald-400", label: "Gates unsafe contacts before outreach runs"       },
+                  { color: "bg-indigo-400",  label: "Picks the sequence with the best conversion rate" },
+                  { color: "bg-sky-400",     label: "Confirms webhooks actually delivered"             },
+                  { color: "bg-amber-400",   label: "Surfaces anomalies before they become problems"   },
+                  { color: "bg-fuchsia-400", label: "Ranks what to fix and why"                        },
+                ].map(({ color, label }) => (
+                  <div key={label} className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-800 bg-slate-900/40">
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${color}`} />
+                    <span className="text-sm text-slate-300">{label}</span>
                   </div>
                 ))}
               </div>
@@ -868,7 +865,7 @@ export default function LandingPage() {
                 to="/mcp-protocol"
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-indigo-500/20"
               >
-                See all 37 tools
+                How Claude connects
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </motion.div>
@@ -910,9 +907,9 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-700/60 bg-slate-800/40">
                   <div className="flex items-center gap-2">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[11px] text-emerald-400 font-medium">Connected · 37 tools active</span>
+                    <span className="text-[11px] text-emerald-400 font-medium">Connected</span>
                   </div>
-                  <span className="text-[11px] text-slate-600 font-mono">MCP/1.0</span>
+                  <span className="text-[11px] text-slate-600 font-mono">iqpipe MCP</span>
                 </div>
               </div>
             </motion.div>

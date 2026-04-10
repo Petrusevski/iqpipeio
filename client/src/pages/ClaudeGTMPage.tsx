@@ -568,7 +568,7 @@ export default function ClaudeGTMPage() {
                     <span className="text-[11px] font-semibold text-emerald-300">Works in Claude.ai and Claude Desktop</span>
                   </div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Add the iqpipe MCP URL to your Claude settings. All 37 tools are available immediately — no setup scripts, no JSON editing.
+                    Add the iqpipe MCP URL to your Claude settings. Connect in under 5 minutes &mdash; no setup scripts, no config files.
                   </p>
                   <Link to="/settings" className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium">
                     Get your API key <ChevronRight size={11} />
@@ -606,7 +606,7 @@ export default function ClaudeGTMPage() {
                   Connect Claude free <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
                 <Link to="/mcp-protocol" className="inline-flex h-12 items-center justify-center rounded-full border border-slate-700 bg-slate-900/50 px-6 text-sm font-medium text-slate-200 hover:bg-slate-800 transition-all">
-                  See all 37 MCP tools
+                  How Claude connects
                 </Link>
               </div>
             </motion.div>
