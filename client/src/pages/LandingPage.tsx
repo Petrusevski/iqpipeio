@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -19,6 +19,9 @@ import {
   Cpu,
   AlertTriangle,
   Activity,
+  Plus,
+  SlidersHorizontal,
+  Send,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -221,6 +224,224 @@ const StockTicker = () => {
     </div>
   );
 };
+
+// ─── Claude MCP Simulator (landing page compact version) ─────────────────────
+
+const LANDING_DEMO_PROMPTS = [
+  {
+    key: "safety",
+    short: "Are these leads safe to contact?",
+    full: "Before I enroll these leads in the HeyReach sequence, check if any are already in active outreach.",
+    stages: [
+      { type: "tool"   as const, label: "check_lead_status",          detail: "Checking against active sequences..."                    },
+      { type: "result" as const, text: "2 safe · 1 blocked — mike@techcorp.com already in active sequence (18d silent)"                 },
+      { type: "reply"  as const, text: "mike@techcorp.com is already in an active sequence — skipping him. Enrolling the other 2 now."  },
+    ],
+  },
+  {
+    key: "sequence",
+    short: "Best sequence for VP of Sales?",
+    full: "Which LinkedIn sequence should I use for a VP of Sales at a mid-market SaaS company?",
+    stages: [
+      { type: "tool"   as const, label: "get_sequence_recommendation", detail: "Scanning sequence performance for this ICP..."          },
+      { type: "result" as const, text: "seq_linkedin_vp_outbound · reply rate 18.4% · relevance score 94"                               },
+      { type: "reply"  as const, text: "Use seq_linkedin_vp_outbound — 18.4% reply rate for VP-level SaaS, outperforms next best by 9 points." },
+    ],
+  },
+  {
+    key: "delivery",
+    short: "Did n8n deliver to HeyReach?",
+    full: "My n8n workflow ran 20 minutes ago. Confirm the leads were received and processed by HeyReach.",
+    stages: [
+      { type: "tool"   as const, label: "confirm_event_received",      detail: "Checking HeyReach event log..."                         },
+      { type: "result" as const, text: "47 of 47 events arrived · all processed · 0 failed"                                             },
+      { type: "reply"  as const, text: "All 47 leads landed in HeyReach and processed successfully. Nothing was dropped."               },
+    ],
+  },
+  {
+    key: "fix",
+    short: "Why is my outbound dropping?",
+    full: "Performance is worse than last week. What is causing it and what should I fix first?",
+    stages: [
+      { type: "tool"   as const, label: "get_improvement_report",      detail: "Analyzing workflow health and funnel drops..."          },
+      { type: "result" as const, text: "ZoomInfo→Instantly at health score 44 · 22k leads leaking · conversion dropped from 4.8% to 1.2%" },
+      { type: "reply"  as const, text: "The ZoomInfo → Instantly workflow is the primary cause — health score 44, leaking 22k leads. Pause it and audit the enrichment step first." },
+    ],
+  },
+];
+
+type LandingSimStage =
+  | { type: "tool";   label: string; detail: string }
+  | { type: "result"; text: string }
+  | { type: "reply";  text: string };
+
+function LandingMCPSimulator() {
+  const [active, setActive]       = useState<number | null>(null);
+  const [stages, setStages]       = useState<LandingSimStage[]>([]);
+  const [running, setRunning]     = useState(false);
+  const chatRef                   = useRef<HTMLDivElement>(null);
+  const timers                    = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  function clear() { timers.current.forEach(clearTimeout); timers.current = []; }
+
+  function run(idx: number) {
+    clear();
+    setActive(idx);
+    setStages([]);
+    setRunning(true);
+    LANDING_DEMO_PROMPTS[idx].stages.forEach((s, i) => {
+      const t = setTimeout(() => {
+        setStages(prev => [...prev, s]);
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        if (i === LANDING_DEMO_PROMPTS[idx].stages.length - 1) setRunning(false);
+      }, 500 + i * 1000);
+      timers.current.push(t);
+    });
+  }
+
+  useEffect(() => () => clear(), []);
+
+  const prompt = active !== null ? LANDING_DEMO_PROMPTS[active] : null;
+
+  return (
+    <div className="rounded-2xl border border-slate-700/60 bg-[#1a1b26] overflow-hidden shadow-2xl">
+      {/* Title bar */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-700/60 bg-[#13141f]">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500/70" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
+        </div>
+        <span className="text-[11px] text-slate-500 font-mono">claude.ai</span>
+        <div className="flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[9px] font-semibold text-indigo-300 tracking-wide">iqpipe MCP</span>
+          <CheckCircle2 size={8} className="text-emerald-400" />
+        </div>
+      </div>
+
+      {/* Greeting */}
+      <div className="px-5 pt-6 pb-4 text-center border-b border-slate-800/50">
+        <div className="flex items-center justify-center gap-2 mb-1.5">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+            <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+          <span className="text-sm font-semibold text-white">{"Hey, GTM team"}</span>
+        </div>
+        <p className="text-[11px] text-slate-500">{"iqpipe is connected. Ask anything about your stack."}</p>
+      </div>
+
+      {/* Chat */}
+      <div ref={chatRef} className="h-56 overflow-y-auto px-4 py-4 space-y-3 scroll-smooth">
+        {!prompt && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-xs text-slate-600 text-center">{"Pick a prompt below"}</p>
+          </div>
+        )}
+        {prompt && (
+          <>
+            {/* User */}
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
+              <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-indigo-600 px-3 py-2">
+                <p className="text-xs text-white leading-relaxed">{prompt.full}</p>
+              </div>
+            </motion.div>
+
+            {/* Stages */}
+            {stages.map((s, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+                {s.type === "tool" && (
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-[#2a2b3d] border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+                        <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div className="rounded-xl border border-indigo-500/25 bg-indigo-950/40 px-3 py-2 max-w-[85%]">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="h-1 w-1 rounded-full bg-indigo-400 animate-pulse" />
+                        <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">iqpipe MCP</span>
+                      </div>
+                      <code className="text-[10px] text-indigo-300 font-mono">{s.label}()</code>
+                      <p className="text-[9px] text-slate-600 mt-0.5">{s.detail}</p>
+                    </div>
+                  </div>
+                )}
+                {s.type === "result" && (
+                  <div className="ml-8">
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/30 px-3 py-2 max-w-[85%]">
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <CheckCircle2 size={8} className="text-emerald-400" />
+                        <span className="text-[9px] font-semibold text-emerald-400">iqpipe returned</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 leading-relaxed">{s.text}</p>
+                    </div>
+                  </div>
+                )}
+                {s.type === "reply" && (
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-[#2a2b3d] border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+                        <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <div className="rounded-2xl rounded-tl-sm bg-[#2a2b3d] border border-slate-700/50 px-3 py-2.5 max-w-[85%]">
+                      <p className="text-xs text-slate-200 leading-relaxed">{s.text}</p>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+
+            {running && stages.length > 0 && (
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-full bg-[#2a2b3d] border border-slate-700 flex items-center justify-center shrink-0">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+                    <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                <div className="flex gap-1 py-1">
+                  {[0,1,2].map(d => (
+                    <motion.span key={d} animate={{ opacity: [0.2,1,0.2] }} transition={{ duration: 0.9, repeat: Infinity, delay: d*0.2 }}
+                      className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Prompt pills */}
+      <div className="px-4 pt-2.5 pb-2 border-t border-slate-800/60 flex flex-wrap gap-1.5">
+        {LANDING_DEMO_PROMPTS.map((p, i) => (
+          <button key={p.key} onClick={() => run(i)} disabled={running}
+            className={`text-[10px] font-medium px-2.5 py-1 rounded-full border transition-all ${
+              active === i
+                ? "border-indigo-500/50 bg-indigo-500/15 text-indigo-300"
+                : "border-slate-700 bg-slate-800/60 text-slate-400 hover:text-slate-200 hover:border-slate-600"
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            {p.short}
+          </button>
+        ))}
+      </div>
+
+      {/* Input bar */}
+      <div className="px-4 pb-4 pt-1.5">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-700/60 bg-[#13141f] px-3 py-2.5">
+          <button className="text-slate-600"><Plus size={13} /></button>
+          <button className="text-slate-600"><SlidersHorizontal size={12} /></button>
+          <span className="flex-1 text-xs text-slate-600">{"Ask about your GTM stack..."}</span>
+          <span className="text-[10px] text-slate-600 mr-1">Claude Sonnet 4</span>
+          <div className="h-6 w-6 rounded-lg bg-[#cc785c] flex items-center justify-center">
+            <Send size={10} className="text-white" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // --- MAIN PAGE COMPONENT ---
 
@@ -878,40 +1099,7 @@ export default function LandingPage() {
               className="relative"
             >
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/10 blur-xl -z-10" />
-              <div className="rounded-2xl border border-slate-700/60 bg-slate-900/80 backdrop-blur overflow-hidden shadow-2xl">
-                <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-700/60 bg-slate-800/60">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500/70" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400/70" />
-                  <span className="ml-3 text-xs text-slate-500 font-mono">claude  →  iqpipe MCP</span>
-                </div>
-                <div className="p-5 font-mono text-[12px] leading-relaxed overflow-x-auto space-y-4">
-                  <div>
-                    <div className="text-slate-500 mb-1.5">{"// 1. Gate: are these leads safe to contact?"}</div>
-                    <div><span className="text-fuchsia-400">await </span><span className="text-amber-300">check_lead_status</span><span className="text-slate-300">{"({ "}</span><span className="text-indigo-300">emails</span><span className="text-slate-400">{": ["}</span><span className="text-emerald-400">...200leads</span><span className="text-slate-300">{"]})"}</span></div>
-                    <div className="mt-1 pl-3 text-emerald-400">{"→ { safeToContact: 153, blocked: 47 }"}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 mb-1.5">{"// 2. Which sequence converts VP of Sales best?"}</div>
-                    <div><span className="text-fuchsia-400">await </span><span className="text-amber-300">get_sequence_recommendation</span><span className="text-slate-300">{"({"}</span></div>
-                    <div className="pl-5"><span className="text-indigo-300">title</span><span className="text-slate-400">{": "}</span><span className="text-emerald-400">"VP of Sales"</span><span className="text-slate-300">{", "}</span><span className="text-indigo-300">channel</span><span className="text-slate-400">{": "}</span><span className="text-emerald-400">"linkedin"</span></div>
-                    <div><span className="text-slate-300">{"});"}</span></div>
-                    <div className="mt-1 pl-3 text-emerald-400">{"→ seq_linkedin_vp_outbound (score 94, reply 18.4%)"}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 mb-1.5">{"// 3. After n8n fires — did HeyReach get it?"}</div>
-                    <div><span className="text-fuchsia-400">await </span><span className="text-amber-300">confirm_event_received</span><span className="text-slate-300">{"({ "}</span><span className="text-indigo-300">tool</span><span className="text-slate-400">{": "}</span><span className="text-emerald-400">"HeyReach"</span><span className="text-slate-300">{"});"}</span></div>
-                    <div className="mt-1 pl-3 text-emerald-400">{"→ { arrived: true, processed: 47 }"}</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between px-5 py-2.5 border-t border-slate-700/60 bg-slate-800/40">
-                  <div className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[11px] text-emerald-400 font-medium">Connected</span>
-                  </div>
-                  <span className="text-[11px] text-slate-600 font-mono">iqpipe MCP</span>
-                </div>
-              </div>
+              <LandingMCPSimulator />
             </motion.div>
           </div>
         </section>
