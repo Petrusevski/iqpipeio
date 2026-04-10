@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot, Zap, Activity, AlertTriangle, CheckCircle2, ArrowRight,
   Terminal, Radio, ShieldCheck, BarChart3, Target, RefreshCw,
   ChevronRight, MessageSquare, Code2, Cpu, Workflow,
+  Plus, SlidersHorizontal, Send,
 } from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -368,6 +369,266 @@ function ClaudeConversation({ conv }: { conv: typeof MCP_CONVERSATIONS[0] }) {
   );
 }
 
+// ─── Claude MCP Simulator ─────────────────────────────────────────────────────
+
+const DEMO_PROMPTS = [
+  {
+    key: "safety",
+    short: "Are these Clay leads safe to contact?",
+    full: "Before I enroll these leads from Clay in the HeyReach sequence, check if any are already in an active outreach.",
+    stages: [
+      { type: "thinking" as const,  text: ""                                                                                                     },
+      { type: "tool"    as const,   text: "check_lead_status",  detail: "Checking 3 leads against active sequences..."                          },
+      { type: "result"  as const,   text: "2 safe · 1 blocked — mike@techcorp.com already in active sequence (18d silent, 6 touches)"            },
+      { type: "reply"   as const,   text: "mike@techcorp.com is already in an active sequence — skipping to avoid overlap. Enrolling the other 2 now." },
+    ],
+  },
+  {
+    key: "sequence",
+    short: "Best sequence for VP of Sales on LinkedIn?",
+    full: "Which LinkedIn sequence should I run for a VP of Sales at a mid-market SaaS company?",
+    stages: [
+      { type: "thinking" as const,  text: ""                                                                                                     },
+      { type: "tool"    as const,   text: "get_sequence_recommendation", detail: "Scanning sequence performance for this ICP..."                 },
+      { type: "result"  as const,   text: "seq_linkedin_vp_outbound · reply rate 18.4% · meeting rate 6.1% · relevance score 94"                },
+      { type: "reply"   as const,   text: "Use seq_linkedin_vp_outbound — it has an 18.4% reply rate for VP-level SaaS contacts and outperforms the next best by 9 points." },
+    ],
+  },
+  {
+    key: "delivery",
+    short: "Did n8n deliver the leads to HeyReach?",
+    full: "My n8n workflow ran 20 minutes ago. Confirm the leads were actually received and processed by HeyReach.",
+    stages: [
+      { type: "thinking" as const,  text: ""                                                                                                     },
+      { type: "tool"    as const,   text: "confirm_event_received", detail: "Checking HeyReach event log for the last 30 minutes..."            },
+      { type: "result"  as const,   text: "47 of 47 events arrived · all processed · 0 failed · last event 18 minutes ago"                      },
+      { type: "reply"   as const,   text: "All 47 leads landed in HeyReach and were processed successfully. Nothing was dropped." },
+    ],
+  },
+  {
+    key: "anomaly",
+    short: "Why is my outbound dropping this week?",
+    full: "Outbound performance looks worse than last week. What is causing it and what should I fix first?",
+    stages: [
+      { type: "thinking" as const,  text: ""                                                                                                     },
+      { type: "tool"    as const,   text: "get_improvement_report", detail: "Analyzing workflow health, funnel drops and anomalies..."           },
+      { type: "result"  as const,   text: "3 issues found · ZoomInfo→Instantly workflow at health score 44 · 22k leads leaking · conversion 1.2% (was 4.8%)" },
+      { type: "reply"   as const,   text: "The ZoomInfo → Instantly workflow is the primary cause — health score dropped to 44 and is leaking 22k leads at the top of funnel. I'd pause it, audit the enrichment step, and recheck delivery before re-enrolling." },
+    ],
+  },
+];
+
+type SimStage = { type: "thinking" | "tool" | "result" | "reply"; text: string; detail?: string };
+
+function ClaudeMCPSimulator() {
+  const [activePrompt, setActivePrompt]   = useState<number | null>(null);
+  const [visibleStages, setVisibleStages] = useState<SimStage[]>([]);
+  const [running, setRunning]             = useState(false);
+  const chatRef                           = useRef<HTMLDivElement>(null);
+  const timerRef                          = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  function clearTimers() {
+    timerRef.current.forEach(clearTimeout);
+    timerRef.current = [];
+  }
+
+  function runDemo(idx: number) {
+    clearTimers();
+    setActivePrompt(idx);
+    setVisibleStages([]);
+    setRunning(true);
+    const stages = DEMO_PROMPTS[idx].stages;
+    stages.forEach((stage, i) => {
+      const t = setTimeout(() => {
+        setVisibleStages(prev => [...prev, stage]);
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        if (i === stages.length - 1) setRunning(false);
+      }, 600 + i * 1100);
+      timerRef.current.push(t);
+    });
+  }
+
+  useEffect(() => () => clearTimers(), []);
+
+  const prompt = activePrompt !== null ? DEMO_PROMPTS[activePrompt] : null;
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      {/* Browser chrome */}
+      <div className="rounded-2xl border border-slate-700/60 bg-[#1a1b26] shadow-2xl overflow-hidden">
+
+        {/* Title bar */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/60 bg-[#13141f]">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-rose-500/70" />
+            <span className="w-3 h-3 rounded-full bg-amber-400/70" />
+            <span className="w-3 h-3 rounded-full bg-emerald-400/70" />
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
+            claude.ai
+          </div>
+          {/* iqpipe MCP badge */}
+          <div className="flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-semibold text-indigo-300">iqpipe MCP</span>
+            <CheckCircle2 size={9} className="text-emerald-400" />
+          </div>
+        </div>
+
+        {/* Header greeting */}
+        <div className="pt-10 pb-6 px-6 text-center border-b border-slate-800/60">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            {/* Anthropic asterisk */}
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+              <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+            <span className="text-2xl font-semibold text-white">{"Hey, GTM team"}</span>
+          </div>
+          <p className="text-sm text-slate-400">{"iqpipe is connected. Ask anything about your GTM stack."}</p>
+        </div>
+
+        {/* Chat area */}
+        <div ref={chatRef} className="min-h-[220px] max-h-72 overflow-y-auto px-6 py-5 space-y-4 scroll-smooth">
+          {activePrompt === null && (
+            <div className="flex items-center justify-center h-28">
+              <p className="text-sm text-slate-600 text-center">{"Pick a prompt below to see Claude use iqpipe live."}</p>
+            </div>
+          )}
+
+          {prompt && (
+            <>
+              {/* User message */}
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
+                <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-indigo-600 px-4 py-2.5">
+                  <p className="text-sm text-white leading-relaxed">{prompt.full}</p>
+                </div>
+              </motion.div>
+
+              {/* Stages */}
+              {visibleStages.map((stage, i) => (
+                <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+                  {stage.type === "thinking" && (
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-full bg-[#2a2b3d] border border-slate-700 flex items-center justify-center shrink-0">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+                          <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <div className="flex gap-1 py-2">
+                        {[0,1,2].map(d => (
+                          <motion.span key={d} animate={{ opacity: [0.2,1,0.2] }} transition={{ duration: 0.9, repeat: Infinity, delay: d*0.2 }}
+                            className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {stage.type === "tool" && (
+                    <div className="flex items-start gap-2.5">
+                      <div className="h-7 w-7 rounded-full bg-[#2a2b3d] border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+                          <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <div className="rounded-xl border border-indigo-500/25 bg-indigo-950/40 px-3.5 py-2.5 max-w-[85%]">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">iqpipe MCP</span>
+                        </div>
+                        <code className="text-[11px] text-indigo-300 font-mono">{stage.text}()</code>
+                        {stage.detail && <p className="text-[10px] text-slate-500 mt-1">{stage.detail}</p>}
+                      </div>
+                    </div>
+                  )}
+
+                  {stage.type === "result" && (
+                    <div className="ml-9">
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/30 px-3.5 py-2.5 max-w-[85%]">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <CheckCircle2 size={9} className="text-emerald-400" />
+                          <span className="text-[10px] font-semibold text-emerald-400">iqpipe returned</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">{stage.text}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {stage.type === "reply" && (
+                    <div className="flex items-start gap-2.5">
+                      <div className="h-7 w-7 rounded-full bg-[#2a2b3d] border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+                          <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <div className="rounded-2xl rounded-tl-sm bg-[#2a2b3d] border border-slate-700/50 px-4 py-3 max-w-[85%]">
+                        <p className="text-sm text-slate-200 leading-relaxed">{stage.text}</p>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+
+              {running && visibleStages.length > 0 && visibleStages[visibleStages.length - 1].type !== "thinking" && (
+                <div className="flex items-center gap-2.5">
+                  <div className="h-7 w-7 rounded-full bg-[#2a2b3d] border border-slate-700 flex items-center justify-center shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#cc785c]">
+                      <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                    </svg>
+                  </div>
+                  <div className="flex gap-1 py-2">
+                    {[0,1,2].map(d => (
+                      <motion.span key={d} animate={{ opacity: [0.2,1,0.2] }} transition={{ duration: 0.9, repeat: Infinity, delay: d*0.2 }}
+                        className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Prompt pills */}
+        <div className="px-5 pt-3 pb-2 border-t border-slate-800/60 flex flex-wrap gap-2">
+          {DEMO_PROMPTS.map((p, i) => (
+            <button
+              key={p.key}
+              onClick={() => runDemo(i)}
+              disabled={running}
+              className={`text-[11px] font-medium px-3 py-1.5 rounded-full border transition-all ${
+                activePrompt === i
+                  ? "border-indigo-500/50 bg-indigo-500/15 text-indigo-300"
+                  : "border-slate-700 bg-slate-800/60 text-slate-400 hover:text-slate-200 hover:border-slate-600"
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              {p.short}
+            </button>
+          ))}
+        </div>
+
+        {/* Input bar (decorative) */}
+        <div className="px-5 pb-5 pt-2">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-700/60 bg-[#13141f] px-4 py-3">
+            <button className="text-slate-600 hover:text-slate-400 transition-colors"><Plus size={16} /></button>
+            <button className="text-slate-600 hover:text-slate-400 transition-colors"><SlidersHorizontal size={15} /></button>
+            <span className="flex-1 text-sm text-slate-600">{"Ask about your GTM stack..."}</span>
+            <div className="flex items-center gap-2 text-[11px] text-slate-600">
+              <span>Claude Sonnet 4</span>
+              <div className="h-7 w-7 rounded-lg bg-[#cc785c] flex items-center justify-center">
+                <Send size={12} className="text-white" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Label */}
+      <p className="text-center text-xs text-slate-600 mt-4">
+        {"Click any prompt above to simulate. iqpipe MCP is connected — Claude calls live GTM data before every answer."}
+      </p>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ClaudeGTMPage() {
@@ -406,6 +667,25 @@ export default function ClaudeGTMPage() {
                 </Link>
               </div>
             </motion.div>
+          </div>
+        </section>
+
+        {/* ── Claude MCP Simulator ── */}
+        <section className="py-20 px-4 border-b border-slate-900 bg-[#0d0e1a]">
+          <div className="mx-auto max-w-5xl">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-xs font-medium text-indigo-300 mb-4">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live simulation &mdash; iqpipe connected
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                {"This is what Claude sees"}
+              </h2>
+              <p className="text-slate-400 max-w-xl mx-auto text-base leading-relaxed">
+                {"With iqpipe connected, every GTM question Claude gets is answered with live data — not a guess."}
+              </p>
+            </div>
+            <ClaudeMCPSimulator />
           </div>
         </section>
 
