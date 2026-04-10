@@ -22,6 +22,7 @@ export const PLANS = [
       "10,000 events / month",
       "Live Feed + Contact Inspector",
       "Pipeline Health monitoring",
+      "Claude AI Agent (MCP)",
       "Email support",
     ],
     popular: false,

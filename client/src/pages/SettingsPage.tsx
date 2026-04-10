@@ -436,12 +436,8 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
             {/* Pricing Plan */}
             <PricingPlanSection currentPlan={workspace.plan} />
 
-            {/* AI Agent Access / Claude Connect */}
-            {(workspace.plan === "growth" || workspace.plan === "agency") ? (
-              <ClaudeConnectPanel apiKey={workspace.publicApiKey ?? ""} />
-            ) : (
-              <McpUpgradeCta />
-            )}
+            {/* AI Agent Access / Claude Connect — available on all plans */}
+            <ClaudeConnectPanel apiKey={workspace.publicApiKey ?? ""} />
 
             {/* Data & privacy */}
             <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">

@@ -992,9 +992,9 @@ export default function MCPProtocolPage() {
           <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/60 to-slate-900/60 p-10 text-center">
             <div className="text-3xl font-bold text-white mb-3">Ready to connect your AI?</div>
             <p className="text-slate-400 mb-2 max-w-md mx-auto text-sm leading-relaxed">
-              MCP access is included on Growth and Agency plans. Upgrade to get your API key and wire IQPipe into Claude or Cursor in minutes.
+              MCP access is included on every IQPipe plan. Sign up, grab your API key from Settings, and wire IQPipe into Claude or Cursor in minutes.
             </p>
-            <p className="text-amber-400/70 text-xs mb-8">Requires Growth or Agency plan</p>
+            <p className="text-emerald-400/70 text-xs mb-8">Available on all plans — including free trial</p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link to="/pricing" className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition-colors shadow-lg shadow-indigo-500/20">
                 View plans <ArrowRight className="w-4 h-4" />

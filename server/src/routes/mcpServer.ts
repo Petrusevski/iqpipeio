@@ -70,7 +70,7 @@ const router = Router();
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
-const MCP_PLANS = new Set(["growth", "agency"]);
+// MCP is available on all plans — no plan gate
 
 async function resolveWorkspace(req: Request): Promise<{ id: string; plan: string } | null> {
   const authHeader = req.headers.authorization ?? "";
@@ -1676,16 +1676,6 @@ async function handleMcp(req: Request, res: Response): Promise<void> {
   const workspace = await resolveWorkspace(req);
   if (!workspace) {
     res.status(401).json({ error: "Invalid or missing API key. Pass Authorization: Bearer rvn_pk_..." });
-    return;
-  }
-
-  // Plan gate — MCP is Growth and Agency only
-  if (!MCP_PLANS.has(workspace.plan)) {
-    res.status(403).json({
-      error: "Claude AI Agent access requires a Growth or Agency plan. Upgrade at your IQPipe Settings page.",
-      upgradeRequired: true,
-      currentPlan: workspace.plan,
-    });
     return;
   }
 

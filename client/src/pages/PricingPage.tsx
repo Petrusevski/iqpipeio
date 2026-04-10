@@ -30,6 +30,7 @@ const PRICING_TIERS = [
       "10,000 events / month",
       "Live Feed + Contact Inspector",
       "Pipeline Health monitoring",
+      "Claude AI Agent (MCP)",
       "Email support",
     ],
     notIncluded: [
