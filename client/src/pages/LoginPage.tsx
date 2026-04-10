@@ -5,64 +5,142 @@ import { API_BASE_URL } from "../../config";
 
 const API_BASE = API_BASE_URL;
 
-// ─── Live activity feed ───────────────────────────────────────────────────────
+// ─── MCP Feature Panel ────────────────────────────────────────────────────────
 
-const FEED_ITEMS = [
-  { icon: "🟢", text: "Lead enriched via Clay → Apollo sequence started" },
-  { icon: "📬", text: "Reply detected — deal moved to Negotiation" },
-  { icon: "⚡", text: "Workflow health dropped below 80% — anomaly flagged" },
-  { icon: "🔁", text: "3 contacts stuck in sequence for 11 days — surfaced" },
-  { icon: "🤖", text: "Claude diagnosed a funnel gap in outbound pipeline" },
-  { icon: "📊", text: "HubSpot went quiet — iqpipe detected missing events" },
-  { icon: "🎯", text: "Sequence bounce rate spike caught before damage" },
-  { icon: "✅", text: "New deal attributed to LinkedIn touchpoint correctly" },
-  { icon: "🔍", text: "Contact journey rebuilt across 4 tools automatically" },
-  { icon: "💬", text: 'Claude answered: "Why did this deal stall?"' },
+const MCP_CAPABILITIES = [
+  "Diagnose why a deal stalled",
+  "Find stuck contacts across sequences",
+  "Compare workflow performance",
+  "Surface funnel leakage in real time",
+  "Apply fixes without leaving Claude",
 ];
 
-function LiveFeedPanel() {
-  const [visible, setVisible] = useState<number[]>([0, 1, 2]);
-  const [next, setNext] = useState(3);
+function MCPVisual() {
+  const [activeIdx, setActiveIdx] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setVisible(prev => {
-        const incoming = next % FEED_ITEMS.length;
-        setNext(n => n + 1);
-        return [incoming, ...prev.slice(0, 4)];
-      });
-    }, 2200);
+      setActiveIdx(i => (i + 1) % MCP_CAPABILITIES.length);
+    }, 2400);
     return () => clearInterval(id);
-  }, [next]);
+  }, []);
 
   return (
-    <div className="space-y-2 w-full">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-3">Live activity</p>
-      <AnimatePresence initial={false}>
-        {visible.map((idx, i) => (
-          <motion.div
-            key={`${idx}-${i}`}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1 - i * 0.18, y: 0 }}
-            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-            transition={{ duration: 0.4 }}
-            className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/40"
-          >
-            <span className="text-sm shrink-0 mt-0.5">{FEED_ITEMS[idx].icon}</span>
-            <span className="text-xs text-slate-300 leading-snug">{FEED_ITEMS[idx].text}</span>
-          </motion.div>
-        ))}
-      </AnimatePresence>
+    <div className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 overflow-hidden shadow-2xl">
+      {/* Mock browser chrome */}
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-800 bg-slate-950/60">
+        <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+        <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+        <span className="h-2.5 w-2.5 rounded-full bg-slate-700" />
+        <div className="flex-1 mx-3 px-3 py-0.5 rounded-md bg-slate-800/60 border border-slate-700/40 text-[10px] text-slate-500 font-mono">
+          claude.ai
+        </div>
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/25">
+          {/* Anthropic asterisk */}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="#818cf8" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+          <span className="text-[10px] text-indigo-400 font-medium">iqpipe MCP</span>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        </div>
+      </div>
+
+      {/* Chat area */}
+      <div className="px-4 pt-4 pb-3 space-y-3">
+        {/* User prompt */}
+        <div className="flex justify-end">
+          <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm bg-indigo-600/80 text-xs text-white leading-snug">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={activeIdx}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.3 }}
+                className="block"
+              >
+                {MCP_CAPABILITIES[activeIdx]}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Tool call badge */}
+        <motion.div
+          key={`tool-${activeIdx}`}
+          initial={{ opacity: 0, x: -6 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.4 }}
+          className="flex items-center gap-2"
+        >
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700/60 text-[10px] text-slate-400 font-mono">
+            <span className="text-violet-400">▶</span> iqpipe
+            <span className="text-slate-600">·</span>
+            <span className="text-amber-400/80">
+              {["get_funnel", "get_stuck_leads", "compare_workflows", "get_anomalies", "apply_fix"][activeIdx]}
+            </span>
+            <span className="text-slate-600">·</span>
+            <span className="text-emerald-400">done</span>
+          </div>
+        </motion.div>
+
+        {/* Claude reply */}
+        <motion.div
+          key={`reply-${activeIdx}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.7 }}
+          className="flex items-start gap-2"
+        >
+          <div className="h-5 w-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <div className="flex-1 text-[11px] text-slate-300 leading-relaxed">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={activeIdx}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="block"
+              >
+                {[
+                  "Your funnel shows a 61% drop between enrichment and first contact. Clay is passing leads but Apollo isn't triggering.",
+                  "Found 7 contacts stuck for 9+ days. All are in the same sequence — last step has a broken webhook.",
+                  "Workflow A closes 2.3× faster than Workflow B. The gap is in follow-up timing after first reply.",
+                  "Bounce rate spiked 40% in the last 48h on your cold email sequence. Likely a domain warm-up issue.",
+                  "HubSpot deal stage updated and webhook re-triggered. The fix has been applied — monitoring now.",
+                ][activeIdx]}
+              </motion.span>
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Input bar decoration */}
+      <div className="px-4 pb-3">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700/40">
+          <span className="flex-1 text-[11px] text-slate-600">Ask Claude about your GTM pipeline…</span>
+          <div className="h-5 w-5 rounded-lg bg-orange-500/80 flex items-center justify-center">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="white">
+              <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Stats ────────────────────────────────────────────────────────────────────
+// ─── What's New bullets ───────────────────────────────────────────────────────
 
-const STATS = [
-  { value: "14s",   label: "avg time to surface an anomaly" },
-  { value: "100%",  label: "of GTM tools, one data layer" },
-  { value: "0",     label: "config files to connect Claude" },
+const WHATS_NEW = [
+  { label: "Ask Claude anything about your pipeline", sub: "Real-time GTM context, no tab switching" },
+  { label: "Works on Claude.ai and Claude Desktop", sub: "One MCP URL, connected in under 60 seconds" },
+  { label: "Your workflows, automatically recognized", sub: "Import from n8n or Make.com — Claude sees them all" },
 ];
 
 interface LoginPageProps {
@@ -78,12 +156,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (!email || !password) {
-      setError("Please provide both email and password.");
-      return;
-    }
-
+    if (!email || !password) { setError("Please provide both email and password."); return; }
     try {
       setSubmitting(true);
       const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -91,22 +164,11 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        setError(data?.error || "Login failed.");
-        return;
-      }
-
+      if (!res.ok) { setError(data?.error || "Login failed."); return; }
       localStorage.setItem("iqpipe_token", data.token);
       localStorage.setItem("iqpipe_user", JSON.stringify(data.user));
-
-      if (onLoginSuccess) {
-        onLoginSuccess(data);
-      } else {
-        window.location.href = "/";
-      }
+      if (onLoginSuccess) { onLoginSuccess(data); } else { window.location.href = "/"; }
     } catch (err: any) {
       setError(err?.message || "Unexpected error during login.");
     } finally {
@@ -116,62 +178,73 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
 
   return (
     <div className="min-h-screen bg-slate-950 flex text-slate-50 selection:bg-indigo-500/30 selection:text-indigo-200">
-      
-      {/* Left: Visual Side (Hidden on mobile) */}
+
+      {/* ── Left panel ── */}
       <div className="hidden lg:flex w-1/2 bg-slate-900 relative items-center justify-center overflow-hidden border-r border-slate-800">
-        {/* Background Effects */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-        
-        <div className="relative z-10 w-full max-w-sm px-10">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="mb-8"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-xs text-indigo-300 font-medium mb-5">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-              GTM Intelligence Layer
+        {/* Glow orb */}
+        <div className="absolute top-[-80px] left-[-80px] h-[360px] w-[360px] rounded-full bg-indigo-600/10 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-[380px] px-10 py-12 flex flex-col gap-8">
+
+          {/* What's New header */}
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-xs text-violet-300 font-semibold mb-4 uppercase tracking-wider">
+              <span className="flex h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+              What's new
             </div>
-            <h1 className="text-3xl font-bold tracking-tight leading-snug mb-3">
-              Your GTM stack,<br />finally in one place.
-            </h1>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              iqpipe listens to every automation across n8n and Make.com, unifies your data, and gives Claude the context to answer anything about your pipeline.
+            <h2 className="text-2xl font-bold tracking-tight leading-snug text-white mb-1">
+              Claude now speaks<br />your GTM stack.
+            </h2>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Connect iqpipe to Claude via MCP and ask anything about your pipeline — live data, no hallucinations.
             </p>
           </motion.div>
 
-          {/* Stats row */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="grid grid-cols-3 gap-3 mb-8"
-          >
-            {STATS.map(s => (
-              <div key={s.value} className="rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5 text-center">
-                <div className="text-lg font-bold text-white">{s.value}</div>
-                <div className="text-[10px] text-slate-500 leading-tight mt-0.5">{s.label}</div>
-              </div>
-            ))}
+          {/* Animated Claude simulator */}
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <MCPVisual />
           </motion.div>
 
-          {/* Live feed */}
-          <motion.div
+          {/* Bullet list */}
+          <motion.ul
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
+            className="space-y-3"
           >
-            <LiveFeedPanel />
-          </motion.div>
+            {WHATS_NEW.map((item, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 5L4.5 7.5L8 3" stroke="#818cf8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-200">{item.label}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{item.sub}</p>
+                </div>
+              </li>
+            ))}
+          </motion.ul>
+
+          {/* CTA link */}
+          <motion.a
+            href="/mcp-protocol"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.65 }}
+            className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors group w-fit"
+          >
+            Learn how MCP works
+            <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+          </motion.a>
         </div>
       </div>
 
-      {/* Right: Form Side */}
+      {/* ── Right panel: form ── */}
       <div className="flex-1 flex flex-col justify-center items-center p-6 relative">
-        
-        {/* Back Link */}
         <a href="/" className="absolute top-8 left-8 flex items-center gap-2 text-sm text-slate-500 hover:text-white transition-colors group">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
           Back to Home
@@ -181,9 +254,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
           <div className="mb-8 text-center">
             <img src="/logo.png" alt="iqpipe" className="h-16 w-16 object-contain mx-auto mb-4 drop-shadow-lg" />
             <h2 className="text-2xl font-bold text-white tracking-tight">Welcome back</h2>
-            <p className="text-sm text-slate-400 mt-2">
-              Enter your credentials to access your workspace.
-            </p>
+            <p className="text-sm text-slate-400 mt-2">Enter your credentials to access your workspace.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -196,7 +267,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-10 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                   placeholder="name@company.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={e => setEmail(e.target.value)}
                   autoComplete="email"
                 />
               </div>
@@ -214,14 +285,14 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                   className="w-full bg-slate-900/50 border border-slate-800 rounded-xl px-10 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={e => setPassword(e.target.value)}
                   autoComplete="current-password"
                 />
               </div>
             </div>
 
             {error && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-200 text-center"
@@ -251,7 +322,7 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
             </a>
           </div>
         </div>
-        
+
         <div className="absolute bottom-6 text-[10px] text-slate-600">
           © 2025 iqpipe Inc. Privacy & Terms
         </div>
