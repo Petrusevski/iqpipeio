@@ -16,7 +16,7 @@ export default function AboutPage() {
             <h1 className=”text-3xl md:text-4xl font-semibold leading-tight mb-4”>
               We’re building the intelligence layer{“ “}
               <span className=”text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-fuchsia-400”>
-                that makes Claude’s GTM execution precise
+                that makes Claude&apos;s GTM execution precise
               </span>
               .
             </h1>
@@ -28,7 +28,7 @@ export default function AboutPage() {
               <span className=”font-medium text-slate-100”>
                 without real-time data
               </span>
-              . It can’t see whether a lead is safe to contact, whether a webhook
+              . It can&apos;t see whether a lead is safe to contact, whether a webhook
               actually delivered, or which sequence is converting. Every decision is a guess.
             </p>
 
