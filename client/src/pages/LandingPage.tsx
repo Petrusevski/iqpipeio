@@ -940,7 +940,8 @@ export default function LandingPage() {
                     "1 Seat · 1 Workspace",
                     "2 Make.com or n8n workflows",
                     "10,000 events / month",
-                    "check_lead_status · lead safety gate",
+                    "Claude AI Agent (MCP) — all 37 tools",
+                    "Live Feed + Contact Inspector",
                     "Pipeline health monitoring",
                   ].map((f) => (
                     <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-indigo-400 shrink-0 mt-0.5" />{f}</li>
@@ -962,9 +963,10 @@ export default function LandingPage() {
                     "3 Seats · 3 Workspaces",
                     "10 Make.com or n8n workflows",
                     "500,000 events / month",
-                    "All 5 execution gap tools via MCP",
-                    "get_improvement_report · course correction",
+                    "Claude AI Agent (MCP) — all 37 tools",
+                    "Workflow Health + Improvement Report",
                     "GTM Report PDF/XLSX export",
+                    "API Access & Webhooks",
                   ].map((f) => (
                     <li key={f} className="flex gap-2.5"><CheckCircle2 size={15} className="text-indigo-400 shrink-0 mt-0.5" />{f}</li>
                   ))}
@@ -984,8 +986,9 @@ export default function LandingPage() {
                     "Unlimited Seats · 20 Workspaces",
                     "50 Make.com or n8n workflows",
                     "5,000,000 events / month",
-                    "All 37 MCP tools + full API access",
-                    "compare_workflows across client stacks",
+                    "Claude AI Agent (MCP) — all 37 tools",
+                    "Full API Access & Webhooks",
+                    "GTM Report PDF/XLSX export",
                     "Priority 24/7 support",
                     "Additional workspaces at surcharge",
                   ].map((f) => (
