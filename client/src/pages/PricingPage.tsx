@@ -121,7 +121,7 @@ const FAQS = [
   },
   {
     q: "Is historical data included?",
-    a: "On the Scale plan, yes. We can backfill data if your connected tools support historical API exports.",
+    a: "On Growth and Agency plans, yes. We can backfill data if your connected tools support historical API exports. Contact us to arrange a backfill after connecting your integrations.",
   },
 ];
 

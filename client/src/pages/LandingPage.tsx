@@ -60,7 +60,7 @@ const LiveIdTicker = () => {
           exit={{ opacity: 0, y: -5 }}
           className="ml-1"
         >
-          Minting RVN-{id}...
+          Minting IQP-{id}...
         </motion.span>
       </AnimatePresence>
     </div>
@@ -214,7 +214,7 @@ const StockTicker = () => {
           <div key={i} className="inline-flex items-center gap-3 rounded-full border border-slate-800 bg-slate-900/80 px-4 py-1.5 text-xs shadow-sm">
             <span className={`font-bold ${item.color}`}>{item.tool}</span>
             <span className="text-slate-300 font-medium">{item.text}</span>
-            <span className="font-mono text-slate-600 pl-2 border-l border-slate-800">RVN-{item.id}</span>
+            <span className="font-mono text-slate-600 pl-2 border-l border-slate-800">IQP-{item.id}</span>
           </div>
         ))}
       </motion.div>
@@ -276,7 +276,7 @@ export default function LandingPage() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
                 <a href="/demo" className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-700 bg-slate-900/50 px-6 text-sm font-medium text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-all backdrop-blur-sm">
-                  Live demo
+                  How it works
                 </a>
               </motion.div>
               <div className="mt-10 flex items-center gap-4 text-sm text-slate-500">
@@ -320,7 +320,7 @@ export default function LandingPage() {
                 </span>
               </h2>
               <p className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed mb-12">
-                Claude can write sequences, trigger workflows, and orchestrate campaigns through n8n and Make.com. But it has no memory between sessions, no feedback loop after execution, and no access to your historical performance data. iqpipe fixes all five of those gaps.
+                Claude can write sequences, trigger workflows, and orchestrate campaigns through n8n and Make.com. But without real-time GTM data, it's making decisions blind — no contact safety gate, no sequence performance history, no delivery confirmation, no anomaly detection, no structured improvement signal. iqpipe is the intelligence layer that closes all five gaps.
               </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-w-3xl mx-auto">
                 {[

@@ -23,8 +23,7 @@ export default function BlogPage() {
             </h1>
 
             <p className="text-base text-slate-300 mb-12">
-              Deep dives, playbooks and behind-the-scenes notes as we build a
-              Revenue OS that connects the tools you already use.
+              Deep dives, playbooks and behind-the-scenes notes on Claude-powered GTM execution and the intelligence layer behind it.
             </p>
 
             {/* Empty state */}

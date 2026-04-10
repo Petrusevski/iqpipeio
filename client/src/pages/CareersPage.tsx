@@ -48,7 +48,7 @@ export default function CareersPage() {
                 <div className="text-slate-400 mb-1">Ownership</div>
                 <p className="text-slate-200">
                   Own outcomes, not tickets. Ship meaningful pieces of the
-                  revenue OS.
+                  intelligence layer powering Claude GTM execution.
                 </p>
               </div>
             </div>

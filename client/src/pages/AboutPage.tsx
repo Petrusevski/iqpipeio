@@ -13,63 +13,63 @@ export default function AboutPage() {
               About iqpipe
             </div>
 
-            <h1 className="text-3xl md:text-4xl font-semibold leading-tight mb-4">
-              We’re building the revenue OS{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-fuchsia-400">
-                GTM teams wish their CRM had
+            <h1 className=”text-3xl md:text-4xl font-semibold leading-tight mb-4”>
+              We’re building the intelligence layer{“ “}
+              <span className=”text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-fuchsia-400”>
+                that makes Claude’s GTM execution precise
               </span>
               .
             </h1>
 
-            <p className="text-base text-slate-300 mb-6">
-              iqpipe was born from a simple frustration: every GTM team we
-              worked with had great tools, but no shared view of{" "}
-              <span className="font-medium text-slate-100">
-                what actually creates revenue
+            <p className=”text-base text-slate-300 mb-6”>
+              GTM engineers now rely on Claude to run outbound — writing sequences,
+              triggering n8n and Make.com workflows, and orchestrating campaigns end to end.
+              But Claude operates{“ “}
+              <span className=”font-medium text-slate-100”>
+                without real-time data
               </span>
-              . Data was fragmented across Clay, outbound tools, CRMs,
-              billing systems and spreadsheets.
+              . It can’t see whether a lead is safe to contact, whether a webhook
+              actually delivered, or which sequence is converting. Every decision is a guess.
             </p>
 
-            <p className="text-base text-slate-300 mb-4">
-              Instead of building yet another CRM or sequencing tool, we
-              decided to build{" "}
-              <span className="font-medium text-slate-100">
-                one neutral schema
-              </span>{" "}
-              that all GTM tools can write to. One iqpipe ID follows each
-              prospect, account and deal from first list import to paid invoice.
+            <p className=”text-base text-slate-300 mb-4”>
+              iqpipe was built to fix that. We sit between Claude and your GTM stack —
+              unifying signals from Clay, outbound tools, CRMs and billing into{“ “}
+              <span className=”font-medium text-slate-100”>
+                one queryable intelligence layer
+              </span>
+              {“ “}Claude can call before, during and after every automation run.
             </p>
 
-            <p className="text-base text-slate-300 mb-4">
-              Our goal is to give RevOps, founders and sales leaders a place
-              where they can finally{" "}
-              <span className="font-medium text-slate-100">
-                trust the numbers
-              </span>{" "}
-              – without asking somebody to “just pull one more spreadsheet”
-              before every meeting.
+            <p className=”text-base text-slate-300 mb-4”>
+              The result: Claude stops flying blind. It gates unsafe contacts, picks the
+              right sequence, confirms execution, surfaces anomalies, and synthesizes
+              improvement reports — all from{“ “}
+              <span className=”font-medium text-slate-100”>
+                live data, not memory
+              </span>
+              .
             </p>
 
-            <div className="mt-8 grid md:grid-cols-3 gap-4 text-sm">
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                <div className="text-slate-400 mb-1">What we believe</div>
-                <p className="text-slate-200">
-                  Tools will keep changing. Your{" "}
-                  <span className="font-medium">revenue model</span> and your
-                  schema should outlive them.
+            <div className=”mt-8 grid md:grid-cols-3 gap-4 text-sm”>
+              <div className=”rounded-2xl border border-slate-800 bg-slate-900/70 p-4”>
+                <div className=”text-slate-400 mb-1”>What we believe</div>
+                <p className=”text-slate-200”>
+                  Claude is the best GTM co-pilot ever built.{“ “}
+                  <span className=”font-medium”>Real-time GTM data</span> is what
+                  makes it reliable enough to trust with live campaigns.
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                <div className="text-slate-400 mb-1">Who we serve</div>
-                <p className="text-slate-200">
-                  GTM teams that already use multiple tools and need a single
-                  place to see how it all connects.
+              <div className=”rounded-2xl border border-slate-800 bg-slate-900/70 p-4”>
+                <div className=”text-slate-400 mb-1”>Who we serve</div>
+                <p className=”text-slate-200”>
+                  GTM engineers and RevOps teams running automation stacks in
+                  n8n or Make.com who use Claude to direct and improve them.
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                <div className="text-slate-400 mb-1">How we work</div>
-                <p className="text-slate-200">
+              <div className=”rounded-2xl border border-slate-800 bg-slate-900/70 p-4”>
+                <div className=”text-slate-400 mb-1”>How we work</div>
+                <p className=”text-slate-200”>
                   Remote-first, product-obsessed and close to our customers,
                   with fast iteration and clear feedback loops.
                 </p>

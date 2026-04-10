@@ -14,13 +14,12 @@ export default function Footer() {
                 iqpipe
               </div>
               <div className="text-[10px] text-slate-500">
-                One schema for GTM revenue
+                GTM intelligence for Claude
               </div>
             </div>
           </div>
           <p className="text-[11px] text-slate-400 max-w-xs">
-            Stitch every prospect, sequence, deal and invoice into one neutral
-            Revenue OS that all GTM tools agree on.
+            The intelligence layer that gives Claude real-time GTM data — so every automation decision is precise, not a guess.
           </p>
         </div>
 
