@@ -51,6 +51,7 @@ import PublicIntegrationsPage  from "./pages/PublicIntegrationsPage";
 import CheckoutSuccessPage     from "./pages/CheckoutSuccessPage";
 import CheckoutCancelPage      from "./pages/CheckoutCancelPage";
 import MCPProtocolPage         from "./pages/MCPProtocolPage";
+import ClaudeGTMPage           from "./pages/ClaudeGTMPage";
 
 function AuthenticatedApp() {
   useSessionGuard();
@@ -130,6 +131,7 @@ function App() {
         <Route path="/careers"        element={<CareersPage />} />
         <Route path="/integrations"     element={<PublicIntegrationsPage />} />
         <Route path="/mcp-protocol"     element={<MCPProtocolPage />} />
+        <Route path="/claude-gtm"       element={<ClaudeGTMPage />} />
         <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
         <Route path="/checkout/cancel"  element={<CheckoutCancelPage />} />
         {/* Admin — always accessible regardless of user auth */}

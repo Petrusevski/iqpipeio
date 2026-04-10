@@ -188,7 +188,7 @@ export default function GTMStackPage() {
                 <a href="/signup" className="inline-flex items-center gap-2 bg-white text-slate-950 px-6 py-3 rounded-full font-bold text-sm hover:bg-slate-100 transition-all shadow-lg">
                   Connect your automations <ArrowRight size={15} />
                 </a>
-                <a href="/automation-health" className="inline-flex items-center gap-2 border border-slate-700 text-slate-300 px-6 py-3 rounded-full text-sm font-semibold hover:bg-slate-800 transition-all">
+                <a href="/claude-gtm" className="inline-flex items-center gap-2 border border-slate-700 text-slate-300 px-6 py-3 rounded-full text-sm font-semibold hover:bg-slate-800 transition-all">
                   View automation health
                 </a>
               </div>
