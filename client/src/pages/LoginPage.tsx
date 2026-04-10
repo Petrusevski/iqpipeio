@@ -1,9 +1,69 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { ArrowLeft, Lock, Mail } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
 
 const API_BASE = API_BASE_URL;
+
+// ─── Live activity feed ───────────────────────────────────────────────────────
+
+const FEED_ITEMS = [
+  { icon: "🟢", text: "Lead enriched via Clay → Apollo sequence started" },
+  { icon: "📬", text: "Reply detected — deal moved to Negotiation" },
+  { icon: "⚡", text: "Workflow health dropped below 80% — anomaly flagged" },
+  { icon: "🔁", text: "3 contacts stuck in sequence for 11 days — surfaced" },
+  { icon: "🤖", text: "Claude diagnosed a funnel gap in outbound pipeline" },
+  { icon: "📊", text: "HubSpot went quiet — iqpipe detected missing events" },
+  { icon: "🎯", text: "Sequence bounce rate spike caught before damage" },
+  { icon: "✅", text: "New deal attributed to LinkedIn touchpoint correctly" },
+  { icon: "🔍", text: "Contact journey rebuilt across 4 tools automatically" },
+  { icon: "💬", text: 'Claude answered: "Why did this deal stall?"' },
+];
+
+function LiveFeedPanel() {
+  const [visible, setVisible] = useState<number[]>([0, 1, 2]);
+  const [next, setNext] = useState(3);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setVisible(prev => {
+        const incoming = next % FEED_ITEMS.length;
+        setNext(n => n + 1);
+        return [incoming, ...prev.slice(0, 4)];
+      });
+    }, 2200);
+    return () => clearInterval(id);
+  }, [next]);
+
+  return (
+    <div className="space-y-2 w-full">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-3">Live activity</p>
+      <AnimatePresence initial={false}>
+        {visible.map((idx, i) => (
+          <motion.div
+            key={`${idx}-${i}`}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1 - i * 0.18, y: 0 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.4 }}
+            className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700/40"
+          >
+            <span className="text-sm shrink-0 mt-0.5">{FEED_ITEMS[idx].icon}</span>
+            <span className="text-xs text-slate-300 leading-snug">{FEED_ITEMS[idx].text}</span>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+const STATS = [
+  { value: "14s",   label: "avg time to surface an anomaly" },
+  { value: "100%",  label: "of GTM tools, one data layer" },
+  { value: "0",     label: "config files to connect Claude" },
+];
 
 interface LoginPageProps {
   onLoginSuccess?: (payload: { token: string; user: { id: string; email: string; fullName: string } }) => void;
@@ -63,36 +123,47 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
         
-        <div className="relative z-10 max-w-md px-10">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ delay: 0.2 }}
+        <div className="relative z-10 w-full max-w-sm px-10">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
             className="mb-8"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-xs text-indigo-300 font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-xs text-indigo-300 font-medium mb-5">
               <span className="flex h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" />
-              Revenue Intelligence
+              GTM Intelligence Layer
             </div>
-            <h1 className="text-4xl font-bold tracking-tight leading-tight mb-4">
-              Stop guessing where your revenue comes from.
+            <h1 className="text-3xl font-bold tracking-tight leading-snug mb-3">
+              Your GTM stack,<br />finally in one place.
             </h1>
-            <p className="text-slate-400 text-lg leading-relaxed">
-              "iqpipe finally gave us a single source of truth. We cut our tool spend by 30% in the first month."
+            <p className="text-slate-400 text-sm leading-relaxed">
+              iqpipe listens to every automation across n8n and Make.com, unifies your data, and gives Claude the context to answer anything about your pipeline.
             </p>
           </motion.div>
 
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            transition={{ delay: 0.4 }}
-            className="flex items-center gap-4 mt-8"
+          {/* Stats row */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="grid grid-cols-3 gap-3 mb-8"
           >
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600" />
-            <div>
-              <div className="text-sm font-semibold text-white">A**** R.</div>
-              <div className="text-xs text-slate-500">Head of Growth @ Acme Corp</div>
-            </div>
+            {STATS.map(s => (
+              <div key={s.value} className="rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5 text-center">
+                <div className="text-lg font-bold text-white">{s.value}</div>
+                <div className="text-[10px] text-slate-500 leading-tight mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </motion.div>
+
+          {/* Live feed */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
+            <LiveFeedPanel />
           </motion.div>
         </div>
       </div>
