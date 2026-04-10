@@ -45,14 +45,14 @@ const TABS = [
 
 // ── Mock event stream ─────────────────────────────────────────────────────────
 const FEED_EVENTS = [
-  { platform: "make.com",    tool: "Clay",      event: "lead_imported",     contact: "alex@acme.com",     time: "2s ago",  color: "text-sky-400"     },
-  { platform: "n8n.io",     tool: "Clearbit",   event: "record_enriched",   contact: "alex@acme.com",     time: "2s ago",  color: "text-violet-400"  },
-  { platform: "make.com",    tool: "HeyReach",  event: "connection_sent",   contact: "sara@bloom.io",     time: "18s ago", color: "text-blue-400"    },
-  { platform: "n8n.io",     tool: "HubSpot",    event: "deal_created",      contact: "marc@pivot.co",     time: "1m ago",  color: "text-emerald-400" },
-  { platform: "make.com",    tool: "Instantly",  event: "email_opened",      contact: "lea@orbit.ai",      time: "2m ago",  color: "text-fuchsia-400" },
-  { platform: "n8n.io",     tool: "Stripe",     event: "payment_succeeded", contact: "alex@acme.com",     time: "4m ago",  color: "text-green-400"   },
-  { platform: "make.com",    tool: "HeyReach",  event: "reply_received",    contact: "sara@bloom.io",     time: "6m ago",  color: "text-blue-400"    },
-  { platform: "n8n.io",     tool: "Clay",       event: "lead_imported",     contact: "dom@crest.com",     time: "8m ago",  color: "text-sky-400"     },
+  { platform: "make.com",    tool: "Clay",      event: "lead_imported",     contact: "alex@a5f2c8.com",     time: "2s ago",  color: "text-sky-400"     },
+  { platform: "n8n.io",     tool: "Clearbit",   event: "record_enriched",   contact: "alex@a5f2c8.com",     time: "2s ago",  color: "text-violet-400"  },
+  { platform: "make.com",    tool: "HeyReach",  event: "connection_sent",   contact: "sara@b2f8d4.io",     time: "18s ago", color: "text-blue-400"    },
+  { platform: "n8n.io",     tool: "HubSpot",    event: "deal_created",      contact: "marc@p9a4c2.co",     time: "1m ago",  color: "text-emerald-400" },
+  { platform: "make.com",    tool: "Instantly",  event: "email_opened",      contact: "lea@o6d1e5.ai",      time: "2m ago",  color: "text-fuchsia-400" },
+  { platform: "n8n.io",     tool: "Stripe",     event: "payment_succeeded", contact: "alex@a5f2c8.com",     time: "4m ago",  color: "text-green-400"   },
+  { platform: "make.com",    tool: "HeyReach",  event: "reply_received",    contact: "sara@b2f8d4.io",     time: "6m ago",  color: "text-blue-400"    },
+  { platform: "n8n.io",     tool: "Clay",       event: "lead_imported",     contact: "dom@r5b3f9.com",     time: "8m ago",  color: "text-sky-400"     },
 ];
 
 // ── Mock contact journey ──────────────────────────────────────────────────────
@@ -416,7 +416,7 @@ function InspectPanel() {
       <div className="px-5 pt-4 pb-3">
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-500/30 bg-indigo-500/5 text-xs">
           <Search size={12} className="text-indigo-400 shrink-0" />
-          <span className="text-slate-300 flex-1">alex@acme.com</span>
+          <span className="text-slate-300 flex-1">alex@a5f2c8.com</span>
           <span className="text-[10px] text-indigo-400 font-medium">↵</span>
         </div>
       </div>

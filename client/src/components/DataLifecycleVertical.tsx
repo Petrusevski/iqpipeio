@@ -16,7 +16,7 @@ const steps = [
     icon: FileJson,
     color: "bg-blue-500",
     code: `{
-  "email": "ceo@company.com",
+  "email": "ceo@c6f4b2.com",
   "name": "John Doe",
   "source": "Clay"
 }`
@@ -28,7 +28,7 @@ const steps = [
     icon: Fingerprint,
     color: "bg-fuchsia-500",
     code: `{
-  "email": "ceo@company.com",
+  "email": "ceo@c6f4b2.com",
   "iqpipe_id": "IQP_8821_X",
   "status": "new"
 }`

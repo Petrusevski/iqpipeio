@@ -420,7 +420,7 @@ export default function ContactInspectorPage() {
               setQuery(e.target.value);
               if (!e.target.value.trim()) handleBack();
             }}
-            placeholder="sarah.mitchell@notion.so"
+            placeholder="sarah.mitchell@n7c4e1.so"
             className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
             autoFocus={window.innerWidth >= 768}
           />

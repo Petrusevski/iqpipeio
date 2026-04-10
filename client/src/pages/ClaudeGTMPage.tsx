@@ -13,12 +13,12 @@ import { Link } from "react-router-dom";
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
 const LIVE_FEED_EVENTS = [
-  { tool: "Apollo",    event: "sequence_started",  contact: "sarah@growth.io",     time: "2s ago",  color: "text-orange-400",  dot: "bg-orange-400" },
-  { tool: "HeyReach", event: "connection_sent",    contact: "mike@techcorp.com",    time: "8s ago",  color: "text-pink-400",    dot: "bg-pink-400"   },
-  { tool: "Clay",     event: "lead_imported",      contact: "anna@scale.ai",        time: "14s ago", color: "text-sky-400",     dot: "bg-sky-400"    },
-  { tool: "Lemlist",  event: "email_sent",         contact: "james@ventures.com",   time: "22s ago", color: "text-violet-400",  dot: "bg-violet-400" },
-  { tool: "HubSpot",  event: "deal_created",       contact: "laura@series-b.com",   time: "35s ago", color: "text-orange-500",  dot: "bg-orange-500" },
-  { tool: "Apollo",   event: "reply_received",     contact: "david@enterprise.io",  time: "1m ago",  color: "text-emerald-400", dot: "bg-emerald-400"},
+  { tool: "Apollo",    event: "sequence_started",  contact: "sarah@g7e3a2.io",     time: "2s ago",  color: "text-orange-400",  dot: "bg-orange-400" },
+  { tool: "HeyReach", event: "connection_sent",    contact: "mike@t4c8f1.com",      time: "8s ago",  color: "text-pink-400",    dot: "bg-pink-400"   },
+  { tool: "Clay",     event: "lead_imported",      contact: "anna@s9b2d7.ai",       time: "14s ago", color: "text-sky-400",     dot: "bg-sky-400"    },
+  { tool: "Lemlist",  event: "email_sent",         contact: "james@v3e1f8.com",     time: "22s ago", color: "text-violet-400",  dot: "bg-violet-400" },
+  { tool: "HubSpot",  event: "deal_created",       contact: "laura@x2a5c9.com",     time: "35s ago", color: "text-orange-500",  dot: "bg-orange-500" },
+  { tool: "Apollo",   event: "reply_received",     contact: "david@e8d4b1.io",      time: "1m ago",  color: "text-emerald-400", dot: "bg-emerald-400"},
 ];
 
 const WORKFLOW_HEALTH = [
@@ -43,9 +43,9 @@ const MCP_CONVERSATIONS = [
     prompt: "Before I enroll these 3 leads in the HeyReach sequence, check if they are safe to contact.",
     tool_call: `check_lead_status({
   emails: [
-    "mike@techcorp.com",
-    "sarah@acme.com",
-    "james@scale.ai"
+    "mike@t4c8f1.com",
+    "sarah@a5f2c8.com",
+    "james@s9b2d7.ai"
   ]
 })`,
     tool_result: `{
@@ -53,16 +53,16 @@ const MCP_CONVERSATIONS = [
   "safeToContact": 2,
   "blocked": 1,
   "leads": [
-    { "email": "mike@techcorp.com",
+    { "email": "mike@t4c8f1.com",
       "safeToContact": false,
       "reason": "Active in sequence — 6 touches, 18d silent" },
-    { "email": "sarah@acme.com",
+    { "email": "sarah@a5f2c8.com",
       "safeToContact": true },
-    { "email": "james@scale.ai",
+    { "email": "james@s9b2d7.ai",
       "safeToContact": true }
   ]
 }`,
-    claude_reply: "mike@techcorp.com is already in an active sequence and has been silent for 18 days — I'll skip him to avoid overlap. Enrolling sarah@acme.com and james@scale.ai now.",
+    claude_reply: "mike@t4c8f1.com is already in an active sequence and has been silent for 18 days — I'll skip him to avoid overlap. Enrolling sarah@a5f2c8.com and james@s9b2d7.ai now.",
   },
   {
     key: "sequence_rec",
@@ -379,8 +379,8 @@ const DEMO_PROMPTS = [
     stages: [
       { type: "thinking" as const,  text: ""                                                                                                     },
       { type: "tool"    as const,   text: "check_lead_status",  detail: "Checking 3 leads against active sequences..."                          },
-      { type: "result"  as const,   text: "2 safe · 1 blocked — mike@techcorp.com already in active sequence (18d silent, 6 touches)"            },
-      { type: "reply"   as const,   text: "mike@techcorp.com is already in an active sequence — skipping to avoid overlap. Enrolling the other 2 now." },
+      { type: "result"  as const,   text: "2 safe · 1 blocked — mike@t4c8f1.com already in active sequence (18d silent, 6 touches)"            },
+      { type: "reply"   as const,   text: "mike@t4c8f1.com is already in an active sequence — skipping to avoid overlap. Enrolling the other 2 now." },
     ],
   },
   {

@@ -400,7 +400,7 @@ const LeadDetailsDrawer = ({
 
 // ─── Import Modal ────────────────────────────────────────────────────────────
 
-const SERVICE_ACCOUNT_EMAIL = "sync-bot@hypelow.iam.gserviceaccount.com";
+const SERVICE_ACCOUNT_EMAIL = "sync-bot@h3d8a5.iam.gserviceaccount.com";
 
 const ImportLeadsModal = ({ workspaceId, onClose, onSave }: { workspaceId: string; onClose: () => void; onSave: () => void }) => {
   const [mode, setMode] = useState<"csv" | "gsheet">("csv");

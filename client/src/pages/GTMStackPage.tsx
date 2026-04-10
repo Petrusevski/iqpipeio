@@ -51,7 +51,7 @@ const FLOW_STEPS = [
     examplePayload: `{
   "event": "lead_imported",
   "source": "clay",
-  "email": "alex@acmecorp.com",
+  "email": "alex@k1e7d4.com",
   "properties": { "company": "Acme Corp" }
 }`,
     insight: "iqpipe mints a Universal ID at first import. Every downstream event from enrichment, outreach, CRM, and billing is automatically linked to that same identity — no manual tagging.",
@@ -70,7 +70,7 @@ const FLOW_STEPS = [
     examplePayload: `{
   "event": "record_enriched",
   "source": "clearbit",
-  "email": "alex@acmecorp.com",
+  "email": "alex@k1e7d4.com",
   "properties": { "title": "VP Growth" }
 }`,
     insight: "Pipeline Health surfaces enrichment staleness alerts when a contact hasn't been re-enriched in 90+ days — before you reach out with bad data.",
@@ -89,7 +89,7 @@ const FLOW_STEPS = [
     examplePayload: `{
   "event": "sequence_started",
   "source": "heyreach",
-  "email": "alex@acmecorp.com",
+  "email": "alex@k1e7d4.com",
   "properties": { "campaign": "Q2-LinkedIn" }
 }`,
     insight: "iqpipe detects when two automation paths are running outreach on the same contact simultaneously and raises an overlap alarm in Pipeline Health.",
@@ -108,7 +108,7 @@ const FLOW_STEPS = [
     examplePayload: `{
   "event": "deal_created",
   "source": "hubspot",
-  "email": "alex@acmecorp.com",
+  "email": "alex@k1e7d4.com",
   "properties": { "deal_value": 18400 }
 }`,
     insight: "Every deal is automatically attributed to the full upstream automation — which Clay table, which outreach sequence, which enrichment provider. Attribution without UTMs or spreadsheets.",
@@ -127,7 +127,7 @@ const FLOW_STEPS = [
     examplePayload: `{
   "event": "payment_succeeded",
   "source": "stripe",
-  "email": "alex@acmecorp.com",
+  "email": "alex@k1e7d4.com",
   "properties": { "amount": 18400, "currency": "usd" }
 }`,
     insight: "The GTM Report attributes every closed payment to the exact automation motion that earned it — Clay + HeyReach drove $84K, Apollo + email drove $31K.",

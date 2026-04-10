@@ -234,8 +234,8 @@ const LANDING_DEMO_PROMPTS = [
     full: "Before I enroll these leads in the HeyReach sequence, check if any are already in active outreach.",
     stages: [
       { type: "tool"   as const, label: "check_lead_status",          detail: "Checking against active sequences..."                    },
-      { type: "result" as const, text: "2 safe · 1 blocked — mike@techcorp.com already in active sequence (18d silent)"                 },
-      { type: "reply"  as const, text: "mike@techcorp.com is already in an active sequence — skipping him. Enrolling the other 2 now."  },
+      { type: "result" as const, text: "2 safe · 1 blocked — mike@t4c8f1.com already in active sequence (18d silent)"                 },
+      { type: "reply"  as const, text: "mike@t4c8f1.com is already in an active sequence — skipping him. Enrolling the other 2 now."  },
     ],
   },
   {
@@ -622,15 +622,15 @@ export default function LandingPage() {
                 </div>
                 <div className="px-5 py-3 border-b border-slate-800/50 bg-indigo-500/5">
                   <div className="text-[10px] text-slate-500 mb-1 font-mono">→ request</div>
-                  <code className="text-[11px] font-mono text-indigo-300">emails: ["john@acme.com", "sara@corp.io", "mike@vc.com", "+197 more"]</code>
+                  <code className="text-[11px] font-mono text-indigo-300">emails: ["john@a5f2c8.com", "sara@c3b7e4.io", "mike@v1d9f3.com", "+197 more"]</code>
                 </div>
                 <div className="divide-y divide-slate-800/40">
                   {[
-                    { email: "john@acme.com",  safe: false, reason: "Active in sequence seq_442 since 3 days ago",       color: "text-rose-400",   icon: XCircle    },
-                    { email: "sara@corp.io",   safe: false, reason: "Opted out via Lemlist on Apr 1",                    color: "text-rose-400",   icon: XCircle    },
-                    { email: "mike@vc.com",    safe: false, reason: "Meeting booked — escalate to sales",                color: "text-amber-400",  icon: AlertTriangle },
-                    { email: "anna@fund.io",   safe: true,  reason: "No prior contact found",                            color: "text-emerald-400", icon: CheckCircle2 },
-                    { email: "dan@seed.com",   safe: true,  reason: "Last contacted 22 days ago — cooldown passed",      color: "text-emerald-400", icon: CheckCircle2 },
+                    { email: "john@a5f2c8.com",  safe: false, reason: "Active in sequence seq_442 since 3 days ago",       color: "text-rose-400",   icon: XCircle    },
+                    { email: "sara@c3b7e4.io",   safe: false, reason: "Opted out via Lemlist on Apr 1",                    color: "text-rose-400",   icon: XCircle    },
+                    { email: "mike@v1d9f3.com",    safe: false, reason: "Meeting booked — escalate to sales",                color: "text-amber-400",  icon: AlertTriangle },
+                    { email: "anna@f4e2b8.io",   safe: true,  reason: "No prior contact found",                            color: "text-emerald-400", icon: CheckCircle2 },
+                    { email: "dan@s7c3a6.com",   safe: true,  reason: "Last contacted 22 days ago — cooldown passed",      color: "text-emerald-400", icon: CheckCircle2 },
                   ].map(({ email, safe, reason, color, icon: Icon }) => (
                     <div key={email} className={`flex items-start gap-3 px-5 py-3 ${safe ? "" : "bg-rose-500/3"}`}>
                       <Icon size={13} className={`${color} shrink-0 mt-0.5`} />
