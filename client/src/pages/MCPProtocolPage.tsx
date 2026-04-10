@@ -380,7 +380,7 @@ export default function MCPProtocolPage() {
             <SectionHeading icon={Terminal} title="Quick Start" />
             <p className="text-slate-400 leading-relaxed mb-8">
               Get Claude connected in under 5 minutes. Generate your API key from{" "}
-              <Link to="/settings" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Settings</Link>{" "}
+              <Link to="/login" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">Settings</Link>{" "}
               and choose your connection path.
             </p>
 
