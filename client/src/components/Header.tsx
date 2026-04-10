@@ -1,9 +1,22 @@
-import { useState } from 'react'; // Added import
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Fingerprint, Menu, X } from 'lucide-react'; // Added Menu, X imports
+import { Menu, X, ChevronDown, Bot, BookOpen } from 'lucide-react';
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const mcpRef = useRef<HTMLDivElement>(null);
+
+  // Close MCP dropdown on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (mcpRef.current && !mcpRef.current.contains(e.target as Node)) {
+        setMcpOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
 
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-40">
@@ -25,14 +38,53 @@ export default function Header() {
           >
             How it works
           </Link>
-          <Link 
-            to="/gtm-stack" 
+          <Link
+            to="/gtm-stack"
             className="text-xs font-medium text-slate-300 hover:text-slate-50 transition-colors"
           >
             GTM Stack
           </Link>
-          <Link 
-            to="/pricing" 
+
+          {/* MCP dropdown */}
+          <div ref={mcpRef} className="relative">
+            <button
+              onClick={() => setMcpOpen(v => !v)}
+              className="flex items-center gap-1 text-xs font-medium text-slate-300 hover:text-slate-50 transition-colors"
+            >
+              MCP
+              <ChevronDown size={11} className={`transition-transform duration-200 ${mcpOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {mcpOpen && (
+              <div className="absolute left-0 top-full mt-2 w-52 rounded-xl border border-slate-700/60 bg-slate-900 shadow-xl shadow-black/40 overflow-hidden z-50">
+                <Link
+                  to="/mcp-protocol"
+                  onClick={() => setMcpOpen(false)}
+                  className="flex items-start gap-3 px-4 py-3 hover:bg-slate-800/60 transition-colors group"
+                >
+                  <BookOpen size={13} className="text-indigo-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-200 group-hover:text-white">MCP Protocol</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">How Claude connects to iqpipe</div>
+                  </div>
+                </Link>
+                <div className="h-px bg-slate-800" />
+                <Link
+                  to="/claude-gtm"
+                  onClick={() => setMcpOpen(false)}
+                  className="flex items-start gap-3 px-4 py-3 hover:bg-slate-800/60 transition-colors group"
+                >
+                  <Bot size={13} className="text-fuchsia-400 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-200 group-hover:text-white">Claude + iqpipe</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">See Claude making GTM decisions</div>
+                  </div>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          <Link
+            to="/pricing"
             className="text-xs font-medium text-slate-300 hover:text-slate-50 transition-colors"
           >
             Pricing
@@ -56,7 +108,7 @@ export default function Header() {
         </div>
 
         {/* Mobile Menu Toggle */}
-        <button 
+        <button
           className="md:hidden p-2 text-slate-400 hover:text-white"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
@@ -75,15 +127,30 @@ export default function Header() {
             >
               How it works
             </Link>
-            <Link 
-              to="/gtm-stack" 
+            <Link
+              to="/gtm-stack"
               className="text-sm font-medium text-slate-300 hover:text-slate-50"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               GTM Stack
             </Link>
-            <Link 
-              to="/pricing" 
+            <Link
+              to="/mcp-protocol"
+              className="text-sm font-medium text-slate-300 hover:text-slate-50"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              MCP Protocol
+            </Link>
+            <Link
+              to="/claude-gtm"
+              className="text-sm font-medium text-slate-300 hover:text-slate-50 flex items-center gap-2"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <Bot size={13} className="text-fuchsia-400" />
+              Claude + iqpipe
+            </Link>
+            <Link
+              to="/pricing"
               className="text-sm font-medium text-slate-300 hover:text-slate-50"
               onClick={() => setIsMobileMenuOpen(false)}
             >
@@ -92,7 +159,7 @@ export default function Header() {
           </nav>
           <div className="h-px bg-slate-800" />
           <div className="flex flex-col gap-3">
-             <Link
+            <Link
               to="/login"
               className="text-sm text-slate-300 hover:text-slate-50"
               onClick={() => setIsMobileMenuOpen(false)}
