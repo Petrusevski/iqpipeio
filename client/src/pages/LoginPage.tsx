@@ -1,30 +1,13 @@
-import { FormEvent, useState, useEffect } from "react";
+import { FormEvent, useState } from "react";
 import { ArrowLeft, Lock, Mail } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { API_BASE_URL } from "../../config";
 
 const API_BASE = API_BASE_URL;
 
-// ─── MCP Feature Panel ────────────────────────────────────────────────────────
-
-const MCP_CAPABILITIES = [
-  "Diagnose why a deal stalled",
-  "Find stuck contacts across sequences",
-  "Compare workflow performance",
-  "Surface funnel leakage in real time",
-  "Apply fixes without leaving Claude",
-];
+// ─── Static MCP Visual ────────────────────────────────────────────────────────
 
 function MCPVisual() {
-  const [activeIdx, setActiveIdx] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setActiveIdx(i => (i + 1) % MCP_CAPABILITIES.length);
-    }, 2400);
-    return () => clearInterval(id);
-  }, []);
-
   return (
     <div className="w-full rounded-2xl border border-slate-700/60 bg-slate-900/80 overflow-hidden shadow-2xl">
       {/* Mock browser chrome */}
@@ -36,96 +19,53 @@ function MCPVisual() {
           claude.ai
         </div>
         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/25">
-          {/* Anthropic asterisk */}
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
             <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="#818cf8" strokeWidth="2.5" strokeLinecap="round"/>
           </svg>
           <span className="text-[10px] text-indigo-400 font-medium">iqpipe MCP</span>
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
         </div>
       </div>
 
       {/* Chat area */}
       <div className="px-4 pt-4 pb-3 space-y-3">
-        {/* User prompt */}
+        {/* User message */}
         <div className="flex justify-end">
           <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm bg-indigo-600/80 text-xs text-white leading-snug">
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={activeIdx}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.3 }}
-                className="block"
-              >
-                {MCP_CAPABILITIES[activeIdx]}
-              </motion.span>
-            </AnimatePresence>
+            Why did this deal stall after the first reply?
           </div>
         </div>
 
         {/* Tool call badge */}
-        <motion.div
-          key={`tool-${activeIdx}`}
-          initial={{ opacity: 0, x: -6 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.4 }}
-          className="flex items-center gap-2"
-        >
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700/60 text-[10px] text-slate-400 font-mono">
             <span className="text-violet-400">▶</span> iqpipe
             <span className="text-slate-600">·</span>
-            <span className="text-amber-400/80">
-              {["get_funnel", "get_stuck_leads", "compare_workflows", "get_anomalies", "apply_fix"][activeIdx]}
-            </span>
+            <span className="text-amber-400/80">get_lead_journey</span>
             <span className="text-slate-600">·</span>
             <span className="text-emerald-400">done</span>
           </div>
-        </motion.div>
+        </div>
 
         {/* Claude reply */}
-        <motion.div
-          key={`reply-${activeIdx}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.7 }}
-          className="flex items-start gap-2"
-        >
+        <div className="flex items-start gap-2">
           <div className="h-5 w-5 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L12 22M2 12L22 12M4.93 4.93L19.07 19.07M19.07 4.93L4.93 19.07" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round"/>
             </svg>
           </div>
           <div className="flex-1 text-[11px] text-slate-300 leading-relaxed">
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={activeIdx}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="block"
-              >
-                {[
-                  "Your funnel shows a 61% drop between enrichment and first contact. Clay is passing leads but Apollo isn't triggering.",
-                  "Found 7 contacts stuck for 9+ days. All are in the same sequence — last step has a broken webhook.",
-                  "Workflow A closes 2.3× faster than Workflow B. The gap is in follow-up timing after first reply.",
-                  "Bounce rate spiked 40% in the last 48h on your cold email sequence. Likely a domain warm-up issue.",
-                  "HubSpot deal stage updated and webhook re-triggered. The fix has been applied — monitoring now.",
-                ][activeIdx]}
-              </motion.span>
-            </AnimatePresence>
+            The contact replied on day 3 but no follow-up was triggered — the sequence step has a 0-event gap for 11 days. Apollo shows the task as complete, but iqpipe has no matching outbound event after that point.
           </div>
-        </motion.div>
+        </div>
       </div>
 
-      {/* Input bar decoration */}
+      {/* Input bar */}
       <div className="px-4 pb-3">
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/60 border border-slate-700/40">
           <span className="flex-1 text-[11px] text-slate-600">Ask Claude about your GTM pipeline…</span>
           <div className="h-5 w-5 rounded-lg bg-orange-500/80 flex items-center justify-center">
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="white">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
               <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
@@ -142,6 +82,8 @@ const WHATS_NEW = [
   { label: "Works on Claude.ai and Claude Desktop", sub: "One MCP URL, connected in under 60 seconds" },
   { label: "Your workflows, automatically recognized", sub: "Import from n8n or Make.com — Claude sees them all" },
 ];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 interface LoginPageProps {
   onLoginSuccess?: (payload: { token: string; user: { id: string; email: string; fullName: string } }) => void;
@@ -183,37 +125,29 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
       <div className="hidden lg:flex w-1/2 bg-slate-900 relative items-center justify-center overflow-hidden border-r border-slate-800">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-        {/* Glow orb */}
         <div className="absolute top-[-80px] left-[-80px] h-[360px] w-[360px] rounded-full bg-indigo-600/10 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 w-full max-w-[380px] px-10 py-12 flex flex-col gap-8">
 
-          {/* What's New header */}
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          {/* Header */}
+          <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-xs text-violet-300 font-semibold mb-4 uppercase tracking-wider">
-              <span className="flex h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
               What's new
             </div>
-            <h2 className="text-2xl font-bold tracking-tight leading-snug text-white mb-1">
+            <h2 className="text-2xl font-bold tracking-tight leading-snug text-white mb-2">
               Claude now speaks<br />your GTM stack.
             </h2>
             <p className="text-sm text-slate-400 leading-relaxed">
               Connect iqpipe to Claude via MCP and ask anything about your pipeline — live data, no hallucinations.
             </p>
-          </motion.div>
+          </div>
 
-          {/* Animated Claude simulator */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <MCPVisual />
-          </motion.div>
+          {/* Static Claude simulator */}
+          <MCPVisual />
 
           {/* Bullet list */}
-          <motion.ul
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="space-y-3"
-          >
+          <ul className="space-y-3">
             {WHATS_NEW.map((item, i) => (
               <li key={i} className="flex items-start gap-3">
                 <div className="h-5 w-5 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0 mt-0.5">
@@ -227,19 +161,15 @@ export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 </div>
               </li>
             ))}
-          </motion.ul>
+          </ul>
 
-          {/* CTA link */}
-          <motion.a
+          {/* CTA */}
+          <a
             href="/mcp-protocol"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.65 }}
-            className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors group w-fit"
+            className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors w-fit"
           >
-            Learn how MCP works
-            <span className="group-hover:translate-x-0.5 transition-transform">→</span>
-          </motion.a>
+            Learn how MCP works →
+          </a>
         </div>
       </div>
 
