@@ -7,6 +7,7 @@ import {
   Receipt, Download, Loader2, ChevronDown,
   Sparkles, Trash2, RefreshCw, Bot, Copy, Check,
   CheckCircle2, Lock, ShieldCheck, Zap, Plus, Tag, GitMerge,
+  Building2, CreditCard, Users, Cpu, Database, FlaskConical,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL } from "../../config";
@@ -152,7 +153,19 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
 
   const days = trialDaysRemaining(workspace.trialEndsAt ?? null, workspace.createdAt ?? new Date().toISOString());
   const trialExpired = workspace.plan === "trial" && days <= 0;
-  const trialActive = workspace.plan === "trial" && days > 0;
+  const trialActive  = workspace.plan === "trial" && days > 0;
+
+  type Tab = "workspace" | "billing" | "team" | "claude" | "data" | "developer";
+  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "workspace",  label: "Workspace",  icon: <Building2 size={14} /> },
+    { id: "billing",    label: "Billing",    icon: <CreditCard size={14} /> },
+    { id: "team",       label: "Team",       icon: <Users size={14} /> },
+    { id: "claude",     label: "Claude",     icon: <Cpu size={14} /> },
+    { id: "data",       label: "Data",       icon: <Database size={14} /> },
+    { id: "developer",  label: "Developer",  icon: <FlaskConical size={14} /> },
+  ];
+
+  const [activeTab, setActiveTab] = useState<Tab>("workspace");
 
   return (
     <>
@@ -162,53 +175,59 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
         )}
       </AnimatePresence>
 
-      <div>
-        <PageHeader title="Settings" subtitle="Manage workspace details, billing, and developer access." />
+      <div className="flex-1 overflow-y-auto bg-slate-950">
+        {/* Page header */}
+        <div className="px-6 pt-6 pb-0">
+          <h1 className="text-xl font-bold text-slate-100">Settings</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Manage workspace details, billing, and developer access.</p>
+        </div>
 
-        <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* ── Left column ── */}
-          <div className="space-y-6 xl:col-span-2">
+        {/* Tab nav */}
+        <div className="px-6 mt-5 border-b border-slate-800">
+          <nav className="flex gap-1" role="tablist">
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg border-b-2 transition-colors -mb-px ${
+                  activeTab === tab.id
+                    ? "border-indigo-500 text-indigo-300 bg-indigo-500/5"
+                    : "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-700"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
 
-            {/* Workspace profile */}
+        {/* Tab content */}
+        <div className="px-6 py-6 max-w-4xl space-y-6">
+
+          {/* ── Workspace ── */}
+          {activeTab === "workspace" && (
             <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
               <h2 className="text-sm font-semibold text-slate-100 mb-1">Workspace profile</h2>
-              <p className="text-xs text-slate-400 mb-4">
-                Used for invoices, GTM reports, and shared dashboards.
-              </p>
-
+              <p className="text-xs text-slate-400 mb-4">Used for invoices, GTM reports, and shared dashboards.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Workspace name</label>
-                  <input
-                    className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    value={workspace.workspaceName ?? ""}
-                    onChange={(e) => updateWorkspace({ workspaceName: e.target.value })}
-                  />
+                  <input className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value={workspace.workspaceName ?? ""} onChange={e => updateWorkspace({ workspaceName: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Company / Brand</label>
-                  <input
-                    className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    value={workspace.companyName ?? ""}
-                    onChange={(e) => updateWorkspace({ companyName: e.target.value })}
-                  />
+                  <input className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value={workspace.companyName ?? ""} onChange={e => updateWorkspace({ companyName: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Primary domain</label>
-                  <input
-                    className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    value={workspace.primaryDomain ?? ""}
-                    placeholder="yourcompany.com"
-                    onChange={(e) => updateWorkspace({ primaryDomain: e.target.value })}
-                  />
+                  <input className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value={workspace.primaryDomain ?? ""} placeholder="yourcompany.com" onChange={e => updateWorkspace({ primaryDomain: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Default currency</label>
-                  <select
-                    className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    value={workspace.defaultCurrency}
-                    onChange={(e) => updateWorkspace({ defaultCurrency: e.target.value })}
-                  >
+                  <select className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value={workspace.defaultCurrency} onChange={e => updateWorkspace({ defaultCurrency: e.target.value })}>
                     <option value="USD">USD ($)</option>
                     <option value="EUR">EUR (€)</option>
                     <option value="GBP">GBP (£)</option>
@@ -216,11 +235,7 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Timezone</label>
-                  <select
-                    className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    value={workspace.timezone}
-                    onChange={(e) => updateWorkspace({ timezone: e.target.value })}
-                  >
+                  <select className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value={workspace.timezone} onChange={e => updateWorkspace({ timezone: e.target.value })}>
                     <option value="UTC">UTC</option>
                     <option value="Europe/London">Europe/London (GMT+0/+1)</option>
                     <option value="Europe/Berlin">Europe/Berlin (GMT+1/+2)</option>
@@ -233,11 +248,7 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs text-slate-400">Industry</label>
-                  <select
-                    className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    value={workspace.industry}
-                    onChange={(e) => updateWorkspace({ industry: e.target.value })}
-                  >
+                  <select className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value={workspace.industry} onChange={e => updateWorkspace({ industry: e.target.value })}>
                     <option value="SaaS">SaaS</option>
                     <option value="Fintech">Fintech</option>
                     <option value="E-commerce">E-commerce</option>
@@ -246,268 +257,175 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
                   </select>
                 </div>
               </div>
-
               <div className="mt-4 flex items-center justify-end gap-3">
-                {saveSuccess && (
-                  <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-                    <CheckCircle2 size={12} /> Saved
-                  </span>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-4 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:bg-slate-700 text-xs font-medium text-white disabled:cursor-not-allowed transition-colors"
-                >
+                {saveSuccess && <span className="flex items-center gap-1.5 text-xs text-emerald-400"><CheckCircle2 size={12} /> Saved</span>}
+                <button onClick={handleSave} disabled={saving} className="px-4 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:bg-slate-700 text-xs font-medium text-white disabled:cursor-not-allowed transition-colors">
                   {saving ? "Saving…" : "Save changes"}
                 </button>
               </div>
             </section>
+          )}
 
-            {/* Billing & plan */}
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <h2 className="text-sm font-semibold text-slate-100 mb-1">Billing & plan</h2>
-              <p className="text-xs text-slate-400 mb-4">
-                Manage your iqpipe subscription, seats, and invoices.
-              </p>
+          {/* ── Billing ── */}
+          {activeTab === "billing" && (
+            <div className="space-y-6">
+              <UsageDashboardPanel />
 
-              {/* Trial banner */}
-              {(trialActive || trialExpired) && (
-                <div className={`mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-xs ${
-                  trialExpired
-                    ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
-                    : days <= 7
-                      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-                      : "border-indigo-500/30 bg-indigo-500/10 text-indigo-200"
-                }`}>
-                  {trialExpired
-                    ? <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                    : <Clock size={14} className="shrink-0 mt-0.5" />
-                  }
-                  <div>
-                    {trialExpired ? (
-                      <><span className="font-semibold">Your trial has ended.</span> Upgrade to keep your data and integrations.</>
-                    ) : (
-                      <><span className="font-semibold">{days} day{days !== 1 ? "s" : ""} left in your free trial.</span> After that, upgrade to keep your data and integrations.</>
-                    )}
-                    <button
-                      onClick={() => setShowUpgrade(true)}
-                      className="ml-2 underline font-semibold hover:opacity-80"
-                    >
-                      Upgrade now →
-                    </button>
-                  </div>
-                </div>
-              )}
+              <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <h2 className="text-sm font-semibold text-slate-100 mb-1">Billing & plan</h2>
+                <p className="text-xs text-slate-400 mb-4">Manage your iqpipe subscription, seats, and invoices.</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs mb-4">
-                {/* Current plan */}
-                <div className="rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3">
-                  <div className="text-slate-400 mb-1">Current plan</div>
-                  <div className="text-slate-100 font-bold text-sm">
-                    {PLAN_LABELS[workspace.plan] ?? workspace.plan}
-                  </div>
-                  <div className="text-slate-500 mt-1">
-                    {workspace.plan === "trial" && (days > 0 ? `${days} days remaining` : "Expired")}
-                    {workspace.plan === "starter" && "$29 / mo · 1 seat · 2 automations · 10K events"}
-                    {workspace.plan === "growth"  && "$99 / mo · 3 seats · 10 automations · 500K events"}
-                    {workspace.plan === "agency"  && "$299 / mo · unlimited"}
-                  </div>
-                </div>
-
-                {/* Seats */}
-                <div className="rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3">
-                  <div className="text-slate-400 mb-1">Seats</div>
-                  <div className="text-slate-100 font-bold text-sm">
-                    {workspace.seatsUsed} of{" "}
-                    {workspace.plan === "starter" ? "1" :
-                     workspace.plan === "growth"  ? "3" :
-                     workspace.plan === "agency"  ? "∞" :
-                     workspace.seatsTotal} used
-                  </div>
-                  <div className="text-slate-500 mt-1">
-                    {workspace.plan === "trial"   && "1 seat during trial"}
-                    {workspace.plan === "starter" && "1 seat included"}
-                    {workspace.plan === "growth"  && "3 seats included"}
-                    {workspace.plan === "agency"  && "Unlimited seats"}
-                  </div>
-                </div>
-
-                {/* Billing email */}
-                <div className="rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3">
-                  <div className="text-slate-400 mb-2">Billing email</div>
-                  <input
-                    className="w-full rounded-lg bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    value={workspace.billingEmail ?? ""}
-                    onChange={(e) => updateWorkspace({ billingEmail: e.target.value })}
-                    placeholder="billing@company.com"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                  onClick={() => setShowUpgrade(true)}
-                  className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold transition-colors"
-                >
-                  Upgrade plan
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-4 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs text-slate-200 disabled:cursor-not-allowed transition-colors"
-                >
-                  {saving ? "Saving…" : "Save billing email"}
-                </button>
-                <button
-                  onClick={handleToggleInvoices}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs text-slate-300 transition-colors"
-                >
-                  <Receipt size={12} />
-                  View invoices
-                  <ChevronDown size={12} className={`transition-transform ${showInvoices ? "rotate-180" : ""}`} />
-                </button>
-              </div>
-
-              {/* Inline invoice table */}
-              {showInvoices && (
-                <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-x-auto">
-                  {invoicesLoading ? (
-                    <div className="py-8 flex items-center justify-center gap-2 text-slate-500 text-xs">
-                      <Loader2 size={14} className="animate-spin" /> Loading invoices…
+                {(trialActive || trialExpired) && (
+                  <div className={`mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-xs ${trialExpired ? "border-rose-500/30 bg-rose-500/10 text-rose-200" : days <= 7 ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-indigo-500/30 bg-indigo-500/10 text-indigo-200"}`}>
+                    {trialExpired ? <AlertTriangle size={14} className="shrink-0 mt-0.5" /> : <Clock size={14} className="shrink-0 mt-0.5" />}
+                    <div>
+                      {trialExpired
+                        ? <><span className="font-semibold">Your trial has ended.</span> Upgrade to keep your data and integrations.</>
+                        : <><span className="font-semibold">{days} day{days !== 1 ? "s" : ""} left in your free trial.</span> After that, upgrade to keep your data and integrations.</>}
+                      <button onClick={() => setShowUpgrade(true)} className="ml-2 underline font-semibold hover:opacity-80">Upgrade now →</button>
                     </div>
-                  ) : invoices.length === 0 ? (
-                    <div className="py-8 text-center">
-                      <Receipt size={22} className="mx-auto text-slate-700 mb-2" />
-                      <div className="text-xs text-slate-500">No invoices yet.</div>
-                      <div className="text-[11px] text-slate-600 mt-1">Subscription invoices will appear here once a payment has been processed.</div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs mb-4">
+                  <div className="rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3">
+                    <div className="text-slate-400 mb-1">Current plan</div>
+                    <div className="text-slate-100 font-bold text-sm">{PLAN_LABELS[workspace.plan] ?? workspace.plan}</div>
+                    <div className="text-slate-500 mt-1">
+                      {workspace.plan === "trial"   && (days > 0 ? `${days} days remaining` : "Expired")}
+                      {workspace.plan === "starter" && "$29 / mo · 1 seat · 2 automations · 10K events"}
+                      {workspace.plan === "growth"  && "$99 / mo · 3 seats · 10 automations · 500K events"}
+                      {workspace.plan === "agency"  && "$299 / mo · unlimited"}
                     </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 px-4 py-2 border-b border-slate-800 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                        <span>#</span>
-                        <span>Customer</span>
-                        <span className="text-right">Date</span>
-                        <span className="text-right">Amount</span>
-                        <span />
+                  </div>
+                  <div className="rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3">
+                    <div className="text-slate-400 mb-1">Seats</div>
+                    <div className="text-slate-100 font-bold text-sm">
+                      {workspace.seatsUsed} of {workspace.plan === "starter" ? "1" : workspace.plan === "growth" ? "3" : workspace.plan === "agency" ? "∞" : workspace.seatsTotal} used
+                    </div>
+                    <div className="text-slate-500 mt-1">
+                      {workspace.plan === "trial"   && "1 seat during trial"}
+                      {workspace.plan === "starter" && "1 seat included"}
+                      {workspace.plan === "growth"  && "3 seats included"}
+                      {workspace.plan === "agency"  && "Unlimited seats"}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3">
+                    <div className="text-slate-400 mb-2">Billing email</div>
+                    <input className="w-full rounded-lg bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500" value={workspace.billingEmail ?? ""} onChange={e => updateWorkspace({ billingEmail: e.target.value })} placeholder="billing@company.com" />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button onClick={() => setShowUpgrade(true)} className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold transition-colors">Upgrade plan</button>
+                  <button onClick={handleSave} disabled={saving} className="px-4 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs text-slate-200 disabled:cursor-not-allowed transition-colors">{saving ? "Saving…" : "Save billing email"}</button>
+                  <button onClick={handleToggleInvoices} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs text-slate-300 transition-colors">
+                    <Receipt size={12} /> View invoices
+                    <ChevronDown size={12} className={`transition-transform ${showInvoices ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+
+                {showInvoices && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/60 overflow-x-auto">
+                    {invoicesLoading ? (
+                      <div className="py-8 flex items-center justify-center gap-2 text-slate-500 text-xs"><Loader2 size={14} className="animate-spin" /> Loading invoices…</div>
+                    ) : invoices.length === 0 ? (
+                      <div className="py-8 text-center">
+                        <Receipt size={22} className="mx-auto text-slate-700 mb-2" />
+                        <div className="text-xs text-slate-500">No invoices yet.</div>
+                        <div className="text-[11px] text-slate-600 mt-1">Subscription invoices will appear here once a payment has been processed.</div>
                       </div>
-                      <ul className="divide-y divide-slate-800/60">
-                        {invoices.map(inv => (
-                          <li key={inv.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 px-4 py-2.5 items-center hover:bg-slate-900/40 transition-colors">
-                            <span className="text-[11px] font-mono text-indigo-300 whitespace-nowrap">{inv.invoiceNumber}</span>
-                            <div className="min-w-0">
-                              <div className="text-xs font-medium text-slate-100 truncate">{inv.customerName}</div>
-                              <div className="text-[10px] text-slate-500 truncate">{inv.customerEmail}</div>
-                            </div>
-                            <span className="text-[11px] text-slate-400 whitespace-nowrap">{inv.dateFormatted}</span>
-                            <span className="text-[11px] font-semibold text-emerald-400 whitespace-nowrap">
-                              {inv.currency} {inv.amount.toFixed(2)}
-                            </span>
-                            <button
-                              onClick={() => downloadInvoice(inv)}
-                              title="Download invoice"
-                              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors"
-                            >
-                              <Download size={13} />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
-              )}
-            </section>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 px-4 py-2 border-b border-slate-800 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                          <span>#</span><span>Customer</span><span className="text-right">Date</span><span className="text-right">Amount</span><span />
+                        </div>
+                        <ul className="divide-y divide-slate-800/60">
+                          {invoices.map(inv => (
+                            <li key={inv.id} className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-3 px-4 py-2.5 items-center hover:bg-slate-900/40 transition-colors">
+                              <span className="text-[11px] font-mono text-indigo-300 whitespace-nowrap">{inv.invoiceNumber}</span>
+                              <div className="min-w-0">
+                                <div className="text-xs font-medium text-slate-100 truncate">{inv.customerName}</div>
+                                <div className="text-[10px] text-slate-500 truncate">{inv.customerEmail}</div>
+                              </div>
+                              <span className="text-[11px] text-slate-400 whitespace-nowrap">{inv.dateFormatted}</span>
+                              <span className="text-[11px] font-semibold text-emerald-400 whitespace-nowrap">{inv.currency} {inv.amount.toFixed(2)}</span>
+                              <button onClick={() => downloadInvoice(inv)} title="Download invoice" className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition-colors"><Download size={13} /></button>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </div>
+                )}
+              </section>
 
-            {/* Team & roles */}
+              <PricingPlanSection currentPlan={workspace.plan} />
+            </div>
+          )}
+
+          {/* ── Team ── */}
+          {activeTab === "team" && (
             <TeamSection
               plan={workspace.plan}
               primaryDomain={workspace.primaryDomain ?? null}
               currentMembership={membership}
               onUpgrade={() => setShowUpgrade(true)}
             />
-          </div>
+          )}
 
-          {/* ── Right column ── */}
-          <div className="space-y-6">
+          {/* ── Claude ── */}
+          {activeTab === "claude" && (
+            <div className="space-y-6">
+              <ClaudeConnectPanel apiKey={workspace.publicApiKey ?? ""} />
+              <WebhookURLCard />
+            </div>
+          )}
 
-            {/* Usage dashboard */}
-            <UsageDashboardPanel />
-
-            {/* Pricing Plan */}
-            <PricingPlanSection currentPlan={workspace.plan} />
-
-            {/* AI Agent Access / Claude Connect — available on all plans */}
-            <ClaudeConnectPanel apiKey={workspace.publicApiKey ?? ""} />
-
-            {/* HTTP Push Node — webhook URLs for n8n / Make.com */}
-            <WebhookURLCard />
-
-            {/* Data & privacy */}
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <h2 className="text-sm font-semibold text-slate-100 mb-1">Data & privacy</h2>
-              <p className="text-xs text-slate-400 mb-4">
-                Control retention and how much PII iqpipe stores.
-              </p>
-
-              <div className="space-y-4 text-xs">
-                {/* Anonymize toggle */}
-                <button
-                  type="button"
-                  onClick={() => updateWorkspace({ dataAnonymization: !workspace.dataAnonymization })}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:bg-slate-900 transition-colors"
-                >
-                  <span className="text-left">
-                    <span className="block text-slate-200">Anonymize PII in analytics</span>
-                    <span className="block text-[11px] text-slate-500 mt-0.5">Store emails and names as hashed IDs in reports.</span>
-                  </span>
-                  <span className={`inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ml-3 ${workspace.dataAnonymization ? "bg-indigo-500" : "bg-slate-600"}`}>
-                    <span className={`h-4 w-4 rounded-full bg-white transform transition-transform ${workspace.dataAnonymization ? "translate-x-4" : "translate-x-1"}`} />
-                  </span>
-                </button>
-
-                {/* Retention */}
-                <div className="space-y-1">
-                  <label className="text-[11px] text-slate-400">Data retention for raw events</label>
-                  <select
-                    className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    value={workspace.dataRetentionMonths}
-                    onChange={(e) => updateWorkspace({ dataRetentionMonths: Number(e.target.value) })}
-                  >
-                    <option value={3}>3 months</option>
-                    <option value={6}>6 months</option>
-                    <option value={12}>12 months</option>
-                    <option value={24}>24 months</option>
-                  </select>
-                  <p className="text-[11px] text-slate-500">Aggregated metrics kept indefinitely.</p>
+          {/* ── Data ── */}
+          {activeTab === "data" && (
+            <div className="space-y-6">
+              <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+                <h2 className="text-sm font-semibold text-slate-100 mb-1">Data & privacy</h2>
+                <p className="text-xs text-slate-400 mb-4">Control retention and how much PII iqpipe stores.</p>
+                <div className="space-y-4 text-xs">
+                  <button type="button" onClick={() => updateWorkspace({ dataAnonymization: !workspace.dataAnonymization })} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:bg-slate-900 transition-colors">
+                    <span className="text-left">
+                      <span className="block text-slate-200">Anonymize PII in analytics</span>
+                      <span className="block text-[11px] text-slate-500 mt-0.5">Store emails and names as hashed IDs in reports.</span>
+                    </span>
+                    <span className={`inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ml-3 ${workspace.dataAnonymization ? "bg-indigo-500" : "bg-slate-600"}`}>
+                      <span className={`h-4 w-4 rounded-full bg-white transform transition-transform ${workspace.dataAnonymization ? "translate-x-4" : "translate-x-1"}`} />
+                    </span>
+                  </button>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-400">Data retention for raw events</label>
+                    <select className="w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" value={workspace.dataRetentionMonths} onChange={e => updateWorkspace({ dataRetentionMonths: Number(e.target.value) })}>
+                      <option value={3}>3 months</option>
+                      <option value={6}>6 months</option>
+                      <option value={12}>12 months</option>
+                      <option value={24}>24 months</option>
+                    </select>
+                    <p className="text-[11px] text-slate-500">Aggregated metrics kept indefinitely.</p>
+                  </div>
+                  <button onClick={handleSave} disabled={saving} className="w-full px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:bg-slate-700 text-[11px] font-medium text-white disabled:cursor-not-allowed transition-colors">
+                    {saving ? "Saving…" : "Save privacy settings"}
+                  </button>
+                  <a href="mailto:privacy@iqpipe.io?subject=Data%20Export%20%2F%20Deletion%20Request" className="w-full block text-center px-3 py-2 rounded-lg bg-slate-900 border border-rose-500/30 text-[11px] text-rose-300 hover:bg-rose-500/10 transition-colors">
+                    Request export / deletion → privacy@iqpipe.io
+                  </a>
                 </div>
+              </section>
+              <CustomEventTypesPanel plan={workspace.plan} />
+              <SourceMappingsPanel />
+            </div>
+          )}
 
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-400 disabled:bg-slate-700 text-[11px] font-medium text-white disabled:cursor-not-allowed transition-colors"
-                >
-                  {saving ? "Saving…" : "Save privacy settings"}
-                </button>
-
-                <a
-                  href="mailto:privacy@iqpipe.io?subject=Data%20Export%20%2F%20Deletion%20Request"
-                  className="w-full block text-center px-3 py-2 rounded-lg bg-slate-900 border border-rose-500/30 text-[11px] text-rose-300 hover:bg-rose-500/10 transition-colors"
-                >
-                  Request export / deletion → privacy@iqpipe.io
-                </a>
-              </div>
-            </section>
-
-            {/* Custom Event Types — Priority 4 */}
-            <CustomEventTypesPanel plan={workspace.plan} />
-
-            {/* Source Mappings — Priority 2 */}
-            <SourceMappingsPanel />
-
-            {/* Demo data */}
+          {/* ── Developer ── */}
+          {activeTab === "developer" && (
             <DemoDataPanel />
+          )}
 
-          </div>
         </div>
       </div>
     </>
