@@ -734,8 +734,6 @@ model MakeScenarioMeta {
   syncedAt        DateTime  @default(now())
   execSyncEnabled Boolean   @default(true)
   eventFilter     String?   // JSON: { enabled, apps, eventTypes, defaultEventType }
-  sourceMode      String    @default("api_import") // "api_import" | "push_only"
-  firstEventAt    DateTime? // set when first push-only event arrives
 
   @@unique([workspaceId, makeId])
   @@index([workspaceId])
@@ -773,8 +771,6 @@ model N8nWorkflowMeta {
   lastExecCursor   String?   // most recent processed execution ID (incremental polling cursor)
   eventFilter      String?   // JSON: { enabled, apps: string[], eventTypes: string[] }
   execSyncEnabled  Boolean   @default(true)  // whether to poll executions for this workflow
-  sourceMode       String    @default("api_import") // "api_import" | "push_only"
-  firstEventAt     DateTime? // set when first push-only event arrives
 
   @@unique([workspaceId, n8nId])
   @@index([workspaceId])

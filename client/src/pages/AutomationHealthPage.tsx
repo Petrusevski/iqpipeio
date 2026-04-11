@@ -12,7 +12,7 @@ import { API_BASE_URL } from "../../config";
 interface QueueStats { pending: number; processing: number; done: number; failed: number; total: number; }
 interface WorkflowError { id: string; errorCode: string; errorDetail: string; retryCount: number; createdAt: string; }
 interface WorkflowRow {
-  workflowId: string; workflowName?: string | null; sourceMode?: string;
+  workflowId: string; workflowName?: string | null;
   totalEvents: number; done: number; pending: number; failed: number;
   successRate: number; outcomeEvents: number; processEvents: number;
   sourceApps: string[]; lastEventAt: string | null; lastEventType: string | null;
@@ -194,11 +194,6 @@ function WorkflowRowItem({ wf }: { wf: WorkflowRow }) {
               )}
               <span className="text-[10px] font-mono text-slate-500 truncate max-w-[180px]">{wf.workflowId}</span>
             </div>
-            {wf.sourceMode === "push_only" && (
-              <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">
-                Push
-              </span>
-            )}
             {hasErrors && (
               <ChevronRight size={12} className={`text-slate-600 transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`} />
             )}
