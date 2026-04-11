@@ -493,7 +493,7 @@ export default function DemoPage() {
           <div className="relative mx-auto max-w-4xl px-4 pt-20 pb-16 text-center">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-xs font-medium text-indigo-300 mb-6">
-                <Play size={10} className="fill-current" /> Interactive demo
+                <Play size={10} className="fill-current" /> Product walkthrough
               </div>
               <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-5">
                 See how iqpipe works<br />
