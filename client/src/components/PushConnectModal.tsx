@@ -417,16 +417,20 @@ function StepMapPayload({ eventType, setEventType, copy, copied, platform }: {
 
       <div className="flex items-center gap-2">
         <label className="text-[10px] text-slate-500 shrink-0">Event type:</label>
-        <select
-          value={eventType}
-          onChange={e => setEventType(e.target.value)}
-          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-300 focus:outline-none focus:border-slate-500"
-        >
-          {EVENT_OPTIONS.map(et => (
-            <option key={et} value={et}>{et}</option>
-          ))}
-        </select>
+        <div className="flex-1">
+          <input
+            list="modal-event-suggestions"
+            value={eventType}
+            onChange={e => setEventType(e.target.value)}
+            placeholder="e.g. message.sent"
+            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500"
+          />
+          <datalist id="modal-event-suggestions">
+            {EVENT_OPTIONS.map(et => <option key={et} value={et} />)}
+          </datalist>
+        </div>
       </div>
+      <p className="text-[10px] text-slate-600">Type any event name — suggestions shown above are just common ones.</p>
 
       <div className="relative">
         <pre className="text-[11px] text-slate-300 font-mono bg-slate-950 border border-slate-700 rounded-xl p-3 overflow-x-auto whitespace-pre leading-relaxed">
