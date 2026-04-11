@@ -335,9 +335,22 @@ export default function ContactInspectorPage() {
       setSubmitted("");
       setResult(null);
       setSearchParams({});
+      setListSearch("");
       setPage(0);
       return;
     }
+
+    // Partial keyword search — no "@" means not a full email address
+    if (!query.includes("@")) {
+      setListSearch(query);
+      setPage(0);
+      setResult(null);
+      setSubmitted("");
+      setSearchParams({});
+      return;
+    }
+
+    // Full email address → exact timeline lookup
     setSubmitted(query);
     setSearchParams({ email: query });
     lookup(query, workspaceId);
@@ -348,6 +361,7 @@ export default function ContactInspectorPage() {
     setSubmitted("");
     setResult(null);
     setSearchParams({});
+    setListSearch("");
     setPage(0);
   };
 
@@ -394,7 +408,7 @@ export default function ContactInspectorPage() {
         <Search size={18} className="text-indigo-400" />
         <div>
           <h1 className="text-base font-bold text-white leading-none">Contact Inspector</h1>
-          <p className="text-[11px] text-slate-500 mt-0.5">Full cross-tool timeline for any contact · search by email or pick from the list</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">Full cross-tool timeline for any contact · search by name, company, or full email</p>
         </div>
       </div>
 
@@ -418,9 +432,15 @@ export default function ContactInspectorPage() {
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              if (!e.target.value.trim()) handleBack();
+              if (!e.target.value.trim()) {
+                setResult(null);
+                setSubmitted("");
+                setListSearch("");
+                setSearchParams({});
+                setPage(0);
+              }
             }}
-            placeholder="sarah.mitchell@n7c4e1.so"
+            placeholder="sara, acme, or full@email.address"
             className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 transition-colors"
             autoFocus={window.innerWidth >= 768}
           />

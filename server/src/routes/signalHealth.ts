@@ -540,13 +540,25 @@ router.get("/funnel", requireAuth, async (req: Request, res: Response) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get("/contacts", requireAuth, async (req: Request, res: Response) => {
   const workspaceId = req.query.workspaceId as string;
-  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const q           = (req.query.q as string || "").trim();
+  const limit       = q ? 50 : Math.min(parseInt(req.query.limit as string) || 50, 500);
   if (!workspaceId) return res.status(400).json({ error: "workspaceId required" });
 
   try {
+    // Build where clause — partial search on plaintext fields when q is provided.
+    // Email is encrypted so cannot be searched server-side; client filters on it after decryption.
+    const where: any = { workspaceId };
+    if (q) {
+      where.OR = [
+        { displayName: { contains: q, mode: "insensitive" } },
+        { company:     { contains: q, mode: "insensitive" } },
+        { title:       { contains: q, mode: "insensitive" } },
+      ];
+    }
+
     // Get leads with their most recent touchpoint
     const leads = await prisma.iqLead.findMany({
-      where: { workspaceId },
+      where,
       orderBy: { firstSeenAt: "desc" },
       take: limit,
     });
