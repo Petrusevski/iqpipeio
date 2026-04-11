@@ -1120,27 +1120,40 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
 
 // ─── Webhook URL Card ─────────────────────────────────────────────────────────
 
-const PUSH_PAYLOAD = `{
-  "workflowId": "my-workflow-123",
-  "workflowName": "Lead Enrichment",
-  "event": "lead.enriched",
-  "contactEmail": "contact@example.com",
-  "sourceTool": "Apollo"
+// Raw Apollo output — exactly what the last node emits, no iqpipe-specific fields
+const PUSH_PAYLOAD_APOLLO = `{
+  "apollo_id": "abc123",
+  "organization_name": "Acme Corp",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "email": "jane@acme.com",
+  "headline": "VP of Sales at Acme Corp",
+  "employment_history": [...]
 }`;
 
-const EVENT_TYPES = [
-  "lead.created",
-  "lead.enriched",
-  "lead.qualified",
-  "lead.contacted",
-  "lead.replied",
-  "lead.converted",
-  "deal.created",
-  "deal.updated",
-  "deal.closed",
-  "sequence.started",
-  "sequence.completed",
-  "sequence.bounced",
+// Raw HeyReach output
+const PUSH_PAYLOAD_HEYREACH = `{
+  "heyreach_lead_id": "lr_789",
+  "campaignId": "camp_001",
+  "linkedinUrl": "linkedin.com/in/jane-doe",
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "message": "Hey, saw your post..."
+}`;
+
+// Generic fallback showing iqpipe still works
+const PUSH_PAYLOAD_GENERIC = `{
+  "email": "jane@acme.com",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "company": "Acme Corp",
+  "title": "VP of Sales"
+}`;
+
+const PUSH_EXAMPLES = [
+  { label: "Apollo", payload: PUSH_PAYLOAD_APOLLO  },
+  { label: "HeyReach", payload: PUSH_PAYLOAD_HEYREACH },
+  { label: "Any tool", payload: PUSH_PAYLOAD_GENERIC },
 ];
 
 function WebhookURLCard() {
@@ -1148,7 +1161,7 @@ function WebhookURLCard() {
   const [loading,    setLoading]    = useState(true);
   const [copied,     setCopied]     = useState<string | null>(null);
   const [expanded,   setExpanded]   = useState(false);
-  const [eventType,  setEventType]  = useState("lead.enriched");
+  const [exampleIdx, setExampleIdx] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem("iqpipe_token");
@@ -1169,7 +1182,7 @@ function WebhookURLCard() {
     });
   };
 
-  const samplePayload = PUSH_PAYLOAD.replace('"lead.enriched"', `"${eventType}"`);
+  const currentExample = PUSH_EXAMPLES[exampleIdx];
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
@@ -1179,7 +1192,7 @@ function WebhookURLCard() {
         <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/20">No API key needed</span>
       </div>
       <p className="text-xs text-slate-400 mb-4">
-        Add one HTTP Request node at the end of any n8n or Make.com workflow. Paste the URL below — no platform API key required.
+        Add one HTTP Request node at the <strong className="text-slate-300">end</strong> of any n8n or Make.com workflow and forward your last node's output unchanged — iqpipe identifies the tool and event automatically.
       </p>
 
       {loading ? (
@@ -1232,31 +1245,33 @@ function WebhookURLCard() {
 
             {expanded && (
               <div className="mt-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-slate-500 shrink-0">Event type:</label>
-                  <div className="flex-1 relative">
-                    <input
-                      list="event-type-suggestions"
-                      value={eventType}
-                      onChange={e => setEventType(e.target.value)}
-                      placeholder="e.g. message.sent"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500"
-                    />
-                    <datalist id="event-type-suggestions">
-                      {EVENT_TYPES.map(et => <option key={et} value={et} />)}
-                    </datalist>
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-600">
-                  Any event name is accepted — not just the suggestions above. Use whatever your workflow emits, e.g. <code className="text-slate-500">message.sent</code>, <code className="text-slate-500">call.completed</code>, <code className="text-slate-500">form.submitted</code>.
+                <p className="text-[11px] text-slate-400">
+                  Just forward your last node's raw output — no iqpipe-specific fields required. iqpipe recognises the tool and event type from the data shape automatically.
                 </p>
+
+                {/* Tool example tabs */}
+                <div className="flex items-center gap-1">
+                  {PUSH_EXAMPLES.map((ex, i) => (
+                    <button
+                      key={ex.label}
+                      onClick={() => setExampleIdx(i)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors border ${
+                        exampleIdx === i
+                          ? "bg-orange-500/15 border-orange-500/30 text-orange-300"
+                          : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      {ex.label}
+                    </button>
+                  ))}
+                </div>
 
                 <div className="relative">
                   <pre className="text-[11px] text-slate-300 font-mono bg-slate-950 border border-slate-700 rounded-xl p-3 overflow-x-auto whitespace-pre leading-relaxed">
-                    {samplePayload}
+                    {currentExample.payload}
                   </pre>
                   <button
-                    onClick={() => copy(samplePayload, "payload")}
+                    onClick={() => copy(currentExample.payload, "payload")}
                     className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors"
                   >
                     {copied === "payload" ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
@@ -1264,7 +1279,7 @@ function WebhookURLCard() {
                 </div>
 
                 <p className="text-[10px] text-slate-500">
-                  Only <code className="text-slate-400">event</code> is required. iqpipe auto-creates the workflow record on the first push.
+                  iqpipe auto-classifies the event from your payload. You can optionally add <code className="text-slate-400">event_type</code> to override the classification.
                 </p>
               </div>
             )}

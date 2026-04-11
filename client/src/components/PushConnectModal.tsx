@@ -12,27 +12,51 @@ interface Props {
   onClose: () => void;
 }
 
-// ─── Payload example ─────────────────────────────────────────────────────────
+// ─── Raw payload examples (last node's output for different tools) ────────────
 
-const SAMPLE_PAYLOAD = (event: string) => JSON.stringify({
-  workflowId:    "my-workflow-123",
-  workflowName:  "Lead Enrichment",
-  event,
-  contactEmail:  "contact@example.com",
-  sourceTool:    "Apollo",
-}, null, 2);
-
-const EVENT_OPTIONS = [
-  "lead.created",
-  "lead.enriched",
-  "lead.qualified",
-  "lead.contacted",
-  "lead.replied",
-  "lead.converted",
-  "deal.created",
-  "deal.updated",
-  "sequence.started",
-  "sequence.completed",
+const MODAL_EXAMPLES = [
+  {
+    label: "Apollo",
+    payload: JSON.stringify({
+      apollo_id:         "abc123",
+      organization_name: "Acme Corp",
+      first_name:        "Jane",
+      last_name:         "Doe",
+      email:             "jane@acme.com",
+      headline:          "VP of Sales at Acme Corp",
+    }, null, 2),
+  },
+  {
+    label: "HeyReach",
+    payload: JSON.stringify({
+      heyreach_lead_id: "lr_789",
+      campaignId:       "camp_001",
+      linkedinUrl:      "linkedin.com/in/jane-doe",
+      firstName:        "Jane",
+      lastName:         "Doe",
+      message:          "Hey, saw your post...",
+    }, null, 2),
+  },
+  {
+    label: "Lemlist",
+    payload: JSON.stringify({
+      lemlist_id:  "lm_456",
+      campaignId:  "c_001",
+      email:       "jane@acme.com",
+      firstName:   "Jane",
+      sequenceStep: 2,
+    }, null, 2),
+  },
+  {
+    label: "Any tool",
+    payload: JSON.stringify({
+      email:     "jane@acme.com",
+      firstName: "Jane",
+      lastName:  "Doe",
+      company:   "Acme Corp",
+      title:     "VP of Sales",
+    }, null, 2),
+  },
 ];
 
 // ─── Step definitions ─────────────────────────────────────────────────────────
@@ -42,7 +66,7 @@ const STEPS_N8N = [
   "Open your n8n workflow",
   "Add HTTP Request node",
   "Configure the node",
-  "Map your payload",
+  "Forward your last node's output",
   "Run & verify",
 ];
 
@@ -51,7 +75,7 @@ const STEPS_MAKE = [
   "Open your Make.com scenario",
   "Add HTTP module",
   "Configure the module",
-  "Map your data",
+  "Forward your last module's output",
   "Run & verify",
 ];
 
@@ -60,7 +84,6 @@ const STEPS_MAKE = [
 export default function PushConnectModal({ platform, onClose }: Props) {
   const [step,      setStep]      = useState(0);
   const [copied,    setCopied]    = useState<string | null>(null);
-  const [eventType, setEventType] = useState("lead.enriched");
   const [verifying, setVerifying] = useState(false);
   const [verified,  setVerified]  = useState(false);
   const [verifyErr, setVerifyErr] = useState<string | null>(null);
@@ -177,9 +200,7 @@ export default function PushConnectModal({ platform, onClose }: Props) {
             <StepConfigureNode webhookUrl={webhookUrl} copy={copy} copied={copied} platform={platform} />
           )}
           {step === 4 && (
-            <StepMapPayload
-              eventType={eventType}
-              setEventType={setEventType}
+            <StepForwardOutput
               copy={copy}
               copied={copied}
               platform={platform}
@@ -395,55 +416,67 @@ function StepConfigureNode({ webhookUrl, copy, copied, platform }: {
   );
 }
 
-function StepMapPayload({ eventType, setEventType, copy, copied, platform }: {
-  eventType: string;
-  setEventType: (v: string) => void;
+function StepForwardOutput({ copy, copied, platform }: {
   copy: (v: string, id: string) => void;
   copied: string | null;
   platform: string;
 }) {
-  const payload = SAMPLE_PAYLOAD(eventType);
+  const [exampleIdx, setExampleIdx] = useState(0);
+  const current = MODAL_EXAMPLES[exampleIdx];
 
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="text-sm font-semibold text-slate-100 mb-1">Map your payload</h3>
+        <h3 className="text-sm font-semibold text-slate-100 mb-1">Forward your last node's output</h3>
         <p className="text-xs text-slate-400">
           {platform === "n8n"
-            ? "In the JSON body field, paste this as an expression or static JSON. Replace values with n8n expressions from your upstream nodes."
-            : "Paste this as raw JSON in the body. You can use Make.com variables to replace the static values."}
+            ? "In the HTTP Request body field, set the body to the output of your last node — use the expression {{ $json }} to forward it as-is."
+            : "In the HTTP module body, pass the output bundle from your previous module — no reformatting needed."}
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-[10px] text-slate-500 shrink-0">Event type:</label>
-        <div className="flex-1">
-          <input
-            list="modal-event-suggestions"
-            value={eventType}
-            onChange={e => setEventType(e.target.value)}
-            placeholder="e.g. message.sent"
-            className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-500"
-          />
-          <datalist id="modal-event-suggestions">
-            {EVENT_OPTIONS.map(et => <option key={et} value={et} />)}
-          </datalist>
+      <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+        <p className="text-[11px] text-indigo-300 font-medium mb-1">No field mapping required</p>
+        <p className="text-[11px] text-indigo-300/70">
+          iqpipe identifies the tool and event type from the data shape automatically. Just send the raw output of your last node.
+        </p>
+      </div>
+
+      {/* Tool example tabs */}
+      <div>
+        <p className="text-[10px] text-slate-500 mb-1.5">Example raw outputs iqpipe recognises:</p>
+        <div className="flex items-center gap-1 mb-2">
+          {MODAL_EXAMPLES.map((ex, i) => (
+            <button
+              key={ex.label}
+              onClick={() => setExampleIdx(i)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors border ${
+                exampleIdx === i
+                  ? "bg-orange-500/15 border-orange-500/30 text-orange-300"
+                  : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {ex.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative">
+          <pre className="text-[11px] text-slate-300 font-mono bg-slate-950 border border-slate-700 rounded-xl p-3 overflow-x-auto whitespace-pre leading-relaxed">
+            {current.payload}
+          </pre>
+          <button
+            onClick={() => copy(current.payload, "payload")}
+            className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors"
+          >
+            {copied === "payload" ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+          </button>
         </div>
       </div>
-      <p className="text-[10px] text-slate-600">Type any event name — suggestions shown above are just common ones.</p>
 
-      <div className="relative">
-        <pre className="text-[11px] text-slate-300 font-mono bg-slate-950 border border-slate-700 rounded-xl p-3 overflow-x-auto whitespace-pre leading-relaxed">
-          {payload}
-        </pre>
-        <button
-          onClick={() => copy(payload, "payload")}
-          className="absolute top-2 right-2 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors"
-        >
-          {copied === "payload" ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-        </button>
-      </div>
-      <p className="text-[10px] text-slate-600">Only <code className="text-slate-500">event</code> is required. All other fields enrich the data.</p>
+      <p className="text-[10px] text-slate-500">
+        You can optionally add <code className="text-slate-400">event_type</code> to override auto-classification.
+      </p>
     </div>
   );
 }

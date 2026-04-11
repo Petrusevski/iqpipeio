@@ -47,6 +47,7 @@ import { assertNotBillingKey } from "../utils/stripeKeyGuard";
 import { checkAndIncrementQuota, quotaExceededResponse, rateLimitExceededResponse } from "../utils/quota";
 import { detectAndLearn } from "../utils/fieldDetector";
 import { processOutreachEvent } from "../services/outreachTracker";
+import { autoClassify } from "../utils/autoClassify";
 
 const router = Router();
 
@@ -1997,13 +1998,13 @@ router.post("/n8n", async (req: Request, res: Response) => {
     const company    = body.company      || body.Company      || null;
     const title      = body.title        || body.job_title    || body.jobTitle  || null;
 
-    const rawEvent  = body.event_type || body.eventType || body.event || "";
-    const eventType = rawEvent || "workflow.completed";
-
-    // source_tool relay: attribute to the underlying tool, not to n8n itself.
-    // This deduplicates naturally — if that tool's direct webhook already recorded
-    // the same (iqLeadId + tool + eventType) today, this relay is a no-op.
-    const recordingTool = (body.source_tool || body.sourceTool || "n8n").toLowerCase().trim();
+    // Auto-classify from raw payload — user sends their last node's output unchanged.
+    // If they did include an explicit event field, honour it; otherwise infer from shape.
+    const explicitEvent = body.event_type || body.eventType || body.event || "";
+    const explicitTool  = body.source_tool || body.sourceTool || "";
+    const classification = autoClassify(body, "n8n");
+    const eventType     = explicitEvent ? normalizeEventType(String(explicitEvent)) : classification.eventType;
+    const recordingTool = explicitTool  ? String(explicitTool).toLowerCase().trim() : classification.sourceTool;
 
     const meta: Record<string, any> = {
       workflowId:    body.workflow_id   || body.workflowId   || null,
@@ -2068,28 +2069,30 @@ router.post("/make", async (req: Request, res: Response) => {
     const scenarioId  = body.scenario_id  || body.scenarioId  || scenarioIdParam || null;
     const executionId = body.execution_id || body.executionId || null;
 
-    // Resolve event type: body → scenario default → fallback
-    let rawEvent = body.event_type || body.eventType || body.event || "";
+    // Resolve event type: body → scenario default → auto-classify from payload shape
+    let rawEvent    = body.event_type || body.eventType || body.event || "";
+    const explicitTool = body.source_tool || body.sourceTool || "";
     if (!rawEvent && scenarioId) {
-      const meta = await (prisma as any).makeScenarioMeta.findUnique({
+      const scenarioMeta = await (prisma as any).makeScenarioMeta.findUnique({
         where:  { workspaceId_makeId: { workspaceId, makeId: String(scenarioId) } },
         select: { eventFilter: true, execSyncEnabled: true },
       }).catch(() => null);
 
-      if (meta?.execSyncEnabled === false) {
+      if (scenarioMeta?.execSyncEnabled === false) {
         return res.json({ received: false, reason: "Scenario event capture disabled" });
       }
-      if (meta?.eventFilter) {
+      if (scenarioMeta?.eventFilter) {
         try {
-          const ef = JSON.parse(meta.eventFilter);
+          const ef = JSON.parse(scenarioMeta.eventFilter);
           if (ef.defaultEventType) rawEvent = ef.defaultEventType;
         } catch {}
       }
     }
-    const eventType = rawEvent || "contacted";
 
-    // source_tool relay: attribute to the underlying tool, not to make itself
-    const recordingTool = (body.source_tool || body.sourceTool || "make").toLowerCase().trim();
+    // Auto-classify from raw payload when no explicit event provided
+    const classification = autoClassify(body, "make");
+    const eventType     = rawEvent ? normalizeEventType(rawEvent) : classification.eventType;
+    const recordingTool = explicitTool ? String(explicitTool).toLowerCase().trim() : classification.sourceTool;
 
     // ── Idempotency dedup ─────────────────────────────────────────────────────
     const contactKey = email || linkedin || phone || "unknown";
