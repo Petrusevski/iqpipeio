@@ -172,9 +172,6 @@ export default function GTMStackPage() {
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[250px] bg-indigo-500/8 blur-[100px] pointer-events-none" />
           <div className="relative mx-auto max-w-5xl px-4 pt-20 pb-20 text-center">
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-xs font-medium text-indigo-300 mb-6">
-                <Workflow size={11} /> Powered by Make.com &amp; n8n
-              </div>
               <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight mb-5">
                 Your automations run the workflow.<br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-fuchsia-400 to-amber-400">
