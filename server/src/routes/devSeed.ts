@@ -59,49 +59,49 @@ function randId(prefix = "evt") {
 // ── Contacts ──────────────────────────────────────────────────────────────────
 
 const CONTACTS = [
-  { first: "Sarah",    last: "Mitchell",  email: "sarah.mitchell@notion.so",    company: "Notion",       title: "Head of RevOps" },
-  { first: "James",    last: "Chen",      email: "j.chen@linear.app",           company: "Linear",       title: "VP of Growth" },
-  { first: "Priya",    last: "Sharma",    email: "priya@vercel.com",            company: "Vercel",       title: "Director of Sales" },
-  { first: "Tom",      last: "Erikson",   email: "tom.erikson@stripe.com",      company: "Stripe",       title: "Enterprise AE" },
-  { first: "Laura",    last: "Becker",    email: "l.becker@figma.com",          company: "Figma",        title: "RevOps Manager" },
-  { first: "Alex",     last: "Johnson",   email: "alex@loom.com",               company: "Loom",         title: "GTM Engineer" },
-  { first: "Maria",    last: "Garcia",    email: "m.garcia@hubspot.com",        company: "HubSpot",      title: "Sales Ops Lead" },
-  { first: "Daniel",   last: "Park",      email: "d.park@intercom.io",          company: "Intercom",     title: "Head of Sales Dev" },
-  { first: "Emma",     last: "Wilson",    email: "emma.wilson@segment.com",     company: "Segment",      title: "Growth Engineer" },
-  { first: "Lucas",    last: "Rossi",     email: "l.rossi@braze.com",           company: "Braze",        title: "Sales Engineer" },
-  { first: "Ava",      last: "Thompson",  email: "ava.t@drift.com",             company: "Drift",        title: "RevOps Analyst" },
-  { first: "Noah",     last: "White",     email: "noah@clickup.com",            company: "ClickUp",      title: "VP Sales" },
-  { first: "Olivia",   last: "Brown",     email: "olivia.b@notion.so",          company: "Notion",       title: "Sales Manager" },
-  { first: "Ethan",    last: "Davis",     email: "ethan.davis@rippling.com",    company: "Rippling",     title: "Director of RevOps" },
-  { first: "Sophia",   last: "Martinez",  email: "s.martinez@apollo.io",        company: "Apollo",       title: "GTM Lead" },
-  { first: "Mason",    last: "Anderson",  email: "mason.a@mixpanel.com",        company: "Mixpanel",     title: "Growth Ops" },
-  { first: "Isabella", last: "Taylor",    email: "i.taylor@amplitude.com",      company: "Amplitude",    title: "VP Sales Engineering" },
-  { first: "Logan",    last: "Moore",     email: "l.moore@planhat.com",         company: "Planhat",      title: "Head of Customer Success" },
-  { first: "Mia",      last: "Jackson",   email: "mia.j@gong.io",              company: "Gong",         title: "RevOps Director" },
-  { first: "Liam",     last: "Harris",    email: "liam.h@outreach.io",          company: "Outreach",     title: "Sales Dev Manager" },
-  { first: "Charlotte",last: "Clark",     email: "c.clark@salesloft.com",       company: "Salesloft",    title: "Enterprise Sales" },
-  { first: "Oliver",   last: "Lewis",     email: "o.lewis@zoominfo.com",        company: "ZoomInfo",     title: "GTM Ops Lead" },
-  { first: "Amelia",   last: "Robinson",  email: "amelia.r@clay.com",           company: "Clay",         title: "Partner Engineer" },
-  { first: "Elijah",   last: "Walker",    email: "e.walker@lemlist.com",        company: "Lemlist",      title: "Head of Growth" },
-  { first: "Harper",   last: "Hall",      email: "harper.hall@instantly.ai",    company: "Instantly",    title: "Sales Ops" },
-  { first: "Aiden",    last: "Young",     email: "aiden.y@smartlead.ai",        company: "Smartlead",    title: "GTM Analyst" },
-  { first: "Evelyn",   last: "Allen",     email: "evelyn.a@pipedrive.com",      company: "Pipedrive",    title: "Sales Director" },
-  { first: "Carter",   last: "Scott",     email: "c.scott@attio.com",           company: "Attio",        title: "Head of Sales" },
-  { first: "Abigail",  last: "Green",     email: "abigail.g@close.com",         company: "Close",        title: "RevOps Lead" },
-  { first: "Jackson",  last: "Adams",     email: "j.adams@chargebee.com",       company: "Chargebee",    title: "VP Revenue" },
-  { first: "Emily",    last: "Nelson",    email: "emily.n@paddle.com",          company: "Paddle",       title: "Sales Engineer" },
-  { first: "Sebastian",last: "Baker",     email: "s.baker@churnzero.com",       company: "ChurnZero",    title: "CS Operations" },
-  { first: "Ella",     last: "Carter",    email: "ella.c@gainsight.com",        company: "Gainsight",    title: "Director of CS" },
-  { first: "Jack",     last: "Mitchell",  email: "jack.m@totango.com",          company: "Totango",      title: "GTM Engineer" },
-  { first: "Grace",    last: "Perez",     email: "grace.p@klenty.com",          company: "Klenty",       title: "Sales Ops Manager" },
-  { first: "Owen",     last: "Roberts",   email: "owen.r@woodpecker.co",        company: "Woodpecker",   title: "Growth Lead" },
-  { first: "Zoey",     last: "Turner",    email: "zoey.t@replyio.com",          company: "Reply.io",     title: "Partner Manager" },
-  { first: "Wyatt",    last: "Phillips",  email: "w.phillips@salesforce.com",   company: "Salesforce",   title: "Enterprise Sales" },
-  { first: "Lily",     last: "Campbell",  email: "lily.c@hubspot.com",          company: "HubSpot",      title: "Account Executive" },
-  { first: "Henry",    last: "Parker",    email: "h.parker@marketo.com",        company: "Marketo",      title: "Marketing Ops" },
-  { first: "Aria",     last: "Evans",     email: "aria.e@clearbit.com",         company: "Clearbit",     title: "Head of Data" },
-  { first: "Grayson",  last: "Edwards",   email: "g.edwards@lusha.com",         company: "Lusha",        title: "Sales Director" },
-  { first: "Scarlett", last: "Collins",   email: "s.collins@zoominfo.com",      company: "ZoomInfo",     title: "RevOps Analyst" },
+  { first: "Sarah",    last: "Mitchell",  email: "sarah.e787a3@demo.iq",    company: "Notion",       title: "Head of RevOps" },
+  { first: "James",    last: "Chen",      email: "james.f5aef5@demo.iq",           company: "Linear",       title: "VP of Growth" },
+  { first: "Priya",    last: "Sharma",    email: "priya.3faf3c@demo.iq",            company: "Vercel",       title: "Director of Sales" },
+  { first: "Tom",      last: "Erikson",   email: "tom.717076@demo.iq",      company: "Stripe",       title: "Enterprise AE" },
+  { first: "Laura",    last: "Becker",    email: "laura.2f5c4f@demo.iq",          company: "Figma",        title: "RevOps Manager" },
+  { first: "Alex",     last: "Johnson",   email: "alex.702b25@demo.iq",               company: "Loom",         title: "GTM Engineer" },
+  { first: "Maria",    last: "Garcia",    email: "maria.c02767@demo.iq",        company: "HubSpot",      title: "Sales Ops Lead" },
+  { first: "Daniel",   last: "Park",      email: "daniel.1b01ce@demo.iq",          company: "Intercom",     title: "Head of Sales Dev" },
+  { first: "Emma",     last: "Wilson",    email: "emma.0a05d4@demo.iq",     company: "Segment",      title: "Growth Engineer" },
+  { first: "Lucas",    last: "Rossi",     email: "lucas.65a3ec@demo.iq",           company: "Braze",        title: "Sales Engineer" },
+  { first: "Ava",      last: "Thompson",  email: "ava.98c838@demo.iq",             company: "Drift",        title: "RevOps Analyst" },
+  { first: "Noah",     last: "White",     email: "noah.c7af2a@demo.iq",            company: "ClickUp",      title: "VP Sales" },
+  { first: "Olivia",   last: "Brown",     email: "olivia.27d60a@demo.iq",          company: "Notion",       title: "Sales Manager" },
+  { first: "Ethan",    last: "Davis",     email: "ethan.c4e4a8@demo.iq",    company: "Rippling",     title: "Director of RevOps" },
+  { first: "Sophia",   last: "Martinez",  email: "sophia.5ac471@demo.iq",        company: "Apollo",       title: "GTM Lead" },
+  { first: "Mason",    last: "Anderson",  email: "mason.8aac72@demo.iq",        company: "Mixpanel",     title: "Growth Ops" },
+  { first: "Isabella", last: "Taylor",    email: "isabella.e20841@demo.iq",      company: "Amplitude",    title: "VP Sales Engineering" },
+  { first: "Logan",    last: "Moore",     email: "logan.f0ba31@demo.iq",         company: "Planhat",      title: "Head of Customer Success" },
+  { first: "Mia",      last: "Jackson",   email: "mia.07010a@demo.iq",              company: "Gong",         title: "RevOps Director" },
+  { first: "Liam",     last: "Harris",    email: "liam.15a293@demo.iq",          company: "Outreach",     title: "Sales Dev Manager" },
+  { first: "Charlotte",last: "Clark",     email: "charlotte.e06465@demo.iq",       company: "Salesloft",    title: "Enterprise Sales" },
+  { first: "Oliver",   last: "Lewis",     email: "oliver.6384fd@demo.iq",        company: "ZoomInfo",     title: "GTM Ops Lead" },
+  { first: "Amelia",   last: "Robinson",  email: "amelia.d024ec@demo.iq",           company: "Clay",         title: "Partner Engineer" },
+  { first: "Elijah",   last: "Walker",    email: "elijah.0b5d29@demo.iq",        company: "Lemlist",      title: "Head of Growth" },
+  { first: "Harper",   last: "Hall",      email: "harper.c640b0@demo.iq",    company: "Instantly",    title: "Sales Ops" },
+  { first: "Aiden",    last: "Young",     email: "aiden.d7169b@demo.iq",        company: "Smartlead",    title: "GTM Analyst" },
+  { first: "Evelyn",   last: "Allen",     email: "evelyn.53fe68@demo.iq",      company: "Pipedrive",    title: "Sales Director" },
+  { first: "Carter",   last: "Scott",     email: "carter.405fd3@demo.iq",           company: "Attio",        title: "Head of Sales" },
+  { first: "Abigail",  last: "Green",     email: "abigail.0ce8c1@demo.iq",         company: "Close",        title: "RevOps Lead" },
+  { first: "Jackson",  last: "Adams",     email: "jackson.b2f098@demo.iq",       company: "Chargebee",    title: "VP Revenue" },
+  { first: "Emily",    last: "Nelson",    email: "emily.92c38b@demo.iq",          company: "Paddle",       title: "Sales Engineer" },
+  { first: "Sebastian",last: "Baker",     email: "sebastian.3f9d1a@demo.iq",       company: "ChurnZero",    title: "CS Operations" },
+  { first: "Ella",     last: "Carter",    email: "ella.77bae2@demo.iq",        company: "Gainsight",    title: "Director of CS" },
+  { first: "Jack",     last: "Mitchell",  email: "jack.6c72b9@demo.iq",          company: "Totango",      title: "GTM Engineer" },
+  { first: "Grace",    last: "Perez",     email: "grace.0fe826@demo.iq",          company: "Klenty",       title: "Sales Ops Manager" },
+  { first: "Owen",     last: "Roberts",   email: "owen.fe10ae@demo.iq",        company: "Woodpecker",   title: "Growth Lead" },
+  { first: "Zoey",     last: "Turner",    email: "zoey.ad554a@demo.iq",          company: "Reply.io",     title: "Partner Manager" },
+  { first: "Wyatt",    last: "Phillips",  email: "wyatt.275950@demo.iq",   company: "Salesforce",   title: "Enterprise Sales" },
+  { first: "Lily",     last: "Campbell",  email: "lily.cc8bf5@demo.iq",          company: "HubSpot",      title: "Account Executive" },
+  { first: "Henry",    last: "Parker",    email: "henry.a8b81e@demo.iq",        company: "Marketo",      title: "Marketing Ops" },
+  { first: "Aria",     last: "Evans",     email: "aria.207db1@demo.iq",         company: "Clearbit",     title: "Head of Data" },
+  { first: "Grayson",  last: "Edwards",   email: "grayson.0d851e@demo.iq",         company: "Lusha",        title: "Sales Director" },
+  { first: "Scarlett", last: "Collins",   email: "scarlett.67b018@demo.iq",      company: "ZoomInfo",     title: "RevOps Analyst" },
 ];
 
 // ── 15 Integrations: 6 Live · 5 Slow · 4 Silent ──────────────────────────────
@@ -891,9 +891,9 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
 
     // Sample AppEvents + CorrelationResults for WF1
     const sampleContacts = [
-      { email: "sarah.mitchell@notion.so", value: "sarah.mitchell@notion.so" },
-      { email: "james.chen@linear.app",    value: "james.chen@linear.app"    },
-      { email: "priya@vercel.com",          value: "priya@vercel.com"          },
+      { email: "sarah.e787a3@demo.iq", value: "sarah.e787a3@demo.iq" },
+      { email: "james.f5aef5@demo.iq",    value: "james.f5aef5@demo.iq"    },
+      { email: "priya.3faf3c@demo.iq",          value: "priya.3faf3c@demo.iq"          },
     ];
     for (let ci = 0; ci < sampleContacts.length; ci++) {
       const ct = sampleContacts[ci];
@@ -979,8 +979,8 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
       data: {
         workspaceId, appKey: "stripe", mirrorId: mirror3.id,
         eventKey: "invoice.paid",
-        correlationValue: "tom.erikson@stripe.com",
-        payload: JSON.stringify({ email: "tom.erikson@stripe.com", type: "invoice.paid", amount: 12400 }),
+        correlationValue: "tom.717076@demo.iq",
+        payload: JSON.stringify({ email: "tom.717076@demo.iq", type: "invoice.paid", amount: 12400 }),
         receivedAt: hoursAgo(8), correlatedAt: hoursAgo(7),
       },
     });
@@ -992,7 +992,7 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
       data: {
         workspaceId, mirrorId: mirror3.id,
         n8nEventId: n8nEvt3?.id ?? null, appEventId: appEvt3.id,
-        appKey: "stripe", correlationKey: "email", correlationValue: "tom.erikson@stripe.com",
+        appKey: "stripe", correlationKey: "email", correlationValue: "tom.717076@demo.iq",
         verified: false, discrepancy: JSON.stringify({ n8nStatus: "failed", reason: "Chargebee rate limit" }),
         matchedAt: hoursAgo(7),
       },
@@ -1057,15 +1057,15 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
     const appEvt5 = await prisma.appEvent.create({
       data: {
         workspaceId, appKey: "attio", mirrorId: mirror5.id,
-        eventKey: "record.created", correlationValue: "carter.scott@attio.com",
-        payload: JSON.stringify({ email: "carter.scott@attio.com", eventType: "record.created" }),
+        eventKey: "record.created", correlationValue: "carter.405fd3@demo.iq",
+        payload: JSON.stringify({ email: "carter.405fd3@demo.iq", eventType: "record.created" }),
         receivedAt: hoursAgo(5), correlatedAt: hoursAgo(4),
       },
     });
     await prisma.correlationResult.create({
       data: {
         workspaceId, mirrorId: mirror5.id, appEventId: appEvt5.id,
-        appKey: "attio", correlationKey: "email", correlationValue: "carter.scott@attio.com",
+        appKey: "attio", correlationKey: "email", correlationValue: "carter.405fd3@demo.iq",
         verified: true, matchedAt: hoursAgo(4),
       },
     });
@@ -1098,7 +1098,7 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
       }
     }
     // Two verified correlations — payment recovery flow works well
-    const recoveryEmails = ["jackson.adams@chargebee.com", "emily.nelson@paddle.com"];
+    const recoveryEmails = ["jackson.b2f098@demo.iq", "emily.92c38b@demo.iq"];
     for (let ri = 0; ri < recoveryEmails.length; ri++) {
       const appEvt6 = await prisma.appEvent.create({
         data: {
