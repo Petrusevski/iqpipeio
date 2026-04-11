@@ -27,6 +27,8 @@ function trialDaysRemaining(trialEndsAt: string | null, createdAt: string): numb
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+type SettingsTab = "workspace" | "billing" | "team" | "claude" | "data" | "developer";
+
 export default function SettingsPage() {
   const { settings, setSettings, loading, saving, error, saveSettings } = useSettings();
   const [showUpgrade, setShowUpgrade] = useState(false);
@@ -34,6 +36,7 @@ export default function SettingsPage() {
   const [showInvoices, setShowInvoices] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("workspace");
 
   const workspace = settings?.workspace;
   const membership = settings?.membership;
@@ -155,8 +158,7 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
   const trialExpired = workspace.plan === "trial" && days <= 0;
   const trialActive  = workspace.plan === "trial" && days > 0;
 
-  type Tab = "workspace" | "billing" | "team" | "claude" | "data" | "developer";
-  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: "workspace",  label: "Workspace",  icon: <Building2 size={14} /> },
     { id: "billing",    label: "Billing",    icon: <CreditCard size={14} /> },
     { id: "team",       label: "Team",       icon: <Users size={14} /> },
@@ -164,8 +166,6 @@ ${inv.customerEmail ? `<div style="font-size:12px;color:#888">${inv.customerEmai
     { id: "data",       label: "Data",       icon: <Database size={14} /> },
     { id: "developer",  label: "Developer",  icon: <FlaskConical size={14} /> },
   ];
-
-  const [activeTab, setActiveTab] = useState<Tab>("workspace");
 
   return (
     <>
