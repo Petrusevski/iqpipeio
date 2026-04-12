@@ -18,7 +18,7 @@
  *     }
  *   }
  *
- * All 25 tools are available:
+ * All 26 tools are available:
  *   Read:  get_live_feed, get_funnel, list_workflows, get_workflow_health,
  *          search_contacts, get_workflow_mirror, get_mirror_app_catalog
  *   Write: connect_integration, disconnect_integration, connect_n8n,
@@ -1662,6 +1662,153 @@ function createServer(workspaceId: string, baseUrl: string): any {
           }, null, 2),
         }],
       };
+    }
+  );
+
+  // ── generate_tracking_node ────────────────────────────────────────────────
+  //
+  // Returns ready-to-paste n8n node JSON + Make.com HTTP module config so
+  // Claude can instrument any automation step with IQPipe tracking without
+  // the user touching raw HTTP configuration.
+  //
+  // Field map: for each GTM tool, which output field holds the lead identity
+  // (email, linkedin_url, phone). Claude uses this to wire the correct
+  // expression into the IQPipe payload without asking the user.
+
+  const TOOL_FIELD_MAP: Record<string, {
+    emailExpr:    string;   // n8n expression to pull email from previous node
+    linkedinExpr: string;
+    nameExpr:     string;
+    companyExpr:  string;
+    makeEmail:    string;   // Make.com field path notation
+    makeLinkedin: string;
+  }> = {
+    clay:          { emailExpr: "{{ $json.email }}",                        linkedinExpr: "{{ $json.linkedin_url }}",         nameExpr: "{{ $json.full_name }}",               companyExpr: "{{ $json.company_name }}",      makeEmail: "{{email}}",           makeLinkedin: "{{linkedin_url}}" },
+    apollo:        { emailExpr: "{{ $json.email }}",                        linkedinExpr: "{{ $json.linkedin_url }}",         nameExpr: "{{ $json.name }}",                    companyExpr: "{{ $json.organization_name }}", makeEmail: "{{email}}",           makeLinkedin: "{{linkedin_url}}" },
+    heyreach:      { emailExpr: "{{ $json.lead.email }}",                   linkedinExpr: "{{ $json.lead.linkedInUrl }}",     nameExpr: "{{ $json.lead.firstName }} {{ $json.lead.lastName }}", companyExpr: "{{ $json.lead.companyName }}", makeEmail: "{{lead.email}}", makeLinkedin: "{{lead.linkedInUrl}}" },
+    lemlist:       { emailExpr: "{{ $json.leadInfo.email }}",               linkedinExpr: "{{ $json.leadInfo.linkedinUrl }}", nameExpr: "{{ $json.leadInfo.firstName }} {{ $json.leadInfo.lastName }}", companyExpr: "{{ $json.leadInfo.companyName }}", makeEmail: "{{leadInfo.email}}", makeLinkedin: "{{leadInfo.linkedinUrl}}" },
+    instantly:     { emailExpr: "{{ $json.lead.email }}",                   linkedinExpr: "{{ $json.lead.linkedin_url }}",   nameExpr: "{{ $json.lead.first_name }} {{ $json.lead.last_name }}", companyExpr: "{{ $json.lead.company_name }}", makeEmail: "{{lead.email}}", makeLinkedin: "{{lead.linkedin_url}}" },
+    smartlead:     { emailExpr: "{{ $json.lead.email }}",                   linkedinExpr: "{{ $json.lead.linkedin_url }}",   nameExpr: "{{ $json.lead.first_name }} {{ $json.lead.last_name }}", companyExpr: "{{ $json.lead.company_name }}", makeEmail: "{{lead.email}}", makeLinkedin: "{{lead.linkedin_url}}" },
+    hubspot:       { emailExpr: "{{ $json.properties.email }}",             linkedinExpr: "{{ $json.properties.hs_linkedinid }}", nameExpr: "{{ $json.properties.firstname }} {{ $json.properties.lastname }}", companyExpr: "{{ $json.properties.company }}", makeEmail: "{{properties.email}}", makeLinkedin: "{{properties.hs_linkedinid}}" },
+    pipedrive:     { emailExpr: "{{ $json.data.person_id.email[0].value }}", linkedinExpr: "",                               nameExpr: "{{ $json.data.person_id.name }}",     companyExpr: "{{ $json.data.org_id.name }}",  makeEmail: "{{data.person_id.email[].value}}", makeLinkedin: "" },
+    salesforce:    { emailExpr: "{{ $json.Email }}",                        linkedinExpr: "",                               nameExpr: "{{ $json.FirstName }} {{ $json.LastName }}", companyExpr: "{{ $json.Company }}",     makeEmail: "{{Email}}",           makeLinkedin: "" },
+    outreach:      { emailExpr: "{{ $json.data.attributes.emails[0] }}",    linkedinExpr: "",                               nameExpr: "{{ $json.data.attributes.firstName }} {{ $json.data.attributes.lastName }}", companyExpr: "{{ $json.data.attributes.company }}", makeEmail: "{{data.attributes.emails[]}}", makeLinkedin: "" },
+    salesloft:     { emailExpr: "{{ $json.data.person.email_address }}",    linkedinExpr: "",                               nameExpr: "{{ $json.data.person.first_name }} {{ $json.data.person.last_name }}", companyExpr: "", makeEmail: "{{data.person.email_address}}", makeLinkedin: "" },
+    phantombuster: { emailExpr: "{{ $json.data[0].email }}",                linkedinExpr: "{{ $json.data[0].linkedInUrl }}", nameExpr: "{{ $json.data[0].firstName }} {{ $json.data[0].lastName }}", companyExpr: "{{ $json.data[0].company }}", makeEmail: "{{data[].email}}", makeLinkedin: "{{data[].linkedInUrl}}" },
+    clearbit:      { emailExpr: "{{ $json.person.email }}",                 linkedinExpr: "",                               nameExpr: "{{ $json.person.name.fullName }}",    companyExpr: "{{ $json.company.name }}",      makeEmail: "{{person.email}}",    makeLinkedin: "" },
+    zoominfo:      { emailExpr: "{{ $json.data.contact.email }}",           linkedinExpr: "",                               nameExpr: "{{ $json.data.contact.firstName }} {{ $json.data.contact.lastName }}", companyExpr: "{{ $json.data.contact.companyName }}", makeEmail: "{{data.contact.email}}", makeLinkedin: "" },
+    lusha:         { emailExpr: "{{ $json.data[0].emails[0].email }}",      linkedinExpr: "",                               nameExpr: "{{ $json.data[0].firstName }} {{ $json.data[0].lastName }}", companyExpr: "{{ $json.data[0].jobTitle }}", makeEmail: "{{data[].emails[].email}}", makeLinkedin: "" },
+    expandi:       { emailExpr: "{{ $json.lead.email }}",                   linkedinExpr: "{{ $json.lead.linkedInUrl }}",   nameExpr: "{{ $json.lead.firstName }} {{ $json.lead.lastName }}", companyExpr: "{{ $json.lead.company }}", makeEmail: "{{lead.email}}", makeLinkedin: "{{lead.linkedInUrl}}" },
+    dripify:       { emailExpr: "{{ $json.prospect.email }}",               linkedinExpr: "{{ $json.prospect.linkedInUrl }}", nameExpr: "{{ $json.prospect.firstName }} {{ $json.prospect.lastName }}", companyExpr: "{{ $json.prospect.companyName }}", makeEmail: "{{prospect.email}}", makeLinkedin: "{{prospect.linkedInUrl}}" },
+    waalaxy:       { emailExpr: "{{ $json.contact.email }}",                linkedinExpr: "",                               nameExpr: "{{ $json.contact.firstName }} {{ $json.contact.lastName }}", companyExpr: "", makeEmail: "{{contact.email}}", makeLinkedin: "" },
+    replyio:       { emailExpr: "{{ $json.ProspectEmail }}",                linkedinExpr: "",                               nameExpr: "{{ $json.ProspectFirstName }} {{ $json.ProspectLastName }}", companyExpr: "{{ $json.ProspectCompany }}", makeEmail: "{{ProspectEmail}}", makeLinkedin: "" },
+    klenty:        { emailExpr: "{{ $json.contact.email }}",                linkedinExpr: "",                               nameExpr: "{{ $json.contact.first_name }} {{ $json.contact.last_name }}", companyExpr: "{{ $json.contact.account.name }}", makeEmail: "{{contact.email}}", makeLinkedin: "" },
+  };
+
+  server.tool(
+    "generate_tracking_node",
+    "Generates a ready-to-paste n8n HTTP Request node (JSON) and Make.com HTTP module config " +
+    "that sends an IQPipe tracking event after any workflow step. " +
+    "Use this whenever a user wants to add IQPipe tracking to an n8n or Make.com workflow — " +
+    "especially when they don't have an n8n API key and are instrumenting steps manually. " +
+    "Always call this instead of writing raw HTTP node config by hand. " +
+    "The output includes field expressions pre-mapped to the previous tool's output shape, " +
+    "so the user only needs to paste the node — no manual field mapping required.",
+    {
+      tool:         z.string().describe("The GTM tool whose output this node comes after. E.g. 'clay', 'heyreach', 'apollo', 'hubspot', 'lemlist', 'instantly', 'phantombuster', 'pipedrive', 'salesforce'. Use 'generic' if unknown."),
+      event_type:   z.string().describe("The canonical IQPipe event type to record. E.g. 'contact_enriched', 'connection_request_sent', 'connection_accepted', 'email_sent', 'reply_received', 'meeting_booked', 'deal_created', 'deal_won', 'contact_sourced', 'payment_received'."),
+      platform:     z.enum(["n8n", "make", "both"]).default("both").describe("Which platform config to generate. Default: both."),
+      node_name:    z.string().optional().describe("Optional display name for the node. Defaults to 'IQPipe — <event_type>'."),
+    },
+    async ({ tool, event_type, platform, node_name }: any) => {
+      const workspace = await prisma.workspace.findUnique({
+        where:  { id: workspaceId },
+        select: { publicApiKey: true },
+      });
+      const apiKey = workspace?.publicApiKey ?? "rvn_pk_YOUR_KEY";
+
+      const webhookUrl = `${baseUrl}/api/webhooks/generic?workspaceId=${workspaceId}&app=${tool}`;
+      const displayName = node_name ?? `IQPipe — ${event_type}`;
+      const fields = TOOL_FIELD_MAP[tool.toLowerCase()] ?? {
+        emailExpr:    "{{ $json.email }}",
+        linkedinExpr: "{{ $json.linkedin_url }}",
+        nameExpr:     "{{ $json.name }}",
+        companyExpr:  "{{ $json.company }}",
+        makeEmail:    "{{email}}",
+        makeLinkedin: "{{linkedin_url}}",
+      };
+
+      // ── n8n node JSON ──────────────────────────────────────────────────────
+      const n8nNode = {
+        name:       displayName,
+        type:       "n8n-nodes-base.httpRequest",
+        typeVersion: 4.2,
+        position:   [0, 0],
+        parameters: {
+          method:          "POST",
+          url:             webhookUrl,
+          authentication:  "genericCredentialType",
+          genericAuthType: "httpHeaderAuth",
+          sendHeaders:     true,
+          headerParameters: {
+            parameters: [
+              { name: "Authorization", value: `Bearer ${apiKey}` },
+              { name: "Content-Type",  value: "application/json"  },
+            ],
+          },
+          sendBody:    true,
+          bodyContentType: "json",
+          jsonBody: JSON.stringify({
+            event_type,
+            email:        fields.emailExpr,
+            linkedin_url: fields.linkedinExpr || undefined,
+            name:         fields.nameExpr,
+            company:      fields.companyExpr,
+          }, null, 2),
+          options: {},
+        },
+        notes: `IQPipe tracking — records "${event_type}" from ${tool} into your workspace. Paste this node after your ${tool} node and connect the output.`,
+      };
+
+      // ── Make.com HTTP module config ────────────────────────────────────────
+      const makeModule = {
+        label:   displayName,
+        module:  "http:ActionSendData",
+        version: 3,
+        parameters: {
+          method:          "POST",
+          url:             webhookUrl,
+          serializeUrl:    false,
+          headers: [
+            { name: "Authorization", value: `Bearer ${apiKey}` },
+            { name: "Content-Type",  value: "application/json"  },
+          ],
+          bodyType:    "raw",
+          contentType: "application/json",
+          body: JSON.stringify({
+            event_type,
+            email:        fields.makeEmail,
+            linkedin_url: fields.makeLinkedin || undefined,
+          }, null, 2),
+        },
+        note: `Paste this module after your ${tool} module. The field expressions auto-map from ${tool}'s output.`,
+      };
+
+      const result: Record<string, any> = {
+        tool,
+        event_type,
+        workspace_id: workspaceId,
+        webhook_url:  webhookUrl,
+        instructions: {
+          n8n:  "In n8n: press Ctrl+Shift+V (or Cmd+Shift+V on Mac) anywhere on the canvas to paste a node from clipboard. Or use the top menu Import → Paste from clipboard.",
+          make: "In Make.com: click the '+' between two modules → choose 'HTTP' → 'Make a request' → switch to JSON view and paste the parameters object.",
+        },
+      };
+
+      if (platform === "n8n" || platform === "both") result.n8n_node  = n8nNode;
+      if (platform === "make" || platform === "both") result.make_module = makeModule;
+
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
 
