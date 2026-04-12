@@ -25,7 +25,6 @@
  */
 
 import { prisma } from "../db";
-import { decrypt } from "../utils/encryption";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +44,9 @@ export interface NextAction {
   displayName:   string;
   company:       string | null;
   title:         string | null;
-  email:         string | null;    // decrypted — only if available
+  // NOTE: email/phone/linkedin are intentionally omitted — PII must not flow
+  // through the MCP layer (Claude API) per GDPR Art. 5(1)(c) data minimisation.
+  // Use iqLeadId to reference the lead in subsequent action tool calls.
   action:        ActionType;
   urgency:       Urgency;
   reason:        string;           // 1–2 sentences for Claude to relay/act on
@@ -232,7 +233,6 @@ export async function getNextActions(
           displayName: true,
           company:     true,
           title:       true,
-          emailEnc:    true,
         },
       },
     },
@@ -290,18 +290,12 @@ export async function getNextActions(
       tool, s.touchCount30d, s.enrichmentBucket,
     );
 
-    let email: string | null = null;
-    if (s.iqLead.emailEnc) {
-      try { email = decrypt(s.iqLead.emailEnc); } catch { /* skip */ }
-    }
-
     scored.push({
       rank:        0,   // assigned after sort
       iqLeadId:    s.iqLeadId,
       displayName: s.iqLead.displayName ?? "Unknown",
       company:     s.iqLead.company    ?? null,
       title:       s.iqLead.title      ?? null,
-      email,
       action,
       urgency,
       reason,

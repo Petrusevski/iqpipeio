@@ -147,7 +147,7 @@ export interface StuckLead {
   leadId:       string;
   displayName:  string;
   company:      string | null;
-  email:        string | null;
+  // email omitted — PII must not flow through the MCP/Claude API layer (GDPR Art. 5(1)(c))
   tool:         string;
   sequenceId:   string | null;
   firstEntryAt: string;
@@ -175,7 +175,7 @@ export async function getStuckLeads(
     take: limit * 2, // over-fetch; we filter below
     select: {
       id: true, displayName: true, company: true,
-      emailEnc: true, firstTool: true, firstSequenceAt: true, lastEventAt: true,
+      firstTool: true, firstSequenceAt: true, lastEventAt: true,
       metrics: {
         select: { eventType: true, count: true, sequenceId: true, lastAt: true },
         where:  opts.sequenceId ? { sequenceId: opts.sequenceId } : undefined,
@@ -207,7 +207,6 @@ export async function getStuckLeads(
       leadId:         lead.id,
       displayName:    lead.displayName,
       company:        lead.company,
-      email:          safeDecrypt(lead.emailEnc),
       tool:           lead.firstTool,
       sequenceId,
       firstEntryAt:   lead.firstSequenceAt.toISOString(),
@@ -308,7 +307,7 @@ export interface LeadEvent {
 export interface LeadJourney {
   leadId:         string;
   displayName:    string;
-  email:          string | null;
+  // email omitted — PII must not flow through the MCP/Claude API layer (GDPR Art. 5(1)(c))
   company:        string | null;
   title:          string | null;
   firstTool:      string;
@@ -357,7 +356,6 @@ export async function getLeadJourney(
   return {
     leadId:         lead.id,
     displayName:    lead.displayName,
-    email:          safeDecrypt(lead.emailEnc),
     company:        lead.company,
     title:          lead.title,
     firstTool:      lead.firstTool,
