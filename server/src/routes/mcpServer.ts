@@ -18,7 +18,7 @@
  *     }
  *   }
  *
- * All 27 tools are available:
+ * All 28 tools are available:
  *   Read:  get_live_feed, get_funnel, list_workflows, get_workflow_health,
  *          search_contacts, get_workflow_mirror, get_mirror_app_catalog
  *   Write: connect_integration, disconnect_integration, connect_n8n,
@@ -27,7 +27,7 @@
  *          list_deals, create_deal, update_deal,
  *          list_accounts, create_account, update_account
  *   Diagnostics: get_anomalies, diagnose_issue, apply_fix, watch_recovery
- *   Revenue:     get_revenue_attribution
+ *   Revenue:     get_revenue_attribution, get_next_actions
  */
 
 import { Router, Request, Response } from "express";
@@ -67,6 +67,7 @@ import {
   periodStart,
 } from "../services/workflowScoreService";
 import { getRevenueAttribution } from "../services/revenueAttributionService";
+import { getNextActions } from "../services/nextActionsService";
 
 const router = Router();
 
@@ -1913,6 +1914,35 @@ function createServer(workspaceId: string, baseUrl: string): any {
       if (platform === "n8n" || platform === "both") result.n8n_node  = n8nNode;
       if (platform === "make" || platform === "both") result.make_module = makeModule;
 
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_next_actions ──────────────────────────────────────────────────────
+  server.tool(
+    "get_next_actions",
+    "Returns a ranked list of the most important actions to take right now across all leads in the workspace. " +
+    "Each action includes the lead, a specific action type (close/follow_up/re_engage/sequence_start/enrich/rescue), " +
+    "urgency level (critical/high/medium/low), and a plain-English reason explaining why. " +
+    "Scored by funnel stage, days since last touch, enrichment freshness, and silence. " +
+    "Use this as the starting point for any 'what should I do today?' or 'where should I focus?' query.",
+    {
+      limit: z.number().int().min(1).max(100).default(20).describe(
+        "Maximum number of actions to return. Default 20. Use 5 for a quick daily briefing, 100 for full pipeline review."
+      ),
+      filter_action: z.enum(["close", "follow_up", "re_engage", "sequence_start", "enrich", "rescue"]).optional().describe(
+        "Only return actions of this type. Omit to get all action types ranked together."
+      ),
+      filter_urgency: z.enum(["critical", "high", "medium", "low"]).optional().describe(
+        "Only return actions at this urgency level. Omit to get all urgency levels."
+      ),
+    },
+    async ({ limit, filter_action, filter_urgency }: {
+      limit?: number;
+      filter_action?: "close" | "follow_up" | "re_engage" | "sequence_start" | "enrich" | "rescue";
+      filter_urgency?: "critical" | "high" | "medium" | "low";
+    }) => {
+      const result = await getNextActions(workspaceId, limit ?? 20, filter_action, filter_urgency);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
