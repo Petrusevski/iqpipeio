@@ -735,6 +735,11 @@ model MakeScenarioMeta {
   execSyncEnabled Boolean   @default(true)
   eventFilter     String?   // JSON: { enabled, apps, eventTypes, defaultEventType }
 
+  // ── Workflow diff tracking ────────────────────────────────────────────────
+  structureHash    String?   // SHA-256 of sorted module types; changes on structural edit
+  lastChangeAt     DateTime? // when structureHash last changed
+  lastChangeSummary String?  // human-readable diff: "Added: HubSpot. Removed: Slack."
+
   @@unique([workspaceId, makeId])
   @@index([workspaceId])
 }
@@ -771,6 +776,11 @@ model N8nWorkflowMeta {
   lastExecCursor   String?   // most recent processed execution ID (incremental polling cursor)
   eventFilter      String?   // JSON: { enabled, apps: string[], eventTypes: string[] }
   execSyncEnabled  Boolean   @default(true)  // whether to poll executions for this workflow
+
+  // ── Workflow diff tracking ────────────────────────────────────────────────
+  structureHash    String?   // SHA-256 of sorted node types+names; changes on structural edit
+  lastChangeAt     DateTime? // when structureHash last changed
+  lastChangeSummary String?  // human-readable diff: "Added: HubSpot. Removed: Slack."
 
   @@unique([workspaceId, n8nId])
   @@index([workspaceId])
@@ -1041,6 +1051,17 @@ model LeadActivitySummary {
   // true when importedAt > 7 days ago AND touchCountAllTime = 0
   isSilent        Boolean  @default(false)
   silentSince     DateTime?  // when the 7-day threshold was crossed with no outreach
+
+  // ── ICP Fit Score ─────────────────────────────────────────────────────────
+  // Computed from IqLead.title + IqLead.company against workspace ICP profile.
+  // Recomputed by icpScoringWorker when ICP profile changes or on enrichment.
+  icpScore  Int?      // 0–100; null = no ICP profile defined
+  icpGrade  String?   // "hot" | "warm" | "cold"; null = no ICP profile
+
+  // ── Churn Probability ─────────────────────────────────────────────────────
+  // Probability (0.0–1.0) that this lead will NOT convert from current stage.
+  // Computed by churnProbabilityService from workspace historical funnel rates.
+  churnProbability  Float?   // null = insufficient data
 
   // ── Worker metadata ───────────────────────────────────────────────────────
   computedAt  DateTime  @default(now()) @updatedAt

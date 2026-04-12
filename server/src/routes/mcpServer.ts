@@ -18,7 +18,7 @@
  *     }
  *   }
  *
- * All 28 tools are available:
+ * All 34 tools are available:
  *   Read:  get_live_feed, get_funnel, list_workflows, get_workflow_health,
  *          search_contacts, get_workflow_mirror, get_mirror_app_catalog
  *   Write: connect_integration, disconnect_integration, connect_n8n,
@@ -68,6 +68,12 @@ import {
 } from "../services/workflowScoreService";
 import { getRevenueAttribution } from "../services/revenueAttributionService";
 import { getNextActions } from "../services/nextActionsService";
+import { getLeadScore, scoreWorkspaceLeads } from "../services/icpScoringService";
+import { getExperimentResults } from "../services/experimentAttributionService";
+import { getRecentWorkflowChanges } from "../services/workflowDiffService";
+import { getWorkspaceChurnRates } from "../services/churnProbabilityService";
+import { getIntentSignals } from "../services/intentSignalService";
+import { getBenchmarks } from "../services/benchmarkService";
 
 const router = Router();
 
@@ -1943,6 +1949,98 @@ function createServer(workspaceId: string, baseUrl: string): any {
       filter_urgency?: "critical" | "high" | "medium" | "low";
     }) => {
       const result = await getNextActions(workspaceId, limit ?? 20, filter_action, filter_urgency);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_lead_score ────────────────────────────────────────────────────────
+  server.tool(
+    "get_lead_score",
+    "Returns ICP fit score (0–100) and grade (hot/warm/cold) for a specific lead, " +
+    "computed from their title and company against the workspace ICP profile. " +
+    "Use to prioritise which leads to act on first when combined with get_next_actions.",
+    {
+      iq_lead_id: z.string().describe("The iqLeadId to score (from get_next_actions or search_contacts)."),
+    },
+    async ({ iq_lead_id }: { iq_lead_id: string }) => {
+      const result = await getLeadScore(workspaceId, iq_lead_id);
+      if (!result) return { content: [{ type: "text" as const, text: JSON.stringify({ error: "Lead not found" }) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_experiment_results ────────────────────────────────────────────────
+  server.tool(
+    "get_experiment_results",
+    "Returns A/B experiment variant attribution with conversion rates, revenue per variant, " +
+    "chi-squared statistical significance test, and a plain-English recommendation (scale A, scale B, or continue). " +
+    "Use to decide which sequence variant to scale and which to retire.",
+    {
+      experiment_id: z.string().optional().describe("Specific experiment ID to fetch. Omit to get all experiments."),
+    },
+    async ({ experiment_id }: { experiment_id?: string }) => {
+      const result = await getExperimentResults(workspaceId, experiment_id);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_workflow_changes ──────────────────────────────────────────────────
+  server.tool(
+    "get_workflow_changes",
+    "Returns recent structural changes to n8n workflows (nodes added/removed) with timestamps and diff summaries. " +
+    "Use when diagnosing metric drops — correlate 'reply rate fell on Tuesday' with 'HeyReach node removed Monday'.",
+    {
+      since_days: z.number().int().min(1).max(90).default(7).describe(
+        "How many days back to look for changes. Default 7."
+      ),
+    },
+    async ({ since_days }: { since_days?: number }) => {
+      const result = await getRecentWorkflowChanges(workspaceId, since_days ?? 7);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_churn_rates ───────────────────────────────────────────────────────
+  server.tool(
+    "get_churn_rates",
+    "Returns workspace-level churn probability per funnel stage based on historical conversion data. " +
+    "Shows P(churn) and P(win) at each stage (imported → enriched → contacted → engaged → replied → meeting → won). " +
+    "Use to identify which funnel stage has the highest drop-off and where to focus intervention.",
+    {},
+    async () => {
+      const result = await getWorkspaceChurnRates(workspaceId);
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_intent_signals ────────────────────────────────────────────────────
+  server.tool(
+    "get_intent_signals",
+    "Returns recent intent signals (buying intent events) for leads in the workspace. " +
+    "Intent signals come from Clearbit Reveal, ZoomInfo Intent, Bombora, G2, and 6sense " +
+    "when those tools are connected via webhook or n8n. " +
+    "Use to identify which leads are showing active buying intent right now.",
+    {
+      window_days: z.number().int().min(1).max(90).default(30).describe("Days to look back. Default 30."),
+      iq_lead_id:  z.string().optional().describe("Filter to a specific lead. Omit to see all leads with intent signals."),
+      tool:        z.string().optional().describe("Filter by tool name (clearbit, zoominfo, bombora, g2, 6sense)."),
+    },
+    async ({ window_days, iq_lead_id, tool }: { window_days?: number; iq_lead_id?: string; tool?: string }) => {
+      const result = await getIntentSignals(workspaceId, { windowDays: window_days, iqLeadId: iq_lead_id, tool });
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_benchmarks ────────────────────────────────────────────────────────
+  server.tool(
+    "get_benchmarks",
+    "Returns anonymized industry conversion rate benchmarks (p25/median/p75) for key GTM metrics: " +
+    "email reply rate, meeting rate, deal win rate, LinkedIn acceptance rate. " +
+    "Shows where this workspace sits in the distribution (percentile rank). " +
+    "Use to contextualise whether a 2% reply rate is good or bad for the industry.",
+    {},
+    async () => {
+      const result = await getBenchmarks(workspaceId);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );

@@ -14,6 +14,7 @@ import { prisma } from "../db";
 import { decrypt } from "../utils/encryption";
 import { createNotification } from "./notificationService";
 import { extractN8nBranches, syncWorkflowBranches } from "./branchExtractor";
+import { detectAndPersistWorkflowDiff } from "./workflowDiffService";
 import { normalizeEventType } from "../utils/eventTaxonomy";
 
 // ── Node → App mapping ────────────────────────────────────────────────────────
@@ -386,6 +387,11 @@ export async function syncN8nConnection(
             syncedAt:      new Date(),
           },
         });
+
+        // Detect structural workflow changes (node additions/removals)
+        const oldAppsForDiff: string[] = existing ? JSON.parse(existing.appsUsed || "[]") : [];
+        detectAndPersistWorkflowDiff(workspaceId, wf.id, nodes, oldAppsForDiff, apps)
+          .catch(err => console.error(`[n8nClient] Diff persist failed for workflow ${wf.id}:`, err.message));
 
         // Extract and persist branch definitions (IF / Switch nodes)
         const branchRows = extractN8nBranches(wf.id, wf.name, nodes, connections);
