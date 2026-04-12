@@ -358,6 +358,10 @@ router.delete("/seed", requireAuth, async (req: Request, res: Response) => {
   await prisma.workflow.deleteMany({
     where: { workspaceId, name: "__gtm_flow_map__" },
   });
+  // Outreach
+  await prisma.outreachMetric.deleteMany({ where: { workspaceId } });
+  await prisma.outreachLead.deleteMany({ where: { workspaceId } });
+  await prisma.webhookDeliveryLog.deleteMany({ where: { workspaceId } });
 
   return res.json({ removed: true, workspace: membership.workspace.name });
 });
@@ -401,6 +405,9 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
     await prisma.n8nWorkflowMeta.deleteMany({ where: { workspaceId } });
     await prisma.webhookError.deleteMany({ where: { workspaceId } });
     await prisma.n8nConnection.deleteMany({ where: { workspaceId } });
+    await prisma.outreachMetric.deleteMany({ where: { workspaceId } });
+    await prisma.outreachLead.deleteMany({ where: { workspaceId } });
+    await prisma.webhookDeliveryLog.deleteMany({ where: { workspaceId } });
   }
 
   // ── 1. IntegrationConnections (15 tools) ─────────────────────────────────
@@ -1176,6 +1183,141 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
         triggerType:   "map",
         triggerConfig: JSON.stringify({ version: 2, stacks: demoStacks }),
       },
+    });
+  }
+
+  // ── 13. Outreach Intelligence & Improvement Report seed data ─────────────
+  //
+  // Seeds: OutreachLead × 26 unique contacts, OutreachMetric funnel events across
+  // 4 sequences, and WebhookDeliveryLog entries for the 30-day reliability panel.
+
+  const APOLLO_IDX    = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21];
+  const HEYREACH_IDX  = [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
+  const LEMLIST_IDX   = [8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
+  const INSTANTLY_IDX = [14,15,16,17,18,19,20,21,22,23,24,25];
+  // Leads 17-24 entered a sequence but went silent — they will appear in Stuck Leads
+  const STUCK_IDX     = new Set([17,18,19,20,21,22,23,24]);
+
+  const allOrIdx  = [...new Set([...APOLLO_IDX, ...HEYREACH_IDX, ...LEMLIST_IDX, ...INSTANTLY_IDX])];
+  const orlMap: Record<number, string> = {};
+
+  for (const idx of allOrIdx) {
+    const c        = CONTACTS[idx];
+    const emailHash = hmac(c.email.toLowerCase().trim());
+    const emailEnc  = encrypt(c.email);
+    const isStuck   = STUCK_IDX.has(idx);
+    const firstTool = APOLLO_IDX.includes(idx) ? "apollo" :
+                      HEYREACH_IDX.includes(idx) ? "heyreach" :
+                      LEMLIST_IDX.includes(idx) ? "lemlist" : "instantly";
+
+    const lead = await prisma.outreachLead.upsert({
+      where:  { workspaceId_emailHash: { workspaceId, emailHash } },
+      create: {
+        id:              `orl_${crypto.randomBytes(6).toString("hex")}`,
+        workspaceId,
+        emailHash,
+        emailEnc,
+        displayName:     `${c.first} ${c.last}`,
+        company:         c.company ?? null,
+        title:           c.title   ?? null,
+        firstTool,
+        firstSequenceAt: isStuck ? daysAgo(16, idx % 5) : daysAgo(22, idx % 7),
+        lastEventAt:     isStuck ? daysAgo(10 + (idx % 4)) : daysAgo(1 + (idx % 3)),
+      },
+      update: {},
+    });
+    orlMap[idx] = lead.id;
+  }
+
+  const upsertOM = async (
+    leadId: string, tool: string, seqId: string,
+    eventType: string, count: number, firstAt: Date, lastAt: Date,
+  ) => {
+    await prisma.outreachMetric.upsert({
+      where: {
+        workspaceId_leadId_tool_sequenceId_stepId_eventType: {
+          workspaceId, leadId, tool, sequenceId: seqId, stepId: "", eventType,
+        },
+      },
+      create: { workspaceId, leadId, tool, sequenceId: seqId, stepId: "", eventType, count, firstAt, lastAt },
+      update: {},
+    });
+  };
+
+  // Apollo cold outbound — 22 leads
+  // Funnel: 22 sent → 16 opened → 7 replied → 3 meetings  (reply rate 31.8%)
+  for (let i = 0; i < APOLLO_IDX.length; i++) {
+    const leadId = orlMap[APOLLO_IDX[i]];
+    const base   = daysAgo(22, APOLLO_IDX[i] % 5);
+    await upsertOM(leadId, "apollo", "seq_apollo_cold_q1", "sequence_started", 1, base, base);
+    await upsertOM(leadId, "apollo", "seq_apollo_cold_q1", "email_sent",       1, base, daysAgo(20, i % 3));
+    if (i < 16) await upsertOM(leadId, "apollo", "seq_apollo_cold_q1", "email_opened",   1, daysAgo(19), daysAgo(18));
+    if (i <  7) await upsertOM(leadId, "apollo", "seq_apollo_cold_q1", "reply_received", 1, daysAgo(16), daysAgo(16));
+    if (i <  3) await upsertOM(leadId, "apollo", "seq_apollo_cold_q1", "meeting_booked", 1, daysAgo(14), daysAgo(14));
+  }
+
+  // HeyReach LinkedIn — 18 leads
+  // Funnel: 18 connection requests → 11 accepted → 6 replied → 2 meetings  (reply 33.3%)
+  for (let i = 0; i < HEYREACH_IDX.length; i++) {
+    const leadId = orlMap[HEYREACH_IDX[i]];
+    const base   = daysAgo(25, HEYREACH_IDX[i] % 4);
+    await upsertOM(leadId, "heyreach", "seq_heyreach_li_icp", "connection_request_sent", 1, base, base);
+    if (i < 11) await upsertOM(leadId, "heyreach", "seq_heyreach_li_icp", "connection_accepted", 1, daysAgo(22), daysAgo(22));
+    if (i <  6) await upsertOM(leadId, "heyreach", "seq_heyreach_li_icp", "reply_received",      1, daysAgo(20), daysAgo(20));
+    if (i <  2) await upsertOM(leadId, "heyreach", "seq_heyreach_li_icp", "meeting_booked",      1, daysAgo(18), daysAgo(18));
+  }
+
+  // Lemlist inbound nurture — 15 leads
+  // Funnel: 15 sent → 9 opened → 3 replied → 1 meeting  (reply 20%)
+  for (let i = 0; i < LEMLIST_IDX.length; i++) {
+    const leadId = orlMap[LEMLIST_IDX[i]];
+    const base   = daysAgo(19, LEMLIST_IDX[i] % 6);
+    await upsertOM(leadId, "lemlist", "seq_lemlist_nurture", "sequence_started", 1, base, base);
+    await upsertOM(leadId, "lemlist", "seq_lemlist_nurture", "email_sent",       1, base, daysAgo(18));
+    if (i < 9) await upsertOM(leadId, "lemlist", "seq_lemlist_nurture", "email_opened",   1, daysAgo(17), daysAgo(17));
+    if (i < 3) await upsertOM(leadId, "lemlist", "seq_lemlist_nurture", "reply_received", 1, daysAgo(15), daysAgo(15));
+    if (i < 1) await upsertOM(leadId, "lemlist", "seq_lemlist_nurture", "meeting_booked", 1, daysAgo(13), daysAgo(13));
+  }
+
+  // Instantly warm re-engagement — 12 leads
+  // Funnel: 12 sent → 7 opened → 1 replied → 1 meeting  (reply 8.3%)
+  for (let i = 0; i < INSTANTLY_IDX.length; i++) {
+    const leadId = orlMap[INSTANTLY_IDX[i]];
+    const base   = daysAgo(15, INSTANTLY_IDX[i] % 3);
+    await upsertOM(leadId, "instantly", "seq_instantly_warmup", "sequence_started", 1, base, base);
+    await upsertOM(leadId, "instantly", "seq_instantly_warmup", "email_sent",       1, base, daysAgo(14));
+    if (i < 7) await upsertOM(leadId, "instantly", "seq_instantly_warmup", "email_opened",   1, daysAgo(13), daysAgo(13));
+    if (i < 1) await upsertOM(leadId, "instantly", "seq_instantly_warmup", "reply_received", 1, daysAgo(11), daysAgo(11));
+    if (i < 1) await upsertOM(leadId, "instantly", "seq_instantly_warmup", "meeting_booked", 1, daysAgo(10), daysAgo(10));
+  }
+
+  // WebhookDeliveryLog — 30 days of realistic data per tool
+  const WH_TOOLS = [
+    { tool: "apollo",    processed: 72, noId: 4, error: 4 },
+    { tool: "heyreach",  processed: 57, noId: 5, error: 3 },
+    { tool: "lemlist",   processed: 41, noId: 2, error: 2 },
+    { tool: "instantly", processed: 34, noId: 2, error: 2 },
+    { tool: "clay",      processed: 112, noId: 5, error: 3 },
+  ];
+
+  for (const wt of WH_TOOLS) {
+    const statuses = [
+      ...Array<string>(wt.processed).fill("processed"),
+      ...Array<string>(wt.noId).fill("dropped_no_identity"),
+      ...Array<string>(wt.error).fill("error"),
+    ];
+    const total = statuses.length;
+    await prisma.webhookDeliveryLog.createMany({
+      data: statuses.map((status, i) => ({
+        workspaceId,
+        tool:        wt.tool,
+        rawEventKey: status === "processed" ? "contact.enriched" : "contact.created",
+        eventType:   status === "processed" ? "contact_enriched" : "unknown",
+        status,
+        errorMsg:    status === "error" ? "Timeout after 30000ms" : null,
+        receivedAt:  new Date(Date.now() - (i / total) * 30 * 86_400_000),
+      })),
+      skipDuplicates: true,
     });
   }
 
