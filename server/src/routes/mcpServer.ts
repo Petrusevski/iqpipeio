@@ -18,7 +18,7 @@
  *     }
  *   }
  *
- * All 26 tools are available:
+ * All 27 tools are available:
  *   Read:  get_live_feed, get_funnel, list_workflows, get_workflow_health,
  *          search_contacts, get_workflow_mirror, get_mirror_app_catalog
  *   Write: connect_integration, disconnect_integration, connect_n8n,
@@ -27,6 +27,7 @@
  *          list_deals, create_deal, update_deal,
  *          list_accounts, create_account, update_account
  *   Diagnostics: get_anomalies, diagnose_issue, apply_fix, watch_recovery
+ *   Revenue:     get_revenue_attribution
  */
 
 import { Router, Request, Response } from "express";
@@ -65,6 +66,7 @@ import {
   enrichWithBranches,
   periodStart,
 } from "../services/workflowScoreService";
+import { getRevenueAttribution } from "../services/revenueAttributionService";
 
 const router = Router();
 
@@ -1911,6 +1913,25 @@ function createServer(workspaceId: string, baseUrl: string): any {
       if (platform === "n8n" || platform === "both") result.n8n_node  = n8nNode;
       if (platform === "make" || platform === "both") result.make_module = makeModule;
 
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // ── get_revenue_attribution ────────────────────────────────────────────────
+  server.tool(
+    "get_revenue_attribution",
+    "Returns revenue and pipeline attributed to each n8n / Make workflow over a given window. " +
+    "Two models are returned: last_touch (100% credit to the final workflow before outcome) and " +
+    "linear (value split equally across all workflows that touched the lead before the outcome). " +
+    "Use this to identify which workflows generate the most pipeline and closed revenue, and to " +
+    "decide where to invest automation effort.",
+    {
+      window_days: z.number().int().min(1).max(365).default(90).describe(
+        "How many days back to look. Default 90. Use 30 for recent performance, 365 for annual view."
+      ),
+    },
+    async ({ window_days }: { window_days?: number }) => {
+      const result = await getRevenueAttribution(workspaceId, window_days ?? 90);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
