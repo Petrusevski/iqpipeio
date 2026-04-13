@@ -12,6 +12,7 @@
  * What is seeded:
  *  - 15 IntegrationConnections (6 Live · 5 Slow · 4 Silent)
  *  - 43 IqLeads with full cross-tool touchpoint history
+ *  - LeadActivitySummary rows (backfilled immediately after seed)
  *  - N8nConnection + 4 N8nWorkflowMeta (91.8 / 87.3 / 70.3 / 93.2 % success)
  *  - MakeConnection + 2 MakeScenarioMeta (89.6 / 97.4 % success)
  *  - N8nQueuedEvents for all 4 n8n workflows
@@ -26,6 +27,9 @@ import crypto from "crypto";
 import { prisma } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { encrypt } from "../utils/encryption";
+import { backfillWorkspace } from "../services/activitySummarizer";
+import { backfillChurnProbabilities } from "../services/churnProbabilityService";
+import { scoreWorkspaceLeads } from "../services/icpScoringService";
 
 const router = Router();
 
@@ -1343,6 +1347,15 @@ router.post("/seed", requireAuth, async (req: Request, res: Response) => {
     where: { id: workspaceId },
     data:  { isDemo: true },
   });
+
+  // Populate LeadActivitySummary immediately so MCP tools (get_next_actions,
+  // get_funnel, etc.) return data right after seeding without waiting for the
+  // 6-hour background worker to run.
+  await backfillWorkspace(workspaceId, true);
+  // Fire-and-forget: churn probabilities + ICP scores (no ICP profile yet, so
+  // these will be null, but the rows are created for subsequent scoring)
+  backfillChurnProbabilities(workspaceId).catch(console.error);
+  scoreWorkspaceLeads(workspaceId).catch(console.error);
 
   res.json({
     seeded: true,

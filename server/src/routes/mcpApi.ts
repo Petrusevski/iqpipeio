@@ -1061,7 +1061,7 @@ router.get("/setup-script", requireAuth, async (req: any, res: Response) => {
     }
 
     const key    = workspace.publicApiKey;
-    const mcpUrl = `https://iqpipe.vercel.app/mcp?key=${key}`;
+    const mcpUrl = `${req.protocol}://${req.get("host")}/mcp?key=${key}`;
 
     if (platform === "mac") {
       const script = `#!/bin/bash

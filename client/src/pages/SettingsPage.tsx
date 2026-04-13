@@ -807,7 +807,7 @@ function McpUpgradeCta() {
 }
 
 function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
-  const MCP_URL    = "https://iqpipe.vercel.app/mcp";
+  const MCP_URL    = `${window.location.origin}/mcp`;
   const fullUrl    = apiKey ? `${MCP_URL}?key=${apiKey}` : "";
   const CLAUDE_AI_INTEGRATIONS = "https://claude.ai/settings/integrations";
 
@@ -860,8 +860,8 @@ function ClaudeConnectPanel({ apiKey }: { apiKey: string }) {
   };
 
   const setupCommand = platform === "windows"
-    ? `irm "${MCP_URL.replace("https://", "https://")}/api/mcp/setup-script?platform=windows" -Headers @{Authorization="Bearer ${apiKey}"} | iex`
-    : `curl -sH "Authorization: Bearer ${apiKey}" "${API_BASE_URL}/api/mcp/setup-script?platform=mac" | bash`;
+    ? `irm "${window.location.origin}/api/mcp/setup-script?platform=windows" -Headers @{Authorization="Bearer ${apiKey}"} | iex`
+    : `curl -sH "Authorization: Bearer ${apiKey}" "${window.location.origin}/api/mcp/setup-script?platform=mac" | bash`;
 
   const testConnection = async () => {
     if (!apiKey) return;

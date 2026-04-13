@@ -127,13 +127,15 @@ function createServer(workspaceId: string, baseUrl: string): any {
       const h24 = new Date(now.getTime() - 24 * 3_600_000);
       const d7  = new Date(now.getTime() - 7 * 24 * 3_600_000);
 
-      const [connections, allTime, cnt24h, cnt7d, lastEvt, byType] = await Promise.all([
+      const [connections, allTime, cnt24h, cnt7d, lastEvt, byType, totalLeads, totalTouchpoints] = await Promise.all([
         prisma.integrationConnection.findMany({ where: { workspaceId, status: "connected" }, select: { provider: true } }),
         prisma.touchpoint.groupBy({ by: ["tool"], where: { workspaceId }, _count: { id: true } }),
         prisma.touchpoint.groupBy({ by: ["tool"], where: { workspaceId, recordedAt: { gte: h24 } }, _count: { id: true } }),
         prisma.touchpoint.groupBy({ by: ["tool"], where: { workspaceId, recordedAt: { gte: d7  } }, _count: { id: true } }),
         prisma.touchpoint.findMany({ where: { workspaceId }, orderBy: { recordedAt: "desc" }, distinct: ["tool"], select: { tool: true, recordedAt: true } }),
         prisma.touchpoint.groupBy({ by: ["tool", "eventType"], where: { workspaceId }, _count: { id: true }, orderBy: { _count: { id: "desc" } } }),
+        prisma.iqLead.count({ where: { workspaceId } }),
+        prisma.touchpoint.count({ where: { workspaceId } }),
       ]);
 
       const mapAll  = Object.fromEntries(allTime.map(r => [r.tool, r._count.id]));
@@ -167,7 +169,15 @@ function createServer(workspaceId: string, baseUrl: string): any {
         };
       });
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(cards, null, 2) }] };
+      const result = {
+        totalLeads,
+        totalTouchpoints,
+        tools: cards,
+        hint: totalLeads === 0
+          ? "No contacts in workspace yet. Seed demo data from Settings → Demo, or connect n8n/Make workflows to start ingesting events."
+          : undefined,
+      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
 
@@ -344,6 +354,15 @@ function createServer(workspaceId: string, baseUrl: string): any {
         where, orderBy: { lastSeenAt: "desc" }, take: limit ?? 50,
         select: { id: true, displayName: true, company: true, title: true, firstSeenAt: true, lastSeenAt: true },
       });
+
+      if (leads.length === 0) {
+        const total = await prisma.iqLead.count({ where: { workspaceId } });
+        const hint = total === 0
+          ? "No contacts in this workspace yet. Import leads via a connected n8n/Make workflow, a CSV upload, or seed demo data from Settings → Demo."
+          : `No contacts matched your filter (${total} total contacts in workspace). Try removing the eventType or q filter.`;
+        return { content: [{ type: "text" as const, text: JSON.stringify({ contacts: [], hint }, null, 2) }] };
+      }
+
       return {
         content: [{
           type: "text" as const,
