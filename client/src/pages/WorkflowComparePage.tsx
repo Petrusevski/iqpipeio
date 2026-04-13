@@ -13,7 +13,7 @@ import {
   Trophy, TrendingUp, RefreshCw, ChevronDown,
   Bot, Layers, AlertTriangle, CheckCircle2,
   BarChart3, Zap, ShieldCheck,
-  Network, Star, ArrowUpRight, Info, Download, FileSpreadsheet, X, SlidersHorizontal, RotateCcw,
+  Network, Star, ArrowUpRight, Info, Download, FileSpreadsheet, X, SlidersHorizontal, RotateCcw, Save,
 } from "lucide-react";
 import { API_BASE_URL } from "../../config";
 
@@ -22,6 +22,22 @@ import { API_BASE_URL } from "../../config";
 type Period = "7d" | "30d" | "90d" | "all";
 
 const DEFAULT_WEIGHTS = { reliability: 30, throughput: 25, connectivity: 20, criticality: 25 };
+const WEIGHTS_STORAGE_KEY = "iqpipe_workflow_weights";
+
+function loadSavedWeights() {
+  try {
+    const raw = localStorage.getItem(WEIGHTS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed.reliability === "number" &&
+      typeof parsed.throughput  === "number" &&
+      typeof parsed.connectivity === "number" &&
+      typeof parsed.criticality  === "number"
+    ) return parsed;
+  } catch {}
+  return null;
+}
 
 const PERIOD_LABELS: Record<Period, string> = {
   "7d": "Last 7 days", "30d": "Last 30 days",
@@ -255,8 +271,10 @@ export default function WorkflowComparePage() {
 
   const [period,         setPeriod]         = useState<Period>("30d");
   const [showPeriodMenu, setShowPeriodMenu] = useState(false);
-  const [weights,        setWeights]        = useState({ ...DEFAULT_WEIGHTS });
+  const [weights,        setWeights]        = useState(() => loadSavedWeights() ?? { ...DEFAULT_WEIGHTS });
+  const [savedWeights,   setSavedWeights]   = useState(() => loadSavedWeights() ?? { ...DEFAULT_WEIGHTS });
   const [showWeights,    setShowWeights]    = useState(false);
+  const [weightSaved,    setWeightSaved]    = useState(false);
   const [wsId,         setWsId]         = useState<string | null>(null);
   const [loadingWs,    setLoadingWs]    = useState(true);
   const [loadingN8n,   setLoadingN8n]   = useState(false);
@@ -871,7 +889,11 @@ export default function WorkflowComparePage() {
                 </button>
                 {isCustom && (
                   <button
-                    onClick={() => setWeights({ ...DEFAULT_WEIGHTS })}
+                    onClick={() => {
+                      setWeights({ ...DEFAULT_WEIGHTS });
+                      setSavedWeights({ ...DEFAULT_WEIGHTS });
+                      localStorage.removeItem(WEIGHTS_STORAGE_KEY);
+                    }}
                     className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-300 transition-colors"
                   >
                     <RotateCcw size={10} /> Reset
@@ -880,13 +902,36 @@ export default function WorkflowComparePage() {
               </div>
 
               {/* Weight sliders */}
-              {showWeights && (
+              {showWeights && (() => {
+                const hasUnsaved = JSON.stringify(weights) !== JSON.stringify(savedWeights);
+                return (
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-xs font-semibold text-slate-400">Pillar Weights</p>
-                    <p className={`text-xs tabular-nums font-medium ${weightTotal === 100 ? "text-emerald-400" : "text-amber-400"}`}>
-                      Total: {weightTotal} {weightTotal !== 100 && <span className="text-slate-600">(normalized to 100% on compare)</span>}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className={`text-xs tabular-nums font-medium ${weightTotal === 100 ? "text-emerald-400" : "text-amber-400"}`}>
+                        Total: {weightTotal} {weightTotal !== 100 && <span className="text-slate-600">(normalized to 100% on compare)</span>}
+                      </p>
+                      <button
+                        onClick={() => {
+                          localStorage.setItem(WEIGHTS_STORAGE_KEY, JSON.stringify(weights));
+                          setSavedWeights({ ...weights });
+                          setWeightSaved(true);
+                          setTimeout(() => setWeightSaved(false), 2000);
+                        }}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                          weightSaved
+                            ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
+                            : hasUnsaved
+                              ? "bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25"
+                              : "bg-slate-800 border border-slate-700 text-slate-500 cursor-default"
+                        }`}
+                        disabled={!hasUnsaved && !weightSaved}
+                      >
+                        <Save size={10} />
+                        {weightSaved ? "Saved" : "Save weights"}
+                      </button>
+                    </div>
                   </div>
                   {PILLAR_META.map(p => {
                     const key = p.key as keyof typeof weights;
@@ -923,7 +968,8 @@ export default function WorkflowComparePage() {
                     );
                   })}
                 </div>
-              )}
+                );
+              })()}
             </div>
           );
         })()}
