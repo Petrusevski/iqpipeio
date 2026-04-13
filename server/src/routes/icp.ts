@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../db";
 import { ACTIVITY_DELTA, applyActivityDeltas } from "../utils/icpUtils";
+import { scoreWorkspaceLeads } from "../services/icpScoringService";
 
 const router = Router();
 
@@ -116,6 +117,10 @@ router.post("/profile", async (req: Request, res: Response) => {
         data: { workspaceId, provider: "icp_profile", status: "active", authData: JSON.stringify(profile) },
       });
     }
+    // Fire-and-forget: backfill icpScore/icpGrade on LeadActivitySummary
+    scoreWorkspaceLeads(workspaceId).catch(err =>
+      console.error("[icp/profile] IqLead scoring failed:", err.message)
+    );
     return res.json({ success: true });
   } catch {
     return res.status(500).json({ error: "Failed to save ICP profile" });

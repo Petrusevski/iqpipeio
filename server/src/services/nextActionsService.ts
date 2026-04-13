@@ -56,6 +56,9 @@ export interface NextAction {
     enrichmentAgeDays:  number | null;
     touchCount30d:      number;
     lastTool:           string | null;
+    icpScore:           number | null;   // 0–100; null = no ICP profile
+    icpGrade:           string | null;   // "hot" | "warm" | "cold"
+    churnProbability:   number | null;   // 0.0–1.0; null = insufficient data
   };
   score: number;   // raw numeric score — for transparency
 }
@@ -228,6 +231,9 @@ export async function getNextActions(
       enrichmentAgeDays:  true,
       enrichmentBucket:   true,
       touchBreakdown7d:   true,
+      icpScore:           true,
+      icpGrade:           true,
+      churnProbability:   true,
       iqLead: {
         select: {
           displayName: true,
@@ -235,7 +241,7 @@ export async function getNextActions(
           title:       true,
         },
       },
-    },
+    } as any,
   });
 
   const totalLeads = summaries.length;
@@ -253,7 +259,7 @@ export async function getNextActions(
   // ── 3. Score and classify every lead ──────────────────────────────────────
   const scored: (NextAction & { score: number })[] = [];
 
-  for (const s of summaries) {
+  for (const s of summaries as any[]) {
     const stage     = s.funnelStage;
     const base      = STAGE_BASE[stage];
 
@@ -264,11 +270,21 @@ export async function getNextActions(
       ? Math.floor((Date.now() - s.lastOutreachAt.getTime()) / 86_400_000)
       : null;
 
+    // ICP score bonus: hot=+20, warm=+10, cold=0, no profile=0
+    const icpBonus = s.icpGrade === "hot" ? 20 : s.icpGrade === "warm" ? 10 : 0;
+
+    // Churn probability bonus: high churn = more urgent to act (max +15)
+    const churnBonus = s.churnProbability != null
+      ? Math.round(s.churnProbability * 15)
+      : 0;
+
     const score =
       base +
       staleBonus(daysSince, stage) +
       enrichmentFactor(s.enrichmentBucket, stage) +
-      silenceBonus(s.isSilent);
+      silenceBonus(s.isSilent) +
+      icpBonus +
+      churnBonus;
 
     const action = classifyAction(
       stage,
@@ -305,6 +321,9 @@ export async function getNextActions(
         enrichmentAgeDays: s.enrichmentAgeDays ?? null,
         touchCount30d:     s.touchCount30d,
         lastTool:          tool,
+        icpScore:          s.icpScore          ?? null,
+        icpGrade:          s.icpGrade          ?? null,
+        churnProbability:  s.churnProbability  ?? null,
       },
       score,
     });

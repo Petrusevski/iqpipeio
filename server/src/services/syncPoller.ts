@@ -17,6 +17,8 @@ import { syncAllMakeConnections } from "./makeClient";
 import { startAnomalyDetector } from "./anomalyDetector";
 import { runFullBackfill } from "./activitySummarizer";
 import { runSilentLeadScan, runEnrichmentFreshnessCheck } from "./pipelineWorkers";
+import { backfillChurnProbabilities } from "./churnProbabilityService";
+import { scoreWorkspaceLeads } from "./icpScoringService";
 import { startDeferredJobRunner } from "./deferredJobRunner";
 import { prisma } from "../db";
 import { PLAN_LIMITS } from "../utils/quota";
@@ -165,4 +167,37 @@ export function startSyncPoller(): void {
       runEnrichmentFreshnessCheck().catch(console.error);
     }, FRESHNESS_INTERVAL_MS);
   }, 3 * 60_000);
+
+  // Churn probability + ICP score backfill — delay first run by 5 min (after
+  // the summarizer has written funnel stages), then every 6 hours.
+  // Keeps churnProbability and icpScore/icpGrade current on LeadActivitySummary.
+  setTimeout(async () => {
+    try {
+      const workspaces = await prisma.workspace.findMany({
+        select: { id: true },
+        where:  { isDemo: false },
+      });
+      for (const ws of workspaces) {
+        backfillChurnProbabilities(ws.id).catch(console.error);
+        scoreWorkspaceLeads(ws.id).catch(console.error);
+      }
+    } catch (err: any) {
+      console.error("[syncPoller] churn/icp backfill error:", err.message);
+    }
+
+    setInterval(async () => {
+      try {
+        const workspaces = await prisma.workspace.findMany({
+          select: { id: true },
+          where:  { isDemo: false },
+        });
+        for (const ws of workspaces) {
+          backfillChurnProbabilities(ws.id).catch(console.error);
+          scoreWorkspaceLeads(ws.id).catch(console.error);
+        }
+      } catch (err: any) {
+        console.error("[syncPoller] churn/icp backfill error:", err.message);
+      }
+    }, SUMMARIZER_INTERVAL_MS);
+  }, 5 * 60_000);
 }
