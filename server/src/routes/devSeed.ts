@@ -367,6 +367,12 @@ router.delete("/seed", requireAuth, async (req: Request, res: Response) => {
   await prisma.outreachLead.deleteMany({ where: { workspaceId } });
   await prisma.webhookDeliveryLog.deleteMany({ where: { workspaceId } });
 
+  // Clear the demo flag so the banner disappears immediately
+  await prisma.workspace.update({
+    where: { id: workspaceId },
+    data:  { isDemo: false },
+  });
+
   return res.json({ removed: true, workspace: membership.workspace.name });
 });
 

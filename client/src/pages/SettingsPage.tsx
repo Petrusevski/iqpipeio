@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import { useSettings } from "../hooks/useSettings";
+import { markDemoMode } from "../hooks/useDemoMode";
 import {
   Clock, AlertTriangle, X,
   Receipt, Download, Loader2, ChevronDown,
@@ -1178,6 +1179,7 @@ function DemoDataPanel() {
         setInfo(null);
         setStatus("empty");
         setMsg("Demo data removed. Workspace is clean.");
+        markDemoMode(false);
       } else {
         setStatus("seeded");
         setMsg(d.error ?? "Failed to remove demo data.");
